@@ -27,7 +27,7 @@ function StepTabs({
       {steps.map((step, index) => (
         <button
           className={cn(
-            "rounded-lg border border-border px-3 py-2 text-sm font-medium transition hover:bg-secondary",
+            "min-w-0 rounded-lg border border-border px-2 py-2 text-xs font-medium transition hover:bg-secondary sm:px-3 sm:text-sm",
             currentStep === index &&
               "border-slate-950 bg-slate-950 text-white hover:bg-slate-900"
           )}
@@ -195,8 +195,9 @@ export function CreateMatchDrawer({
             />
           </section>
 
-          <div className="sticky bottom-0 -mx-5 flex items-center justify-between gap-3 border-t border-border bg-white px-5 py-4">
+          <div className="sticky bottom-0 -mx-4 flex flex-col-reverse gap-2 border-t border-border bg-white/95 px-4 py-4 backdrop-blur sm:-mx-5 sm:flex-row sm:items-center sm:justify-between sm:px-5">
             <Button
+              className="w-full sm:w-auto"
               disabled={step === 0}
               onClick={() => setStep((current) => Math.max(0, current - 1))}
               type="button"
@@ -207,6 +208,7 @@ export function CreateMatchDrawer({
             </Button>
             {step < steps.length - 1 ? (
               <Button
+                className="w-full sm:w-auto"
                 onClick={() =>
                   setStep((current) => Math.min(steps.length - 1, current + 1))
                 }
@@ -216,7 +218,7 @@ export function CreateMatchDrawer({
                 <ChevronRight aria-hidden="true" className="h-4 w-4" />
               </Button>
             ) : (
-              <Button type="submit">
+              <Button className="w-full sm:w-auto" type="submit">
                 <Check aria-hidden="true" className="h-4 w-4" />
                 Spiel speichern
               </Button>
