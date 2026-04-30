@@ -363,7 +363,10 @@ export async function createPlayer(formData: FormData) {
   }
 
   revalidatePath("/");
+  revalidatePath("/materials");
+  revalidatePath("/pitch");
   revalidatePath("/players");
+  revalidatePath("/tactics");
 }
 
 export async function importPlayers(formData: FormData) {
@@ -422,7 +425,10 @@ export async function importPlayers(formData: FormData) {
   }
 
   revalidatePath("/");
+  revalidatePath("/materials");
+  revalidatePath("/pitch");
   revalidatePath("/players");
+  revalidatePath("/tactics");
 }
 
 export async function updatePlayer(formData: FormData) {
@@ -479,8 +485,11 @@ export async function updatePlayer(formData: FormData) {
   }
 
   revalidatePath("/");
+  revalidatePath("/materials");
+  revalidatePath("/pitch");
   revalidatePath("/players");
   revalidatePath(`/players/${id}`);
+  revalidatePath("/tactics");
 }
 
 export async function deletePlayer(formData: FormData) {
@@ -498,7 +507,10 @@ export async function deletePlayer(formData: FormData) {
   }
 
   revalidatePath("/");
+  revalidatePath("/materials");
+  revalidatePath("/pitch");
   revalidatePath("/players");
+  revalidatePath("/tactics");
 }
 
 function trainingPayload(formData: FormData) {
@@ -585,6 +597,7 @@ export async function createTraining(formData: FormData) {
 
   revalidatePath("/");
   revalidatePath("/calendar");
+  revalidatePath("/pitch");
   revalidatePath("/trainings");
 }
 
@@ -625,6 +638,7 @@ export async function updateTraining(formData: FormData) {
 
   revalidatePath("/");
   revalidatePath("/calendar");
+  revalidatePath("/pitch");
   revalidatePath("/trainings");
 }
 
@@ -709,6 +723,7 @@ export async function duplicateTraining(formData: FormData) {
   }
 
   revalidatePath("/calendar");
+  revalidatePath("/pitch");
   revalidatePath("/trainings");
 }
 
@@ -728,6 +743,7 @@ export async function deleteTraining(formData: FormData) {
 
   revalidatePath("/");
   revalidatePath("/calendar");
+  revalidatePath("/pitch");
   revalidatePath("/trainings");
 }
 
@@ -792,6 +808,7 @@ export async function createAiTrainingDraft(formData: FormData) {
 
   revalidatePath("/");
   revalidatePath("/calendar");
+  revalidatePath("/pitch");
   revalidatePath("/trainings");
 }
 
@@ -861,6 +878,7 @@ export async function createPresetTraining(formData: FormData) {
 
   revalidatePath("/");
   revalidatePath("/calendar");
+  revalidatePath("/pitch");
   revalidatePath("/trainings");
 }
 
@@ -906,6 +924,7 @@ export async function saveAttendance(formData: FormData) {
   }
 
   revalidatePath("/");
+  revalidatePath("/pitch");
   revalidatePath("/trainings");
 }
 
@@ -955,6 +974,7 @@ export async function createMatch(formData: FormData) {
   revalidatePath("/");
   revalidatePath("/calendar");
   revalidatePath("/matches");
+  revalidatePath("/pitch");
 }
 
 export async function updateMatch(formData: FormData) {
@@ -974,6 +994,7 @@ export async function updateMatch(formData: FormData) {
   revalidatePath("/");
   revalidatePath("/calendar");
   revalidatePath("/matches");
+  revalidatePath("/pitch");
 }
 
 export async function deleteMatch(formData: FormData) {
@@ -993,6 +1014,7 @@ export async function deleteMatch(formData: FormData) {
   revalidatePath("/");
   revalidatePath("/calendar");
   revalidatePath("/matches");
+  revalidatePath("/pitch");
 }
 
 async function buildMaterialContent(
@@ -1432,6 +1454,7 @@ export async function createTask(formData: FormData) {
   }
 
   revalidatePath("/");
+  revalidatePath("/pitch");
 }
 
 export async function toggleTask(formData: FormData) {
@@ -1450,6 +1473,7 @@ export async function toggleTask(formData: FormData) {
   }
 
   revalidatePath("/");
+  revalidatePath("/pitch");
 }
 
 export async function addFeedback(formData: FormData) {

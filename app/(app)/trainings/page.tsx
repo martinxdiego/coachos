@@ -56,8 +56,68 @@ function phaseByType(phases: TrainingPhase[], type: TrainingPhaseType) {
   return phases.find((phase) => phase.phase_type === type);
 }
 
+function phaseLabel(type: TrainingPhaseType) {
+  return phaseConfig.find((phase) => phase.type === type)?.label ?? type;
+}
+
 function safeDate(value?: string) {
   return value && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : todayIsoDate();
+}
+
+function TrainingTimeline({
+  phases,
+  totalMinutes
+}: {
+  phases: TrainingPhase[];
+  totalMinutes: number;
+}) {
+  if (phases.length === 0) {
+    return (
+      <div className="rounded-xl border border-dashed border-border bg-background/70 p-4 text-sm text-muted-foreground">
+        Noch keine Phasen. Öffne “Training bearbeiten” und lege den Ablauf als Timeline an.
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-xl border border-border bg-background/70 p-4">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-sm font-semibold">Ablauf</p>
+        <Badge variant="secondary">{totalMinutes || 0} Min geplant</Badge>
+      </div>
+      <div className="mt-4 grid gap-3">
+        {phases.map((phase, index) => (
+          <div
+            className="grid gap-3 rounded-xl bg-white p-3 shadow-sm shadow-slate-950/5 sm:grid-cols-[34px_1fr_auto]"
+            key={phase.id}
+          >
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-950 text-xs font-semibold text-white">
+              {index + 1}
+            </div>
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant="secondary">{phaseLabel(phase.phase_type)}</Badge>
+                <p className="truncate font-semibold">{phase.title}</p>
+              </div>
+              {phase.description ? (
+                <p className="mt-2 line-clamp-2 text-sm leading-6 text-muted-foreground">
+                  {phase.description}
+                </p>
+              ) : null}
+              <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground">
+                {phase.material ? <span>Material: {phase.material}</span> : null}
+                {phase.field_size ? <span>Feld: {phase.field_size}</span> : null}
+                {phase.player_count ? <span>Spieler: {phase.player_count}</span> : null}
+              </div>
+            </div>
+            <div className="rounded-lg bg-secondary px-3 py-2 text-sm font-semibold sm:self-start">
+              {phase.duration_minutes ?? 0} Min
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 function PhaseFields({
@@ -559,6 +619,11 @@ export default async function TrainingsPage({ searchParams }: TrainingsPageProps
                         {training.goal}
                       </p>
                     ) : null}
+
+                    <TrainingTimeline
+                      phases={phases}
+                      totalMinutes={totalMinutes}
+                    />
 
                     <div className="rounded-xl border border-border bg-background/70 p-4">
                       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">

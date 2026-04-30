@@ -2,7 +2,9 @@ import Link from "next/link";
 import { Dumbbell, LogOut, Plus } from "lucide-react";
 import { signOut } from "@/app/actions";
 import { AppNav } from "@/components/app-nav";
+import { MobileBottomNav } from "@/components/mobile-bottom-nav";
 import { PageTransition } from "@/components/page-transition";
+import { QuickCreate } from "@/components/quick-create";
 import { Button } from "@/components/ui/button";
 import { WorkspaceSwitcher } from "@/components/workspace-switcher";
 import type { TeamOption } from "@/lib/auth";
@@ -95,9 +97,11 @@ export function AppShell({
           </div>
         </div>
       </header>
-      <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8">
+      <main className="mx-auto max-w-7xl px-4 pb-28 pt-6 sm:px-6 sm:py-8">
         <PageTransition>{children}</PageTransition>
       </main>
+      <QuickCreate enabled={Boolean(activeTeam)} />
+      <MobileBottomNav enabled={Boolean(activeTeam)} />
     </div>
   );
 }
