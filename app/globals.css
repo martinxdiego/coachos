@@ -3,26 +3,26 @@
 @tailwind utilities;
 
 :root {
-  --background: 210 24% 98%;
+  --background: 210 28% 97%;
   --foreground: 222 47% 11%;
   --card: 0 0% 100%;
   --card-foreground: 222 47% 11%;
   --popover: 0 0% 100%;
   --popover-foreground: 222 47% 11%;
-  --primary: 163 72% 28%;
+  --primary: 158 72% 32%;
   --primary-foreground: 0 0% 100%;
-  --secondary: 210 20% 94%;
+  --secondary: 210 24% 93%;
   --secondary-foreground: 222 47% 11%;
-  --muted: 210 20% 94%;
+  --muted: 210 24% 93%;
   --muted-foreground: 215 16% 43%;
-  --accent: 210 20% 94%;
-  --accent-foreground: 222 47% 11%;
+  --accent: 158 55% 92%;
+  --accent-foreground: 158 72% 22%;
   --destructive: 0 72% 51%;
   --destructive-foreground: 0 0% 100%;
-  --border: 214 18% 88%;
-  --input: 214 18% 84%;
-  --ring: 163 72% 28%;
-  --radius: 0.5rem;
+  --border: 214 18% 87%;
+  --input: 214 18% 82%;
+  --ring: 158 72% 32%;
+  --radius: 0.625rem;
 }
 
 * {
@@ -31,13 +31,38 @@
 
 html {
   -webkit-text-size-adjust: 100%;
+  scroll-behavior: smooth;
 }
 
 body {
   @apply bg-background text-foreground antialiased;
+  background:
+    radial-gradient(circle at 8% 0%, rgba(16, 185, 129, 0.12), transparent 28rem),
+    linear-gradient(180deg, hsl(var(--background)), #eef3f0 56%, hsl(var(--background)));
   font-feature-settings: "rlig" 1, "calt" 1;
 }
 
 ::selection {
-  background: hsl(var(--primary) / 0.18);
+  background: hsl(var(--primary) / 0.2);
+}
+
+@media print {
+  header,
+  .no-print {
+    display: none !important;
+  }
+
+  body {
+    background: white !important;
+  }
+
+  main {
+    max-width: none !important;
+    padding: 0 !important;
+  }
+
+  .print-card {
+    border: 0 !important;
+    box-shadow: none !important;
+  }
 }

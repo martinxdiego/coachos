@@ -3,8 +3,12 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  CalendarCheck,
+  CalendarDays,
+  ClipboardList,
+  FileText,
   LayoutDashboard,
+  Settings,
+  Shield,
   Trophy,
   UsersRound
 } from "lucide-react";
@@ -12,16 +16,20 @@ import { cn } from "@/lib/utils";
 
 const navItems = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/players", label: "Players", icon: UsersRound },
-  { href: "/trainings", label: "Training", icon: CalendarCheck },
-  { href: "/matches", label: "Matches", icon: Trophy }
+  { href: "/players", label: "Spieler", icon: UsersRound },
+  { href: "/trainings", label: "Training", icon: ClipboardList },
+  { href: "/matches", label: "Spiele", icon: Trophy },
+  { href: "/tactics", label: "Taktikboard", icon: Shield },
+  { href: "/materials", label: "Material", icon: FileText },
+  { href: "/calendar", label: "Kalender", icon: CalendarDays },
+  { href: "/workspaces", label: "Einstellungen", icon: Settings }
 ];
 
 export function AppNav() {
   const pathname = usePathname();
 
   return (
-    <nav className="flex gap-1 overflow-x-auto rounded-lg bg-secondary p-1">
+    <nav className="flex gap-1 overflow-x-auto rounded-xl bg-white/8 p-1 ring-1 ring-white/10">
       {navItems.map((item) => {
         const Icon = item.icon;
         const isActive =
@@ -32,8 +40,8 @@ export function AppNav() {
         return (
           <Link
             className={cn(
-              "inline-flex h-9 shrink-0 items-center gap-2 rounded-md px-3 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground",
-              isActive && "bg-background text-foreground shadow-sm"
+              "inline-flex h-10 shrink-0 items-center gap-2 rounded-lg px-3 text-sm font-medium text-slate-300 transition duration-200 hover:bg-white/10 hover:text-white",
+              isActive && "bg-white text-slate-950 shadow-sm hover:bg-white hover:text-slate-950"
             )}
             href={item.href}
             key={item.href}

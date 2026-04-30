@@ -1,9 +1,17 @@
 import Link from "next/link";
-import { ArrowRight, CalendarCheck, MessageSquare, Trophy, UsersRound } from "lucide-react";
-import { requireUser } from "@/lib/auth";
-import { formatDate, formatDateTime, todayIsoDate } from "@/lib/utils";
+import type { ReactNode } from "react";
+import {
+  ArrowRight,
+  CalendarCheck,
+  ClipboardList,
+  FileText,
+  Plus,
+  Shield,
+  Trophy,
+  UsersRound
+} from "lucide-react";
+import { createTask, toggleTask } from "@/app/actions";
 import { EmptyState } from "@/components/empty-state";
-import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,91 +20,149 @@ import {
   CardHeader,
   CardTitle
 } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { requireActiveTeam } from "@/lib/auth";
+import { formatDate, formatDateTime, todayIsoDate } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
+function metric(label: string, value: number | string, icon: ReactNode) {
+  return (
+    <Card className="overflow-hidden">
+      <CardContent className="flex items-center justify-between gap-4 p-5">
+        <div>
+          <p className="text-sm text-muted-foreground">{label}</p>
+          <p className="mt-2 text-3xl font-semibold tracking-normal">{value}</p>
+        </div>
+        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
+          {icon}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default async function DashboardPage() {
-  const { supabase, user } = await requireUser();
+  const { supabase, team } = await requireActiveTeam();
   const today = todayIsoDate();
 
   const [
-    playerCountResult,
+    playersResult,
     nextTrainingResult,
     nextMatchResult,
-    recentTrainingsResult,
-    recentMatchesResult,
-    recentFeedbackResult
+    trainingsResult,
+    matchesResult,
+    materialsResult,
+    boardsResult,
+    tasksResult,
+    feedbackResult
   ] = await Promise.all([
     supabase
       .from("players")
-      .select("id", { count: "exact", head: true })
-      .eq("user_id", user.id),
+      .select("id,name,position,status,rating")
+      .eq("team_id", team.id)
+      .order("created_at", { ascending: false }),
     supabase
       .from("training_sessions")
-      .select("id,date,focus,notes")
-      .eq("user_id", user.id)
+      .select("id,date,start_time,duration_minutes,focus,goal,location,intensity")
+      .eq("team_id", team.id)
       .gte("date", today)
       .order("date", { ascending: true })
       .limit(1)
       .maybeSingle(),
     supabase
       .from("matches")
-      .select("id,date,opponent,notes")
-      .eq("user_id", user.id)
+      .select("id,date,kickoff_time,opponent,location,home_away,formation,result")
+      .eq("team_id", team.id)
       .gte("date", today)
       .order("date", { ascending: true })
       .limit(1)
       .maybeSingle(),
     supabase
       .from("training_sessions")
-      .select("id,focus,created_at")
-      .eq("user_id", user.id)
+      .select("id,date,focus,intensity,created_at")
+      .eq("team_id", team.id)
+      .order("date", { ascending: false })
+      .limit(5),
+    supabase
+      .from("matches")
+      .select("id,date,opponent,result,formation,created_at")
+      .eq("team_id", team.id)
+      .order("date", { ascending: false })
+      .limit(5),
+    supabase
+      .from("materials")
+      .select("id,title,type,created_at")
+      .eq("team_id", team.id)
+      .order("created_at", { ascending: false })
+      .limit(5),
+    supabase
+      .from("tactic_boards")
+      .select("id,title,created_at")
+      .eq("team_id", team.id)
       .order("created_at", { ascending: false })
       .limit(3),
     supabase
-      .from("matches")
-      .select("id,opponent,created_at")
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: false })
-      .limit(3),
+      .from("tasks")
+      .select("id,title,status,due_date,created_at")
+      .eq("team_id", team.id)
+      .order("status", { ascending: false })
+      .order("due_date", { ascending: true, nullsFirst: false })
+      .limit(6),
     supabase
       .from("player_feedback")
       .select("id,rating,created_at")
-      .eq("user_id", user.id)
+      .eq("team_id", team.id)
       .order("created_at", { ascending: false })
-      .limit(3)
+      .limit(5)
   ]);
 
   for (const result of [
-    playerCountResult,
+    playersResult,
     nextTrainingResult,
     nextMatchResult,
-    recentTrainingsResult,
-    recentMatchesResult,
-    recentFeedbackResult
+    trainingsResult,
+    matchesResult,
+    materialsResult,
+    boardsResult,
+    tasksResult,
+    feedbackResult
   ]) {
     if (result.error) {
       throw new Error(result.error.message);
     }
   }
 
+  const players = playersResult.data ?? [];
+  const trainings = trainingsResult.data ?? [];
+  const matches = matchesResult.data ?? [];
+  const materials = materialsResult.data ?? [];
+  const boards = boardsResult.data ?? [];
+  const tasks = tasksResult.data ?? [];
   const recentActivity = [
-    ...(recentTrainingsResult.data ?? []).map((item) => ({
+    ...trainings.map((item) => ({
       id: `training-${item.id}`,
       label: "Training",
       title: item.focus,
       createdAt: item.created_at
     })),
-    ...(recentMatchesResult.data ?? []).map((item) => ({
+    ...matches.map((item) => ({
       id: `match-${item.id}`,
-      label: "Match",
+      label: "Spiel",
       title: item.opponent,
       createdAt: item.created_at
     })),
-    ...(recentFeedbackResult.data ?? []).map((item) => ({
-      id: `feedback-${item.id}`,
-      label: "Feedback",
-      title: `Rating ${item.rating}/10`,
+    ...materials.map((item) => ({
+      id: `material-${item.id}`,
+      label: "Material",
+      title: item.title,
+      createdAt: item.created_at
+    })),
+    ...boards.map((item) => ({
+      id: `board-${item.id}`,
+      label: "Taktik",
+      title: item.title,
       createdAt: item.created_at
     }))
   ]
@@ -104,139 +170,265 @@ export default async function DashboardPage() {
       (a, b) =>
         new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     )
-    .slice(0, 5);
+    .slice(0, 6);
 
   const nextTraining = nextTrainingResult.data;
   const nextMatch = nextMatchResult.data;
+  const openTasks = tasks.filter((task) => task.status === "open");
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        description="Today’s coaching overview."
-        title="Dashboard"
-      />
-
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Players
-            </CardTitle>
-            <UsersRound aria-hidden="true" className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-semibold">
-              {playerCountResult.count ?? 0}
+      <section className="grid gap-4 lg:grid-cols-[1.5fr_0.9fr]">
+        <div className="overflow-hidden rounded-2xl bg-slate-950 p-6 text-white shadow-soft">
+          <div className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
+            <div>
+              <p className="text-sm font-medium text-emerald-300">
+                Workspace Dashboard
+              </p>
+              <h2 className="mt-3 max-w-2xl text-3xl font-semibold tracking-normal">
+                Plane die Woche für {team.name}
+              </h2>
+              <p className="mt-3 max-w-xl text-sm leading-6 text-slate-300">
+                Schneller Zugriff auf Training, Spieltag, Spielerentwicklung,
+                Material und Taktik. Alles ist an diesen Workspace gebunden.
+              </p>
             </div>
-          </CardContent>
-        </Card>
+            <div className="grid grid-cols-2 gap-2 sm:flex">
+              <Button asChild className="bg-white text-slate-950 hover:bg-slate-100">
+                <Link href="/players">
+                  <Plus aria-hidden="true" className="h-4 w-4" />
+                  Spieler
+                </Link>
+              </Button>
+              <Button asChild className="border-white/15 bg-white/10 text-white hover:bg-white/15">
+                <Link href="/trainings">Training</Link>
+              </Button>
+              <Button asChild className="border-white/15 bg-white/10 text-white hover:bg-white/15">
+                <Link href="/tactics">Taktik</Link>
+              </Button>
+            </div>
+          </div>
+        </div>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Next training
-            </CardTitle>
-            <CalendarCheck aria-hidden="true" className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent className="space-y-1">
-            {nextTraining ? (
-              <>
-                <div className="text-lg font-semibold">{nextTraining.focus}</div>
-                <p className="text-sm text-muted-foreground">
-                  {formatDate(nextTraining.date)}
-                </p>
-              </>
-            ) : (
-              <p className="text-sm text-muted-foreground">No training planned.</p>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Next match
-            </CardTitle>
-            <Trophy aria-hidden="true" className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent className="space-y-1">
-            {nextMatch ? (
-              <>
-                <div className="text-lg font-semibold">{nextMatch.opponent}</div>
-                <p className="text-sm text-muted-foreground">
-                  {formatDate(nextMatch.date)}
-                </p>
-              </>
-            ) : (
-              <p className="text-sm text-muted-foreground">No match planned.</p>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
         <Card>
           <CardHeader>
-            <CardTitle>Recent activity</CardTitle>
+            <CardTitle>Schnellaufgabe</CardTitle>
           </CardHeader>
           <CardContent>
-            {recentActivity.length > 0 ? (
-              <div className="space-y-3">
-                {recentActivity.map((item) => (
-                  <div
-                    className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-3"
-                    key={item.id}
-                  >
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <Badge variant="secondary">{item.label}</Badge>
-                        <p className="truncate text-sm font-medium">
-                          {item.title}
-                        </p>
-                      </div>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        {formatDateTime(item.createdAt)}
+            <form action={createTask} className="space-y-3">
+              <div className="space-y-2">
+                <Label htmlFor="title">Aufgabe</Label>
+                <Input
+                  id="title"
+                  name="title"
+                  placeholder="Kader bis Freitag finalisieren"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="due_date">Fällig</Label>
+                <Input id="due_date" name="due_date" type="date" />
+              </div>
+              <Button className="w-full" type="submit">
+                Aufgabe hinzufügen
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      </section>
+
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        {metric("Spieler", players.length, <UsersRound className="h-5 w-5" />)}
+        {metric("Offene Aufgaben", openTasks.length, <ClipboardList className="h-5 w-5" />)}
+        {metric("Materialien", materials.length, <FileText className="h-5 w-5" />)}
+        {metric("Taktikboards", boards.length, <Shield className="h-5 w-5" />)}
+      </section>
+
+      <section className="grid gap-4 lg:grid-cols-2">
+        <Card className="overflow-hidden">
+          <CardHeader>
+            <CardTitle>Nächstes Training</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {nextTraining ? (
+              <div className="space-y-4">
+                <div className="rounded-xl bg-emerald-50 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-semibold">{nextTraining.focus}</p>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        {formatDate(nextTraining.date)}
+                        {nextTraining.start_time
+                          ? ` · ${nextTraining.start_time.slice(0, 5)}`
+                          : ""}
                       </p>
                     </div>
-                    <MessageSquare
-                      aria-hidden="true"
-                      className="h-4 w-4 shrink-0 text-muted-foreground"
-                    />
+                    {nextTraining.intensity ? (
+                      <Badge variant="success">{nextTraining.intensity}</Badge>
+                    ) : null}
                   </div>
-                ))}
+                  <p className="mt-3 text-sm leading-6 text-slate-700">
+                    {nextTraining.goal ?? "Noch kein Trainingsziel hinterlegt."}
+                  </p>
+                </div>
+                <Button asChild variant="outline">
+                  <Link href="/trainings">
+                    Trainingsplan öffnen
+                    <ArrowRight aria-hidden="true" className="h-4 w-4" />
+                  </Link>
+                </Button>
               </div>
             ) : (
-              <EmptyState title="No activity yet." />
+              <EmptyState
+                body="Erstelle einen Plan mit Phasen, Material und Coachingpunkten."
+                title="Noch kein Training geplant."
+              />
             )}
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle>Next step</CardTitle>
+            <CardTitle>Nächstes Spiel</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {nextMatch ? (
+              <div className="space-y-4">
+                <div className="rounded-xl bg-slate-950 p-4 text-white">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm text-slate-300">Gegner</p>
+                      <p className="mt-1 text-xl font-semibold">
+                        {nextMatch.opponent}
+                      </p>
+                    </div>
+                    <Trophy aria-hidden="true" className="h-5 w-5 text-emerald-300" />
+                  </div>
+                  <p className="mt-3 text-sm text-slate-300">
+                    {formatDate(nextMatch.date)}
+                    {nextMatch.kickoff_time
+                      ? ` · ${nextMatch.kickoff_time.slice(0, 5)}`
+                      : ""}
+                    {nextMatch.formation ? ` · ${nextMatch.formation}` : ""}
+                  </p>
+                </div>
+                <Button asChild variant="outline">
+                  <Link href="/matches">
+                    Spielplanung öffnen
+                    <ArrowRight aria-hidden="true" className="h-4 w-4" />
+                  </Link>
+                </Button>
+              </div>
+            ) : (
+              <EmptyState
+                body="Plane Gegner, Treffpunkt, Aufgebot, Formation und Matchziele."
+                title="Noch kein Spiel geplant."
+              />
+            )}
+          </CardContent>
+        </Card>
+      </section>
+
+      <section className="grid gap-4 lg:grid-cols-[1fr_1fr_0.9fr]">
+        <Card>
+          <CardHeader>
+            <CardTitle>Offene Aufgaben</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <Button asChild className="w-full justify-between" variant="outline">
+            {tasks.length > 0 ? (
+              tasks.map((task) => (
+                <form
+                  action={toggleTask}
+                  className="flex items-center justify-between gap-3 rounded-xl border border-border bg-background/70 px-3 py-3"
+                  key={task.id}
+                >
+                  <input name="id" type="hidden" value={task.id} />
+                  <input name="status" type="hidden" value={task.status} />
+                  <div>
+                    <p className="text-sm font-medium">{task.title}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {task.due_date ? formatDate(task.due_date) : "Ohne Datum"}
+                    </p>
+                  </div>
+                  <Button size="sm" type="submit" variant="outline">
+                    {task.status === "done" ? "Erledigt" : "Offen"}
+                  </Button>
+                </form>
+              ))
+            ) : (
+              <EmptyState title="Keine offenen Aufgaben." />
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Letzte Aktivitäten</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {recentActivity.length > 0 ? (
+              recentActivity.map((item) => (
+                <div
+                  className="flex items-center justify-between gap-3 rounded-xl border border-border bg-background/70 px-3 py-3"
+                  key={item.id}
+                >
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <Badge variant="secondary">{item.label}</Badge>
+                      <p className="truncate text-sm font-medium">
+                        {item.title}
+                      </p>
+                    </div>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {formatDateTime(item.createdAt)}
+                    </p>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <EmptyState title="Noch keine Aktivität." />
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Schnellaktionen</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-2">
+            <Button asChild className="justify-between" variant="outline">
               <Link href="/players">
-                Manage players
-                <ArrowRight aria-hidden="true" className="h-4 w-4" />
+                Spieler hinzufügen
+                <UsersRound aria-hidden="true" className="h-4 w-4" />
               </Link>
             </Button>
-            <Button asChild className="w-full justify-between" variant="outline">
+            <Button asChild className="justify-between" variant="outline">
               <Link href="/trainings">
-                Plan training
-                <ArrowRight aria-hidden="true" className="h-4 w-4" />
+                Training erstellen
+                <CalendarCheck aria-hidden="true" className="h-4 w-4" />
               </Link>
             </Button>
-            <Button asChild className="w-full justify-between" variant="outline">
+            <Button asChild className="justify-between" variant="outline">
               <Link href="/matches">
-                Plan match
-                <ArrowRight aria-hidden="true" className="h-4 w-4" />
+                Spiel planen
+                <Trophy aria-hidden="true" className="h-4 w-4" />
+              </Link>
+            </Button>
+            <Button asChild className="justify-between" variant="outline">
+              <Link href="/materials">
+                Material erstellen
+                <FileText aria-hidden="true" className="h-4 w-4" />
+              </Link>
+            </Button>
+            <Button asChild className="justify-between" variant="outline">
+              <Link href="/tactics">
+                Taktikboard öffnen
+                <Shield aria-hidden="true" className="h-4 w-4" />
               </Link>
             </Button>
           </CardContent>
         </Card>
-      </div>
+      </section>
     </div>
   );
 }

@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "CoachOS",
-  description: "A minimal football coach management app."
+  description: "Professional staff workspace for football coaches."
 };
 
 export default function RootLayout({
