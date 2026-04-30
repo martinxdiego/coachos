@@ -18,6 +18,12 @@ import { formatDate, todayIsoDate } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
+interface MatchesPageProps {
+  searchParams?: Promise<{
+    date?: string;
+  }>;
+}
+
 const formations: Record<string, number[]> = {
   "4-3-3": [1, 4, 3, 3],
   "4-2-3-1": [1, 4, 2, 3, 1],
@@ -33,6 +39,10 @@ function splitNames(value: string | null) {
       .map((item) => item.trim())
       .filter(Boolean) ?? []
   );
+}
+
+function safeDate(value?: string) {
+  return value && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : todayIsoDate();
 }
 
 function FormationPreview({
@@ -75,8 +85,14 @@ function FormationPreview({
 }
 
 function MatchFields({
+  initialDate,
+  suggestedLineup,
+  suggestedSubstitutes,
   match
 }: {
+  initialDate: string;
+  suggestedLineup?: string;
+  suggestedSubstitutes?: string;
   match?: {
     opponent: string;
     date: string;
@@ -115,7 +131,7 @@ function MatchFields({
         <div className="space-y-2">
           <Label>Datum</Label>
           <Input
-            defaultValue={match?.date ?? todayIsoDate()}
+            defaultValue={match?.date ?? initialDate}
             name="date"
             required
             type="date"
@@ -176,14 +192,17 @@ function MatchFields({
         <div className="space-y-2">
           <Label>Startelf</Label>
           <Textarea
-            defaultValue={match?.starting_lineup ?? ""}
+            defaultValue={match?.starting_lineup ?? suggestedLineup ?? ""}
             name="starting_lineup"
             placeholder="Ein Spieler pro Zeile"
           />
         </div>
         <div className="space-y-2">
           <Label>Ersatzspieler</Label>
-          <Textarea defaultValue={match?.substitutes ?? ""} name="substitutes" />
+          <Textarea
+            defaultValue={match?.substitutes ?? suggestedSubstitutes ?? ""}
+            name="substitutes"
+          />
         </div>
       </div>
 
@@ -261,18 +280,47 @@ function MatchFields({
   );
 }
 
-export default async function MatchesPage() {
+export default async function MatchesPage({ searchParams }: MatchesPageProps) {
   const { supabase, team } = await requireActiveTeam();
-  const { data: matches, error } = await supabase
-    .from("matches")
-    .select("*")
-    .eq("team_id", team.id)
-    .order("date", { ascending: false })
-    .limit(12);
+  const resolvedSearchParams = await searchParams;
+  const initialDate = safeDate(resolvedSearchParams?.date);
+  const [matchesResult, playersResult] = await Promise.all([
+    supabase
+      .from("matches")
+      .select("*")
+      .eq("team_id", team.id)
+      .order("date", { ascending: false })
+      .limit(12),
+    supabase
+      .from("players")
+      .select("id,name,position,jersey_number")
+      .eq("team_id", team.id)
+      .order("jersey_number", { ascending: true, nullsFirst: false })
+      .order("name", { ascending: true })
+  ]);
 
-  if (error) {
-    throw new Error(error.message);
+  if (matchesResult.error) {
+    throw new Error(matchesResult.error.message);
   }
+
+  if (playersResult.error) {
+    throw new Error(playersResult.error.message);
+  }
+
+  const matches = matchesResult.data ?? [];
+  const players = playersResult.data ?? [];
+  const suggestedLineup = players
+    .slice(0, 11)
+    .map((player) =>
+      player.jersey_number ? `#${player.jersey_number} ${player.name}` : player.name
+    )
+    .join("\n");
+  const suggestedSubstitutes = players
+    .slice(11)
+    .map((player) =>
+      player.jersey_number ? `#${player.jersey_number} ${player.name}` : player.name
+    )
+    .join("\n");
 
   return (
     <div className="space-y-6">
@@ -288,7 +336,11 @@ export default async function MatchesPage() {
           </CardHeader>
           <CardContent>
             <form action={createMatch} className="space-y-4">
-              <MatchFields />
+              <MatchFields
+                initialDate={initialDate}
+                suggestedLineup={suggestedLineup}
+                suggestedSubstitutes={suggestedSubstitutes}
+              />
               <Button className="w-full" type="submit">
                 <CalendarPlus aria-hidden="true" className="h-4 w-4" />
                 Spiel speichern
@@ -298,7 +350,7 @@ export default async function MatchesPage() {
         </Card>
 
         <div className="space-y-4">
-          {matches && matches.length > 0 ? (
+          {matches.length > 0 ? (
             matches.map((match) => {
               const lineup = splitNames(match.starting_lineup);
               return (
@@ -364,13 +416,63 @@ export default async function MatchesPage() {
                         </p>
                       ) : null}
 
+                      <div className="rounded-xl border border-slate-900/10 bg-slate-950 p-4 text-white">
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <p className="text-xs uppercase tracking-[0.18em] text-emerald-300">
+                              Matchday
+                            </p>
+                            <p className="mt-1 font-semibold">
+                              {match.formation ?? "4-3-3"} gegen {match.opponent}
+                            </p>
+                          </div>
+                          <Trophy aria-hidden="true" className="h-5 w-5 text-emerald-300" />
+                        </div>
+                        <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                          <div className="rounded-lg bg-white/10 p-3">
+                            <p className="text-xs text-slate-300">Treffpunkt</p>
+                            <p className="mt-1 text-sm font-medium">
+                              {match.meeting_point ?? "Noch offen"}
+                            </p>
+                          </div>
+                          <div className="rounded-lg bg-white/10 p-3">
+                            <p className="text-xs text-slate-300">Aufgebot</p>
+                            <p className="mt-1 text-sm font-medium">
+                              {lineup.length} Startelf ·{" "}
+                              {splitNames(match.substitutes).length} Ersatz
+                            </p>
+                          </div>
+                        </div>
+                        <div className="mt-3 grid gap-2">
+                          {[
+                            "Spielidee im Staff geklärt",
+                            "Startelf und Bank kommuniziert",
+                            "Halbzeitnotiz nachtragen",
+                            "Fazit direkt nach dem Spiel speichern"
+                          ].map((item) => (
+                            <label
+                              className="flex items-center justify-between gap-3 rounded-lg bg-white/8 px-3 py-2 text-sm"
+                              key={item}
+                            >
+                              <span>{item}</span>
+                              <input className="h-4 w-4" type="checkbox" />
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+
                       <details className="rounded-xl border border-border p-4">
                         <summary className="cursor-pointer text-sm font-semibold">
                           Spiel bearbeiten
                         </summary>
                         <form action={updateMatch} className="mt-4 space-y-4">
                           <input name="id" type="hidden" value={match.id} />
-                          <MatchFields match={match} />
+                          <MatchFields
+                            initialDate={initialDate}
+                            match={match}
+                            suggestedLineup={suggestedLineup}
+                            suggestedSubstitutes={suggestedSubstitutes}
+                          />
                           <Button type="submit">
                             <Save aria-hidden="true" className="h-4 w-4" />
                             Spiel speichern

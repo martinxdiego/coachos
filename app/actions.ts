@@ -28,6 +28,59 @@ const phaseTypes: TrainingPhaseType[] = [
   "cooldown"
 ];
 
+const trainingPresets = {
+  pressing: {
+    focus: "Pressing nach Ballverlust",
+    goal:
+      "Das Team erkennt Umschaltmomente schneller und stellt sofort Druck auf Ball und nächste Passoptionen her.",
+    intensity: "high" as TrainingIntensity,
+    phases: [
+      ["warmup", "Aktivierung mit Gegenpressing", 12, "Rondo mit sofortigem Umschalten nach Ballverlust."],
+      ["technique", "Erster Druck und Deckungsschatten", 15, "Anlaufwinkel, Körperstellung und kurze Sprintwege wiederholen."],
+      ["tactics", "Pressingfalle am Flügel", 20, "Team verschiebt geschlossen und lenkt den Gegner in die Falle."],
+      ["game_form", "6v6+3 Umschaltspiel", 25, "Nach Ballverlust fünf Sekunden Vollpressing, danach neu ordnen."],
+      ["finish", "Pressing-Wettkampf", 12, "Punkte für Ballgewinne in gefährlichen Zonen."],
+      ["cooldown", "Review", 6, "Welche Trigger haben funktioniert? Spielerfeedback sammeln."]
+    ]
+  },
+  buildup: {
+    focus: "Spielaufbau gegen hohes Pressing",
+    goal:
+      "Das Team findet klare Auswege über Torhüter, Sechser und diagonale Anschlussaktionen.",
+    intensity: "medium" as TrainingIntensity,
+    phases: [
+      ["warmup", "Passfenster öffnen", 12, "Positionsspiel mit offener Körperstellung und Scan vor dem ersten Kontakt."],
+      ["technique", "Dritter-Mann-Kombinationen", 16, "Klare Passschärfe und Anschlusspositionen trainieren."],
+      ["tactics", "Aufbau 7v5", 22, "Pressinglinien erkennen und mit Dreiecken überspielen."],
+      ["game_form", "Halbfeldspiel mit Aufbauzone", 25, "Tore zählen doppelt nach kontrolliertem Aufbau."],
+      ["finish", "Spielnaher Abschluss", 10, "Nach Durchbruch über Zentrum oder Flügel abschließen."],
+      ["cooldown", "Prinzipien sichern", 5, "Drei Aufbauprinzipien für das nächste Spiel festhalten."]
+    ]
+  },
+  finishing: {
+    focus: "Abschluss unter Druck",
+    goal:
+      "Spieler treffen schneller Entscheidungen im letzten Drittel und kommen unter Gegnerdruck sauber zum Abschluss.",
+    intensity: "medium" as TrainingIntensity,
+    phases: [
+      ["warmup", "Technische Aktivierung", 10, "Ballmitnahme, erster Kontakt und kurze Abschlüsse."],
+      ["technique", "Abschlusswinkel", 18, "Flache und hohe Abschlüsse nach Zuspiel und Dribbling."],
+      ["tactics", "Letzter Pass", 18, "Timing von Tiefenlauf, Rückraum und Querpass."],
+      ["game_form", "4v4+Torhüter", 28, "Abschluss innerhalb von acht Sekunden nach Ballgewinn."],
+      ["finish", "Druck-Challenge", 12, "Teamwettkampf mit wechselnden Abschlusszonen."],
+      ["cooldown", "Kurzer Review", 4, "Beste Abschlussoptionen und Entscheidungsqualität besprechen."]
+    ]
+  }
+} satisfies Record<
+  string,
+  {
+    focus: string;
+    goal: string;
+    intensity: TrainingIntensity;
+    phases: [TrainingPhaseType, string, number, string][];
+  }
+>;
+
 function requiredString(formData: FormData, key: string, label: string) {
   const value = String(formData.get(key) ?? "").trim();
   if (!value) {
@@ -75,6 +128,23 @@ function playerName(formData: FormData) {
   const firstName = requiredString(formData, "first_name", "First name");
   const lastName = requiredString(formData, "last_name", "Last name");
   return { firstName, lastName, name: `${firstName} ${lastName}`.trim() };
+}
+
+function splitPlayerImportLine(line: string) {
+  return line
+    .split(/\t|;|,/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function looksLikePlayerImportHeader(line: string) {
+  const normalized = line.toLowerCase();
+  return (
+    normalized.includes("vorname") ||
+    normalized.includes("first") ||
+    normalized.includes("nachname") ||
+    normalized.includes("last")
+  );
 }
 
 function enumValue<T extends string>(
@@ -296,6 +366,65 @@ export async function createPlayer(formData: FormData) {
   revalidatePath("/players");
 }
 
+export async function importPlayers(formData: FormData) {
+  const { supabase, user, team } = await requireActiveTeam();
+  const raw = requiredString(formData, "players_csv", "Player list");
+  const lines = raw
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .filter((line, index) => index !== 0 || !looksLikePlayerImportHeader(line));
+
+  const rows = lines.flatMap((line) => {
+    const columns = splitPlayerImportLine(line);
+    if (columns.length === 0) {
+      return [];
+    }
+
+    const [firstColumn, secondColumn, position, birthYear, jerseyNumber] =
+      columns;
+    const fallbackParts = firstColumn.split(/\s+/).filter(Boolean);
+    const firstName = secondColumn ? firstColumn : fallbackParts[0];
+    const lastName = secondColumn
+      ? secondColumn
+      : fallbackParts.slice(1).join(" ") || "-";
+    const name = `${firstName} ${lastName}`.trim();
+    const parsedBirthYear = birthYear ? Number(birthYear) : null;
+    const parsedJerseyNumber = jerseyNumber ? Number(jerseyNumber) : null;
+
+    return [
+      {
+        team_id: team.id,
+        user_id: user.id,
+        name,
+        first_name: firstName,
+        last_name: lastName,
+        position: position || null,
+        birth_year:
+          parsedBirthYear !== null && Number.isFinite(parsedBirthYear)
+            ? parsedBirthYear
+            : null,
+        jersey_number:
+          parsedJerseyNumber !== null && Number.isFinite(parsedJerseyNumber)
+            ? parsedJerseyNumber
+            : null
+      }
+    ];
+  });
+
+  if (rows.length === 0) {
+    throw new Error("No players found in import.");
+  }
+
+  const { error } = await supabase.from("players").insert(rows);
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  revalidatePath("/");
+  revalidatePath("/players");
+}
+
 export async function updatePlayer(formData: FormData) {
   const { supabase, team } = await requireActiveTeam();
   const id = requiredString(formData, "id", "Player");
@@ -455,6 +584,7 @@ export async function createTraining(formData: FormData) {
   }
 
   revalidatePath("/");
+  revalidatePath("/calendar");
   revalidatePath("/trainings");
 }
 
@@ -494,6 +624,7 @@ export async function updateTraining(formData: FormData) {
   }
 
   revalidatePath("/");
+  revalidatePath("/calendar");
   revalidatePath("/trainings");
 }
 
@@ -577,6 +708,7 @@ export async function duplicateTraining(formData: FormData) {
     }
   }
 
+  revalidatePath("/calendar");
   revalidatePath("/trainings");
 }
 
@@ -595,6 +727,7 @@ export async function deleteTraining(formData: FormData) {
   }
 
   revalidatePath("/");
+  revalidatePath("/calendar");
   revalidatePath("/trainings");
 }
 
@@ -658,6 +791,76 @@ export async function createAiTrainingDraft(formData: FormData) {
   }
 
   revalidatePath("/");
+  revalidatePath("/calendar");
+  revalidatePath("/trainings");
+}
+
+export async function createPresetTraining(formData: FormData) {
+  const { supabase, user, team } = await requireActiveTeam();
+  const presetKey = requiredString(formData, "preset", "Preset");
+  const preset = trainingPresets[presetKey as keyof typeof trainingPresets];
+
+  if (!preset) {
+    throw new Error("Unknown training preset.");
+  }
+
+  const date = requiredString(formData, "date", "Training date");
+  const duration = optionalNumber(formData, "duration_minutes") ?? 90;
+  const phaseTotal = preset.phases.reduce((sum, phase) => sum + phase[2], 0);
+
+  const { data: training, error } = await supabase
+    .from("training_sessions")
+    .insert({
+      team_id: team.id,
+      user_id: user.id,
+      date,
+      start_time: optionalString(formData, "start_time"),
+      duration_minutes: duration,
+      location: optionalString(formData, "location"),
+      focus: preset.focus,
+      goal: preset.goal,
+      age_group: team.age_group,
+      intensity: preset.intensity,
+      notes:
+        "Vorlage aus der CoachOS-Bibliothek. Passe Phasen, Belastung und Coachingpunkte an dein Team an."
+    })
+    .select("id")
+    .single();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  const rows = preset.phases.map(([phaseType, title, minutes, description], index) => ({
+    team_id: team.id,
+    training_id: training.id,
+    phase_type: phaseType,
+    title,
+    duration_minutes: Math.max(5, Math.round((minutes / phaseTotal) * duration)),
+    description,
+    coaching_points:
+      "Timing, Abstände, Kommunikation und Entscheidungsqualität aktiv coachen.",
+    organization:
+      "Feldgröße und Spielerzahl an Kadergröße anpassen; klare Wechsel- und Pausenregeln setzen.",
+    material: "Bälle, Hütchen, Markierungsteller, Leibchen, Tore",
+    player_count: "12-18",
+    field_size: "Variabel",
+    variations:
+      "Leichter: mehr Raum und freie Kontakte. Schwerer: Kontaktlimit, Zeitdruck oder kleinere Zonen.",
+    load_management:
+      preset.intensity === "high"
+        ? "Kurze intensive Blöcke mit klaren Pausen."
+        : "Mittlere Belastung mit fließenden Übergängen.",
+    sort_order: index
+  }));
+
+  const { error: phaseError } = await supabase.from("training_phases").insert(rows);
+  if (phaseError) {
+    throw new Error(phaseError.message);
+  }
+
+  revalidatePath("/");
+  revalidatePath("/calendar");
   revalidatePath("/trainings");
 }
 
@@ -750,6 +953,7 @@ export async function createMatch(formData: FormData) {
   }
 
   revalidatePath("/");
+  revalidatePath("/calendar");
   revalidatePath("/matches");
 }
 
@@ -768,6 +972,7 @@ export async function updateMatch(formData: FormData) {
   }
 
   revalidatePath("/");
+  revalidatePath("/calendar");
   revalidatePath("/matches");
 }
 
@@ -786,6 +991,7 @@ export async function deleteMatch(formData: FormData) {
   }
 
   revalidatePath("/");
+  revalidatePath("/calendar");
   revalidatePath("/matches");
 }
 
@@ -1159,10 +1365,19 @@ export async function createTacticBoard(formData: FormData) {
     user_id: user.id,
     title: requiredString(formData, "title", "Board title"),
     description: optionalString(formData, "description"),
-    elements: [
-      ...tacticRosterElements(players ?? []),
-      { id: "ball", type: "ball", label: "", x: 53, y: 58 }
-    ]
+    elements: {
+      version: 2,
+      scenes: [
+        {
+          id: "scene-1",
+          name: "Grundformation",
+          elements: [
+            ...tacticRosterElements(players ?? []),
+            { id: "ball", type: "ball", label: "", x: 53, y: 58 }
+          ]
+        }
+      ]
+    }
   });
 
   if (error) {

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Dumbbell, LogOut, Plus } from "lucide-react";
 import { signOut } from "@/app/actions";
 import { AppNav } from "@/components/app-nav";
+import { PageTransition } from "@/components/page-transition";
 import { Button } from "@/components/ui/button";
 import { WorkspaceSwitcher } from "@/components/workspace-switcher";
 import type { TeamOption } from "@/lib/auth";
@@ -95,7 +96,7 @@ export function AppShell({
         </div>
       </header>
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8">
-        {children}
+        <PageTransition>{children}</PageTransition>
       </main>
     </div>
   );

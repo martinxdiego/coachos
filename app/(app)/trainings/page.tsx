@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import {
   createAiTrainingDraft,
+  createPresetTraining,
   createTraining,
   deleteTraining,
   duplicateTraining,
@@ -33,6 +34,12 @@ import type { AttendanceStatus, TrainingPhase, TrainingPhaseType } from "@/lib/t
 
 export const dynamic = "force-dynamic";
 
+interface TrainingsPageProps {
+  searchParams?: Promise<{
+    date?: string;
+  }>;
+}
+
 const phaseConfig: {
   label: string;
   type: TrainingPhaseType;
@@ -47,6 +54,10 @@ const phaseConfig: {
 
 function phaseByType(phases: TrainingPhase[], type: TrainingPhaseType) {
   return phases.find((phase) => phase.phase_type === type);
+}
+
+function safeDate(value?: string) {
+  return value && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : todayIsoDate();
 }
 
 function PhaseFields({
@@ -148,8 +159,10 @@ function PhaseFields({
   );
 }
 
-export default async function TrainingsPage() {
+export default async function TrainingsPage({ searchParams }: TrainingsPageProps) {
   const { supabase, team } = await requireActiveTeam();
+  const resolvedSearchParams = await searchParams;
+  const initialDate = safeDate(resolvedSearchParams?.date);
   const [playersResult, trainingsResult] = await Promise.all([
     supabase
       .from("players")
@@ -240,7 +253,7 @@ export default async function TrainingsPage() {
                   <div className="space-y-2">
                     <Label htmlFor="date">Datum</Label>
                     <Input
-                      defaultValue={todayIsoDate()}
+                      defaultValue={initialDate}
                       id="date"
                       name="date"
                       required
@@ -336,6 +349,53 @@ export default async function TrainingsPage() {
 
           <Card>
             <CardHeader>
+              <CardTitle>Vorlagen-Bibliothek</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <form action={createPresetTraining} className="space-y-3">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="preset">Vorlage</Label>
+                    <select
+                      className="flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      id="preset"
+                      name="preset"
+                    >
+                      <option value="pressing">Pressing nach Ballverlust</option>
+                      <option value="buildup">Spielaufbau gegen Pressing</option>
+                      <option value="finishing">Abschluss unter Druck</option>
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="preset-date">Datum</Label>
+                    <Input
+                      defaultValue={initialDate}
+                      id="preset-date"
+                      name="date"
+                      required
+                      type="date"
+                    />
+                  </div>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <Input name="start_time" type="time" />
+                  <Input
+                    defaultValue="90"
+                    name="duration_minutes"
+                    type="number"
+                  />
+                  <Input name="location" placeholder="Ort" />
+                </div>
+                <Button className="w-full" type="submit" variant="secondary">
+                  <Copy aria-hidden="true" className="h-4 w-4" />
+                  Vorlage als Training erstellen
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
               <CardTitle>KI-Trainingsentwurf</CardTitle>
             </CardHeader>
             <CardContent>
@@ -343,7 +403,7 @@ export default async function TrainingsPage() {
                 <div className="space-y-2">
                   <Label htmlFor="ai-date">Datum</Label>
                   <Input
-                    defaultValue={todayIsoDate()}
+                    defaultValue={initialDate}
                     id="ai-date"
                     name="date"
                     required
@@ -398,6 +458,23 @@ export default async function TrainingsPage() {
                 (sum, phase) => sum + (phase.duration_minutes ?? 0),
                 0
               );
+              const aiChecks = [
+                phases.length < 4
+                  ? "Training hat wenige Phasen. Ergänze mindestens Warm-up, Hauptteil, Spielform und Abschluss."
+                  : null,
+                training.duration_minutes &&
+                totalMinutes &&
+                Math.abs(training.duration_minutes - totalMinutes) > 10
+                  ? `Phasendauer (${totalMinutes} Min) weicht von Trainingsdauer (${training.duration_minutes} Min) ab.`
+                  : null,
+                !training.goal
+                  ? "Trainingsziel fehlt. Ein klares Ziel macht Coachingpunkte messbarer."
+                  : null,
+                phases.length > 0 &&
+                phases.every((phase) => !phase.material)
+                  ? "Keine Materialangaben in den Phasen. Für Druckversion und Aufbau wäre das hilfreich."
+                  : null
+              ].filter((item): item is string => item !== null);
 
               return (
                 <Card className="print-card" key={training.id}>
@@ -482,6 +559,29 @@ export default async function TrainingsPage() {
                         {training.goal}
                       </p>
                     ) : null}
+
+                    <div className="rounded-xl border border-border bg-background/70 p-4">
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="flex items-center gap-2">
+                          <Bot aria-hidden="true" className="h-4 w-4 text-primary" />
+                          <p className="text-sm font-semibold">KI-Plancheck</p>
+                        </div>
+                        <Badge variant={aiChecks.length > 0 ? "secondary" : "success"}>
+                          {aiChecks.length > 0 ? `${aiChecks.length} Hinweise` : "Logisch aufgebaut"}
+                        </Badge>
+                      </div>
+                      {aiChecks.length > 0 ? (
+                        <ul className="mt-3 space-y-1 text-sm leading-6 text-muted-foreground">
+                          {aiChecks.map((check) => (
+                            <li key={check}>{check}</li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="mt-3 text-sm text-muted-foreground">
+                          Ziel, Phasen und Dauer wirken stimmig. Für echte KI-Integration ist diese Prüfstruktur vorbereitet.
+                        </p>
+                      )}
+                    </div>
 
                     <details className="rounded-xl border border-border p-4">
                       <summary className="cursor-pointer text-sm font-semibold">

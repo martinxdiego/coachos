@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   CalendarDays,
   ClipboardList,
+  Dumbbell,
   FileText,
   LayoutDashboard,
   Settings,
@@ -22,6 +23,7 @@ const navItems = [
   { href: "/tactics", label: "Taktikboard", icon: Shield },
   { href: "/materials", label: "Material", icon: FileText },
   { href: "/calendar", label: "Kalender", icon: CalendarDays },
+  { href: "/pitch", label: "Platz", icon: Dumbbell },
   { href: "/workspaces", label: "Einstellungen", icon: Settings }
 ];
 
@@ -40,8 +42,9 @@ export function AppNav() {
         return (
           <Link
             className={cn(
-              "inline-flex h-10 shrink-0 items-center gap-2 rounded-lg px-3 text-sm font-medium text-slate-300 transition duration-200 hover:bg-white/10 hover:text-white",
-              isActive && "bg-white text-slate-950 shadow-sm hover:bg-white hover:text-slate-950"
+              "inline-flex h-10 shrink-0 items-center gap-2 rounded-lg px-3 text-sm font-medium text-slate-300 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:bg-white/10 hover:text-white",
+              isActive &&
+                "bg-white text-slate-950 shadow-sm shadow-white/10 hover:bg-white hover:text-slate-950"
             )}
             href={item.href}
             key={item.href}

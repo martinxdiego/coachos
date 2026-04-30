@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { CalendarPlus, ChevronLeft, ChevronRight, Trophy } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -150,6 +150,29 @@ function EventPill({ event }: { event: CalendarEvent }) {
   );
 }
 
+function CreateLinks({ date }: { date: Date }) {
+  const iso = toIsoDate(date);
+
+  return (
+    <div className="grid grid-cols-2 gap-1.5 no-print">
+      <Link
+        className="inline-flex h-8 items-center justify-center gap-1 rounded-lg bg-emerald-50 px-2 text-[11px] font-medium text-emerald-800 transition hover:bg-emerald-100"
+        href={`/trainings?date=${iso}`}
+      >
+        <CalendarPlus aria-hidden="true" className="h-3.5 w-3.5" />
+        Training
+      </Link>
+      <Link
+        className="inline-flex h-8 items-center justify-center gap-1 rounded-lg bg-slate-950 px-2 text-[11px] font-medium text-white transition hover:bg-slate-800"
+        href={`/matches?date=${iso}`}
+      >
+        <Trophy aria-hidden="true" className="h-3.5 w-3.5" />
+        Spiel
+      </Link>
+    </div>
+  );
+}
+
 function MonthGrid({
   date,
   eventsByDate
@@ -177,7 +200,12 @@ function MonthGrid({
             className="min-h-28 rounded-xl border border-border bg-background/70 p-2"
             key={toIsoDate(day)}
           >
-            <p className="text-sm font-semibold">{day.getDate()}</p>
+            <div className="flex items-start justify-between gap-2">
+              <p className="text-sm font-semibold">{day.getDate()}</p>
+            </div>
+            <div className="mt-2">
+              <CreateLinks date={day} />
+            </div>
             <div className="mt-2 space-y-1">
               {events.slice(0, 3).map((event) => (
                 <EventPill event={event} key={event.id} />
@@ -330,9 +358,14 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
         <CardContent>
           {view === "day" ? (
             <div className="min-h-[520px] rounded-2xl border border-border bg-background/70 p-4">
-              <p className="text-lg font-semibold">
-                {fullDateFormatter.format(selectedDate)}
-              </p>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-lg font-semibold">
+                  {fullDateFormatter.format(selectedDate)}
+                </p>
+                <div className="w-full sm:w-64">
+                  <CreateLinks date={selectedDate} />
+                </div>
+              </div>
               <div className="mt-4 grid gap-2">
                 {eventsFor(eventsByDate, selectedDate).length > 0 ? (
                   eventsFor(eventsByDate, selectedDate).map((event) => (
@@ -354,7 +387,10 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
                   className="min-h-[420px] rounded-2xl border border-border bg-background/70 p-3"
                   key={toIsoDate(day)}
                 >
-                  <p className="font-semibold">{dayFormatter.format(day)}</p>
+                  <div className="space-y-2">
+                    <p className="font-semibold">{dayFormatter.format(day)}</p>
+                    <CreateLinks date={day} />
+                  </div>
                   <div className="mt-3 space-y-2">
                     {eventsFor(eventsByDate, day).map((event) => (
                       <EventPill event={event} key={event.id} />

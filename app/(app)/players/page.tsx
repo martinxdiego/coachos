@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ArrowUpRight, Plus, Shirt, UserRound, UsersRound } from "lucide-react";
-import { createPlayer, deletePlayer } from "@/app/actions";
+import { createPlayer, deletePlayer, importPlayers } from "@/app/actions";
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
@@ -64,7 +64,7 @@ export default async function PlayersPage() {
         title="Spieler"
       />
 
-      <section className="space-y-4">
+      <section className="grid gap-4 xl:grid-cols-[1fr_360px]">
         <Card className="border-emerald-200 bg-emerald-50/70">
           <CardHeader>
             <CardTitle>Schnellerstellung</CardTitle>
@@ -126,6 +126,35 @@ export default async function PlayersPage() {
           </CardContent>
         </Card>
 
+        <Card className="h-fit">
+          <CardHeader>
+            <CardTitle>Kader importieren</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form action={importPlayers} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="players_csv">Liste einfügen</Label>
+                <textarea
+                  className="min-h-44 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  id="players_csv"
+                  name="players_csv"
+                  placeholder={"Vorname;Nachname;Position;Jahrgang;Nummer\nLuca;Meier;ZM;2010;8"}
+                  required
+                />
+              </div>
+              <p className="text-xs leading-5 text-muted-foreground">
+                Unterstützt Semikolon, Komma oder Tab. Eine Kopfzeile wird automatisch erkannt.
+              </p>
+              <Button className="w-full" type="submit" variant="secondary">
+                <UsersRound aria-hidden="true" className="h-4 w-4" />
+                Kader importieren
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      </section>
+
+      <section className="space-y-4">
         <div className="space-y-4">
           {playerList.length > 0 ? (
             Object.entries(grouped).map(([position, items]) => (

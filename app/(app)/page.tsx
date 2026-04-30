@@ -2,7 +2,9 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import {
   ArrowRight,
+  AlertCircle,
   CalendarCheck,
+  CheckCircle2,
   ClipboardList,
   FileText,
   Plus,
@@ -60,7 +62,7 @@ export default async function DashboardPage() {
   ] = await Promise.all([
     supabase
       .from("players")
-      .select("id,name,position,status,rating")
+      .select("id,name,position,status,rating,jersey_number,birth_year")
       .eq("team_id", team.id)
       .order("created_at", { ascending: false }),
     supabase
@@ -175,6 +177,65 @@ export default async function DashboardPage() {
   const nextTraining = nextTrainingResult.data;
   const nextMatch = nextMatchResult.data;
   const openTasks = tasks.filter((task) => task.status === "open");
+  const playersWithoutNumbers = players.filter(
+    (player) => !player.jersey_number
+  ).length;
+  const playersWithoutBirthYear = players.filter(
+    (player) => !player.birth_year
+  ).length;
+  const limitedPlayers = players.filter(
+    (player) => player.status === "injured" || player.status === "limited"
+  ).length;
+  const coachHints = [
+    players.length === 0
+      ? {
+          href: "/players",
+          label: "Kader",
+          title: "Noch keine Spieler erfasst",
+          body: "Importiere oder erstelle zuerst deinen Kader, damit Training, Material und Taktik sinnvoll arbeiten."
+        }
+      : null,
+    playersWithoutNumbers > 0
+      ? {
+          href: "/players",
+          label: "Spieler",
+          title: `${playersWithoutNumbers} Spieler ohne Rückennummer`,
+          body: "Rückennummern machen Matchday, Materiallisten und Taktikboard deutlich schneller lesbar."
+        }
+      : null,
+    playersWithoutBirthYear > 0
+      ? {
+          href: "/players",
+          label: "Profil",
+          title: `${playersWithoutBirthYear} Spieler ohne Jahrgang`,
+          body: "Jahrgänge helfen dir bei Altersstufe, Belastung und Entwicklungsplanung."
+        }
+      : null,
+    nextTraining && !nextTraining.goal
+      ? {
+          href: "/trainings",
+          label: "Training",
+          title: "Nächstes Training ohne Ziel",
+          body: "Ergänze ein klares Trainingsziel, damit Phasen und Coachingpunkte zusammenpassen."
+        }
+      : null,
+    nextMatch && !nextMatch.formation
+      ? {
+          href: "/matches",
+          label: "Spiel",
+          title: "Nächstes Spiel ohne Formation",
+          body: "Setze Formation und Startelf, damit der Matchday-Modus wirklich hilft."
+        }
+      : null,
+    limitedPlayers > 0
+      ? {
+          href: "/players",
+          label: "Belastung",
+          title: `${limitedPlayers} Spieler mit Einschränkung`,
+          body: "Prüfe Belastung, Rollen und Einsatzzeit vor Training oder Spiel."
+        }
+      : null
+  ].filter((hint): hint is NonNullable<typeof hint> => hint !== null);
 
   return (
     <div className="space-y-6">
@@ -242,6 +303,51 @@ export default async function DashboardPage() {
         {metric("Offene Aufgaben", openTasks.length, <ClipboardList className="h-5 w-5" />)}
         {metric("Materialien", materials.length, <FileText className="h-5 w-5" />)}
         {metric("Taktikboards", boards.length, <Shield className="h-5 w-5" />)}
+      </section>
+
+      <section>
+        <Card>
+          <CardHeader>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <CardTitle>Trainer-Hinweise</CardTitle>
+              <Badge variant={coachHints.length > 0 ? "secondary" : "success"}>
+                {coachHints.length > 0 ? `${coachHints.length} offen` : "Alles bereit"}
+              </Badge>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {coachHints.length > 0 ? (
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                {coachHints.slice(0, 6).map((hint) => (
+                  <Link
+                    className="group rounded-xl border border-border bg-background/70 p-4 transition hover:-translate-y-0.5 hover:border-primary/40 hover:bg-white hover:shadow-soft"
+                    href={hint.href}
+                    key={hint.title}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <Badge variant="secondary">{hint.label}</Badge>
+                      <AlertCircle
+                        aria-hidden="true"
+                        className="h-4 w-4 text-primary transition group-hover:scale-110"
+                      />
+                    </div>
+                    <p className="mt-3 font-semibold">{hint.title}</p>
+                    <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                      {hint.body}
+                    </p>
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <div className="flex items-center gap-3 rounded-xl bg-emerald-50 p-4 text-emerald-950">
+                <CheckCircle2 aria-hidden="true" className="h-5 w-5" />
+                <p className="text-sm font-medium">
+                  Kader, nächste Termine und Kernplanung sehen vollständig aus.
+                </p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </section>
 
       <section className="grid gap-4 lg:grid-cols-2">
