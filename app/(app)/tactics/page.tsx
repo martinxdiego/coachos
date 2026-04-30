@@ -20,16 +20,31 @@ export const dynamic = "force-dynamic";
 
 export default async function TacticsPage() {
   const { supabase, team } = await requireActiveTeam();
-  const { data: boards, error } = await supabase
-    .from("tactic_boards")
-    .select("*")
-    .eq("team_id", team.id)
-    .order("updated_at", { ascending: false })
-    .limit(6);
+  const [boardsResult, playersResult] = await Promise.all([
+    supabase
+      .from("tactic_boards")
+      .select("*")
+      .eq("team_id", team.id)
+      .order("updated_at", { ascending: false })
+      .limit(6),
+    supabase
+      .from("players")
+      .select("id,name,position,jersey_number")
+      .eq("team_id", team.id)
+      .order("jersey_number", { ascending: true, nullsFirst: false })
+      .order("name", { ascending: true })
+  ]);
 
-  if (error) {
-    throw new Error(error.message);
+  if (boardsResult.error) {
+    throw new Error(boardsResult.error.message);
   }
+
+  if (playersResult.error) {
+    throw new Error(playersResult.error.message);
+  }
+
+  const boards = boardsResult.data ?? [];
+  const players = playersResult.data ?? [];
 
   return (
     <div className="space-y-6">
@@ -67,7 +82,7 @@ export default async function TacticsPage() {
         </Card>
 
         <div className="space-y-4">
-          {boards && boards.length > 0 ? (
+          {boards.length > 0 ? (
             boards.map((board) => (
               <Card className="print-card" key={board.id}>
                 <CardHeader>
@@ -86,7 +101,7 @@ export default async function TacticsPage() {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <TacticBoardEditor board={board} />
+                  <TacticBoardEditor board={board} players={players} />
                 </CardContent>
               </Card>
             ))

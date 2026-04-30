@@ -1,18 +1,29 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Plus, RotateCcw, Save, Trash2 } from "lucide-react";
+import { useMemo, useState, type PointerEvent } from "react";
+import { Move, Plus, RotateCcw, Save, Trash2, UsersRound } from "lucide-react";
 import { saveTacticBoard } from "@/app/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 
 type BoardElementType = "player" | "opponent" | "ball" | "cone" | "text" | "arrow";
+type DragTarget = { id: string; point: "body" | "start" | "end" };
+
+interface PlayerForBoard {
+  id: string;
+  name: string;
+  position: string | null;
+  jersey_number: number | null;
+}
 
 interface BoardElement {
   id: string;
   type: BoardElementType;
   label: string;
+  name?: string;
+  playerId?: string;
+  position?: string | null;
   x: number;
   y: number;
   x2?: number;
@@ -27,6 +38,84 @@ interface TacticBoardEditorProps {
     description: string | null;
     elements: unknown;
   };
+  players: PlayerForBoard[];
+}
+
+const rosterPositions = [
+  { x: 12, y: 50 },
+  { x: 28, y: 22 },
+  { x: 28, y: 40 },
+  { x: 28, y: 60 },
+  { x: 28, y: 78 },
+  { x: 50, y: 32 },
+  { x: 50, y: 50 },
+  { x: 50, y: 68 },
+  { x: 72, y: 26 },
+  { x: 80, y: 50 },
+  { x: 72, y: 74 }
+] as const;
+
+const validTypes = new Set<BoardElementType>([
+  "player",
+  "opponent",
+  "ball",
+  "cone",
+  "text",
+  "arrow"
+]);
+
+function clampPosition(value: number) {
+  return Math.min(96, Math.max(4, value));
+}
+
+function rosterPosition(index: number) {
+  if (index < rosterPositions.length) {
+    return rosterPositions[index];
+  }
+
+  const benchIndex = index - rosterPositions.length;
+  return {
+    x: 12 + (benchIndex % 9) * 9.5,
+    y: 88 - Math.floor(benchIndex / 9) * 7
+  };
+}
+
+function initials(name: string) {
+  return name
+    .split(" ")
+    .map((part) => part.at(0))
+    .filter(Boolean)
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+}
+
+function shortName(name?: string) {
+  if (!name) {
+    return null;
+  }
+
+  const parts = name.split(" ").filter(Boolean);
+  return parts.at(-1) ?? name;
+}
+
+function createRosterElements(players: PlayerForBoard[]): BoardElement[] {
+  return players.map((player, index) => {
+    const position = rosterPosition(index);
+    return {
+      id: `player-${player.id}`,
+      type: "player",
+      label:
+        player.jersey_number !== null
+          ? String(player.jersey_number)
+          : initials(player.name) || String(index + 1),
+      name: player.name,
+      playerId: player.id,
+      position: player.position,
+      x: position.x,
+      y: position.y
+    };
+  });
 }
 
 function normalizeElements(value: unknown): BoardElement[] {
@@ -34,13 +123,37 @@ function normalizeElements(value: unknown): BoardElement[] {
     return [];
   }
 
-  return value.filter((item): item is BoardElement => {
+  return value.flatMap((item): BoardElement[] => {
     if (!item || typeof item !== "object") {
-      return false;
+      return [];
     }
 
     const candidate = item as Partial<BoardElement>;
-    return Boolean(candidate.id && candidate.type);
+    if (
+      !candidate.id ||
+      !candidate.type ||
+      !validTypes.has(candidate.type) ||
+      typeof candidate.x !== "number" ||
+      typeof candidate.y !== "number"
+    ) {
+      return [];
+    }
+
+    return [
+      {
+        id: candidate.id,
+        type: candidate.type,
+        label: candidate.label ?? "",
+        name: candidate.name,
+        playerId: candidate.playerId,
+        position: candidate.position,
+        x: candidate.x,
+        y: candidate.y,
+        x2: typeof candidate.x2 === "number" ? candidate.x2 : undefined,
+        y2: typeof candidate.y2 === "number" ? candidate.y2 : undefined,
+        color: candidate.color
+      }
+    ];
   });
 }
 
@@ -64,13 +177,29 @@ function elementClass(type: BoardElementType) {
   return "border-emerald-200 bg-emerald-50 text-emerald-950";
 }
 
-export function TacticBoardEditor({ board }: TacticBoardEditorProps) {
+function arrowEnd(item: BoardElement) {
+  return {
+    x: item.x2 ?? item.x + 14,
+    y: item.y2 ?? item.y - 12
+  };
+}
+
+function playerLabelClass(y: number) {
+  const shared =
+    "pointer-events-none absolute left-1/2 max-w-24 -translate-x-1/2 truncate rounded bg-slate-950/80 px-1.5 py-0.5 text-[10px] font-medium text-white [print-color-adjust:exact]";
+
+  return y > 82 ? `${shared} bottom-full mb-1` : `${shared} top-full mt-1`;
+}
+
+export function TacticBoardEditor({ board, players }: TacticBoardEditorProps) {
   const initialElements = useMemo(
     () => normalizeElements(board.elements),
     [board.elements]
   );
+  const rosterElements = useMemo(() => createRosterElements(players), [players]);
   const [elements, setElements] = useState<BoardElement[]>(initialElements);
-  const [dragId, setDragId] = useState<string | null>(null);
+  const [dragTarget, setDragTarget] = useState<DragTarget | null>(null);
+  const arrowElements = elements.filter((item) => item.type === "arrow");
 
   function addElement(type: BoardElementType) {
     const label =
@@ -100,8 +229,25 @@ export function TacticBoardEditor({ board }: TacticBoardEditorProps) {
     ]);
   }
 
+  function loadRoster() {
+    if (rosterElements.length === 0) {
+      return;
+    }
+
+    setElements((current) => [
+      ...current.filter((item) => item.type !== "player"),
+      ...rosterElements
+    ]);
+  }
+
+  function startDrag(event: PointerEvent<HTMLButtonElement>, target: DragTarget) {
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setDragTarget(target);
+  }
+
   function updatePosition(clientX: number, clientY: number) {
-    if (!dragId) {
+    if (!dragTarget) {
       return;
     }
 
@@ -111,11 +257,38 @@ export function TacticBoardEditor({ board }: TacticBoardEditorProps) {
     }
 
     const rect = field.getBoundingClientRect();
-    const x = Math.min(96, Math.max(4, ((clientX - rect.left) / rect.width) * 100));
-    const y = Math.min(96, Math.max(4, ((clientY - rect.top) / rect.height) * 100));
+    const x = clampPosition(((clientX - rect.left) / rect.width) * 100);
+    const y = clampPosition(((clientY - rect.top) / rect.height) * 100);
 
     setElements((current) =>
-      current.map((item) => (item.id === dragId ? { ...item, x, y } : item))
+      current.map((item) => {
+        if (item.id !== dragTarget.id) {
+          return item;
+        }
+
+        if (dragTarget.point === "end") {
+          return { ...item, x2: x, y2: y };
+        }
+
+        if (dragTarget.point === "start") {
+          return { ...item, x, y };
+        }
+
+        if (item.type === "arrow") {
+          const end = arrowEnd(item);
+          const deltaX = x - item.x;
+          const deltaY = y - item.y;
+          return {
+            ...item,
+            x,
+            y,
+            x2: clampPosition(end.x + deltaX),
+            y2: clampPosition(end.y + deltaY)
+          };
+        }
+
+        return { ...item, x, y };
+      })
     );
   }
 
@@ -143,6 +316,21 @@ export function TacticBoardEditor({ board }: TacticBoardEditorProps) {
         <Button onClick={() => addElement("player")} size="sm" type="button">
           <Plus aria-hidden="true" className="h-4 w-4" />
           Spieler
+        </Button>
+        <Button
+          disabled={rosterElements.length === 0}
+          onClick={loadRoster}
+          size="sm"
+          title={
+            rosterElements.length === 0
+              ? "Erstelle zuerst Spieler im Kader."
+              : "Teamspieler mit Rückennummern auf das Feld laden"
+          }
+          type="button"
+          variant="secondary"
+        >
+          <UsersRound aria-hidden="true" className="h-4 w-4" />
+          Kader laden
         </Button>
         <Button onClick={() => addElement("opponent")} size="sm" type="button" variant="secondary">
           Gegner
@@ -182,8 +370,9 @@ export function TacticBoardEditor({ board }: TacticBoardEditorProps) {
       <div
         className="relative aspect-[1.55] min-h-[420px] overflow-hidden rounded-2xl border-4 border-emerald-950/10 bg-emerald-700 shadow-inner [print-color-adjust:exact]"
         id={`field-${board.id}`}
+        onPointerCancel={() => setDragTarget(null)}
         onPointerMove={(event) => updatePosition(event.clientX, event.clientY)}
-        onPointerUp={() => setDragId(null)}
+        onPointerUp={() => setDragTarget(null)}
       >
         <div className="absolute inset-4 rounded-2xl border-2 border-white/70" />
         <div className="absolute left-1/2 top-4 h-[calc(100%-2rem)] border-l-2 border-white/60" />
@@ -192,21 +381,22 @@ export function TacticBoardEditor({ board }: TacticBoardEditorProps) {
         <div className="absolute right-4 top-1/2 h-36 w-24 -translate-y-1/2 border-2 border-r-0 border-white/60" />
 
         <svg className="pointer-events-none absolute inset-0 h-full w-full">
-          {elements
-            .filter((item) => item.type === "arrow")
-            .map((item) => (
+          {arrowElements.map((item) => {
+            const end = arrowEnd(item);
+            return (
               <line
                 key={item.id}
                 markerEnd="url(#arrowhead)"
-                stroke="white"
+                stroke={item.color ?? "white"}
                 strokeDasharray="7 5"
                 strokeWidth="3"
                 x1={`${item.x}%`}
-                x2={`${item.x2 ?? item.x + 14}%`}
+                x2={`${end.x}%`}
                 y1={`${item.y}%`}
-                y2={`${item.y2 ?? item.y - 12}%`}
+                y2={`${end.y}%`}
               />
-            ))}
+            );
+          })}
           <defs>
             <marker
               id="arrowhead"
@@ -221,20 +411,70 @@ export function TacticBoardEditor({ board }: TacticBoardEditorProps) {
           </defs>
         </svg>
 
+        {arrowElements.map((item) => {
+          const end = arrowEnd(item);
+          const middle = {
+            x: (item.x + end.x) / 2,
+            y: (item.y + end.y) / 2
+          };
+
+          return (
+            <div className="no-print" key={`${item.id}-handles`}>
+              <button
+                aria-label="Pfeilstart verschieben"
+                className="absolute h-7 w-7 -translate-x-1/2 -translate-y-1/2 touch-none rounded-full border-2 border-white bg-emerald-950 shadow-lg"
+                onPointerDown={(event) =>
+                  startDrag(event, { id: item.id, point: "start" })
+                }
+                style={{ left: `${item.x}%`, top: `${item.y}%` }}
+                title="Pfeilstart ziehen"
+                type="button"
+              />
+              <button
+                aria-label="Pfeil verschieben"
+                className="absolute flex h-8 w-8 -translate-x-1/2 -translate-y-1/2 touch-none items-center justify-center rounded-full border border-white bg-slate-950/85 text-white shadow-lg"
+                onPointerDown={(event) =>
+                  startDrag(event, { id: item.id, point: "body" })
+                }
+                style={{ left: `${middle.x}%`, top: `${middle.y}%` }}
+                title="Pfeil verschieben"
+                type="button"
+              >
+                <Move aria-hidden="true" className="h-4 w-4" />
+              </button>
+              <button
+                aria-label="Pfeilende verschieben"
+                className="absolute h-7 w-7 -translate-x-1/2 -translate-y-1/2 touch-none rounded-full border-2 border-white bg-white shadow-lg"
+                onPointerDown={(event) =>
+                  startDrag(event, { id: item.id, point: "end" })
+                }
+                style={{ left: `${end.x}%`, top: `${end.y}%` }}
+                title="Pfeilende ziehen"
+                type="button"
+              />
+            </div>
+          );
+        })}
+
         {elements
           .filter((item) => item.type !== "arrow")
           .map((item) => (
             <button
               className={`absolute flex h-11 min-w-11 -translate-x-1/2 -translate-y-1/2 touch-none items-center justify-center rounded-full border px-2 text-xs font-semibold shadow-lg transition hover:scale-105 [print-color-adjust:exact] ${elementClass(item.type)}`}
               key={item.id}
-              onPointerDown={(event) => {
-                event.currentTarget.setPointerCapture(event.pointerId);
-                setDragId(item.id);
-              }}
+              onPointerDown={(event) =>
+                startDrag(event, { id: item.id, point: "body" })
+              }
               style={{ left: `${item.x}%`, top: `${item.y}%` }}
+              title={item.name ?? item.label}
               type="button"
             >
               {item.type === "ball" ? "●" : item.type === "cone" ? "▲" : item.label}
+              {item.type === "player" && item.name ? (
+                <span className={playerLabelClass(item.y)}>
+                  {shortName(item.name)}
+                </span>
+              ) : null}
             </button>
           ))}
       </div>

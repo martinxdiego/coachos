@@ -1078,8 +1078,81 @@ export async function deleteMaterial(formData: FormData) {
   revalidatePath("/materials");
 }
 
+type TacticRosterPlayer = {
+  id: string;
+  name: string;
+  position: string | null;
+  jersey_number: number | null;
+};
+
+const tacticRosterPositions = [
+  { x: 12, y: 50 },
+  { x: 28, y: 22 },
+  { x: 28, y: 40 },
+  { x: 28, y: 60 },
+  { x: 28, y: 78 },
+  { x: 50, y: 32 },
+  { x: 50, y: 50 },
+  { x: 50, y: 68 },
+  { x: 72, y: 26 },
+  { x: 80, y: 50 },
+  { x: 72, y: 74 }
+] as const;
+
+function tacticRosterPosition(index: number) {
+  if (index < tacticRosterPositions.length) {
+    return tacticRosterPositions[index];
+  }
+
+  const benchIndex = index - tacticRosterPositions.length;
+  return {
+    x: 12 + (benchIndex % 9) * 9.5,
+    y: 88 - Math.floor(benchIndex / 9) * 7
+  };
+}
+
+function tacticInitials(name: string) {
+  return name
+    .split(" ")
+    .map((part) => part.at(0))
+    .filter(Boolean)
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+}
+
+function tacticRosterElements(players: TacticRosterPlayer[]) {
+  return players.map((player, index) => {
+    const position = tacticRosterPosition(index);
+    return {
+      id: `player-${player.id}`,
+      type: "player",
+      label:
+        player.jersey_number !== null
+          ? String(player.jersey_number)
+          : tacticInitials(player.name) || String(index + 1),
+      name: player.name,
+      playerId: player.id,
+      position: player.position,
+      x: position.x,
+      y: position.y
+    };
+  });
+}
+
 export async function createTacticBoard(formData: FormData) {
   const { supabase, user, team } = await requireActiveTeam();
+
+  const { data: players, error: playersError } = await supabase
+    .from("players")
+    .select("id,name,position,jersey_number")
+    .eq("team_id", team.id)
+    .order("jersey_number", { ascending: true, nullsFirst: false })
+    .order("name", { ascending: true });
+
+  if (playersError) {
+    throw new Error(playersError.message);
+  }
 
   const { error } = await supabase.from("tactic_boards").insert({
     team_id: team.id,
@@ -1087,8 +1160,7 @@ export async function createTacticBoard(formData: FormData) {
     title: requiredString(formData, "title", "Board title"),
     description: optionalString(formData, "description"),
     elements: [
-      { id: "p1", type: "player", label: "6", x: 50, y: 68 },
-      { id: "p2", type: "player", label: "10", x: 50, y: 48 },
+      ...tacticRosterElements(players ?? []),
       { id: "ball", type: "ball", label: "", x: 53, y: 58 }
     ]
   });
