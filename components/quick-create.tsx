@@ -69,7 +69,7 @@ export function QuickCreate({ enabled }: { enabled: boolean }) {
     <>
       <button
         aria-label="Schnell erstellen"
-        className="fixed bottom-6 right-5 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500 text-slate-950 shadow-[0_18px_40px_rgba(16,185,129,0.35)] transition-all duration-300 hover:-translate-y-1 hover:bg-emerald-400 md:bottom-7 md:right-7"
+        className="fixed bottom-24 right-5 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500 text-slate-950 shadow-[0_18px_40px_rgba(16,185,129,0.35)] transition-all duration-300 hover:-translate-y-1 hover:bg-emerald-400 md:bottom-7 md:right-7"
         onClick={() => setIsOpen(true)}
         type="button"
       >

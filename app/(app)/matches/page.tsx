@@ -1,5 +1,6 @@
 import { CalendarPlus, Save, Trash2, Trophy } from "lucide-react";
 import { createMatch, deleteMatch, updateMatch } from "@/app/actions";
+import { CreateMatchDrawer } from "@/components/create-match-drawer";
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
@@ -330,7 +331,12 @@ export default async function MatchesPage({ searchParams }: MatchesPageProps) {
       />
 
       <section className="grid gap-4 xl:grid-cols-[420px_1fr]">
-        <Card className="h-fit border-emerald-200 bg-emerald-50/70">
+        <CreateMatchDrawer
+          initialDate={initialDate}
+          suggestedLineup={suggestedLineup}
+          suggestedSubstitutes={suggestedSubstitutes}
+        />
+        <Card className="hidden h-fit border-emerald-200 bg-emerald-50/70">
           <CardHeader>
             <CardTitle>Spiel planen</CardTitle>
           </CardHeader>

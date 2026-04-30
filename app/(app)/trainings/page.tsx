@@ -14,6 +14,7 @@ import {
   saveAttendance,
   updateTraining
 } from "@/app/actions";
+import { CreateTrainingDrawer } from "@/components/create-training-drawer";
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
 import { PrintButton } from "@/components/print-button";
@@ -303,7 +304,11 @@ export default async function TrainingsPage({ searchParams }: TrainingsPageProps
 
       <section className="grid gap-4 xl:grid-cols-[420px_1fr]">
         <div className="space-y-4">
-          <Card className="border-emerald-200 bg-emerald-50/70">
+          <CreateTrainingDrawer
+            ageGroup={team.age_group}
+            initialDate={initialDate}
+          />
+          <Card className="hidden border-emerald-200 bg-emerald-50/70">
             <CardHeader>
               <CardTitle>Training erstellen</CardTitle>
             </CardHeader>
