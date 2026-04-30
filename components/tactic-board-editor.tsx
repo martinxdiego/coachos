@@ -180,7 +180,7 @@ export function TacticBoardEditor({ board }: TacticBoardEditorProps) {
       </div>
 
       <div
-        className="relative aspect-[1.55] min-h-[420px] overflow-hidden rounded-2xl border-4 border-emerald-950/10 bg-emerald-700 shadow-inner"
+        className="relative aspect-[1.55] min-h-[420px] overflow-hidden rounded-2xl border-4 border-emerald-950/10 bg-emerald-700 shadow-inner [print-color-adjust:exact]"
         id={`field-${board.id}`}
         onPointerMove={(event) => updatePosition(event.clientX, event.clientY)}
         onPointerUp={() => setDragId(null)}
@@ -225,7 +225,7 @@ export function TacticBoardEditor({ board }: TacticBoardEditorProps) {
           .filter((item) => item.type !== "arrow")
           .map((item) => (
             <button
-              className={`absolute flex h-11 min-w-11 -translate-x-1/2 -translate-y-1/2 touch-none items-center justify-center rounded-full border px-2 text-xs font-semibold shadow-lg transition hover:scale-105 ${elementClass(item.type)}`}
+              className={`absolute flex h-11 min-w-11 -translate-x-1/2 -translate-y-1/2 touch-none items-center justify-center rounded-full border px-2 text-xs font-semibold shadow-lg transition hover:scale-105 [print-color-adjust:exact] ${elementClass(item.type)}`}
               key={item.id}
               onPointerDown={(event) => {
                 event.currentTarget.setPointerCapture(event.pointerId);

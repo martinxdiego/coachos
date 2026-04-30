@@ -64,45 +64,64 @@ export default async function PlayersPage() {
         title="Spieler"
       />
 
-      <section className="grid gap-4 lg:grid-cols-[380px_1fr]">
-        <Card className="h-fit border-emerald-200 bg-emerald-50/70">
+      <section className="space-y-4">
+        <Card className="border-emerald-200 bg-emerald-50/70">
           <CardHeader>
             <CardTitle>Schnellerstellung</CardTitle>
           </CardHeader>
           <CardContent>
             <form action={createPlayer} className="space-y-4">
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
+              <div className="grid gap-3 md:grid-cols-5">
                 <div className="space-y-2">
                   <Label htmlFor="first_name">Vorname</Label>
-                  <Input id="first_name" name="first_name" required />
+                  <Input
+                    id="first_name"
+                    name="first_name"
+                    placeholder="Luca"
+                    required
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="last_name">Nachname</Label>
-                  <Input id="last_name" name="last_name" required />
+                  <Input
+                    id="last_name"
+                    name="last_name"
+                    placeholder="Meier"
+                    required
+                  />
                 </div>
-              </div>
-              <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
                 <div className="space-y-2">
                   <Label htmlFor="position">Position</Label>
                   <Input id="position" name="position" placeholder="ZM, IV, ST" />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="birth_year">Jahrgang</Label>
-                  <Input id="birth_year" name="birth_year" type="number" />
+                  <Input
+                    id="birth_year"
+                    name="birth_year"
+                    placeholder="2010"
+                    type="number"
+                  />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="jersey_number">Nummer</Label>
-                  <Input id="jersey_number" name="jersey_number" type="number" />
+                  <Label htmlFor="jersey_number">Rückennummer</Label>
+                  <Input
+                    id="jersey_number"
+                    name="jersey_number"
+                    placeholder="8"
+                    type="number"
+                  />
                 </div>
               </div>
-              <Button className="w-full" type="submit">
-                <Plus aria-hidden="true" className="h-4 w-4" />
-                Spieler speichern
-              </Button>
-              <p className="text-xs leading-5 text-emerald-900/70">
-                Nur die wichtigsten Felder. Details wie Stärken, Ziele,
-                Kontakte und medizinische Hinweise bearbeitest du im Profil.
-              </p>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-xs leading-5 text-emerald-900/70">
+                  Diese fünf Felder reichen für den Kader. Details folgen später im Profil.
+                </p>
+                <Button type="submit">
+                  <Plus aria-hidden="true" className="h-4 w-4" />
+                  Spieler speichern
+                </Button>
+              </div>
             </form>
           </CardContent>
         </Card>
@@ -117,7 +136,7 @@ export default async function PlayersPage() {
                     <Badge variant="secondary">{items.length} Spieler</Badge>
                   </div>
                 </CardHeader>
-                <CardContent className="grid gap-3 md:grid-cols-2">
+                <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                   {items.map((player) => (
                     <div
                       className="rounded-xl border border-border bg-background/75 p-4 transition hover:-translate-y-0.5 hover:border-primary/40 hover:bg-white hover:shadow-soft"

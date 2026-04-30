@@ -446,7 +446,11 @@ export default async function TrainingsPage() {
                       <div className="rounded-xl bg-secondary px-3 py-3">
                         <p className="text-xs text-muted-foreground">Dauer</p>
                         <p className="font-semibold">
-                          {training.duration_minutes ?? (totalMinutes || "Offen")} Min
+                          {training.duration_minutes
+                            ? `${training.duration_minutes} Min`
+                            : totalMinutes
+                              ? `${totalMinutes} Min`
+                              : "Offen"}
                         </p>
                       </div>
                       <div className="rounded-xl bg-secondary px-3 py-3">
@@ -474,7 +478,7 @@ export default async function TrainingsPage() {
                     </div>
 
                     {training.goal ? (
-                      <p className="rounded-xl bg-emerald-50 p-4 text-sm leading-6 text-emerald-950">
+                      <p className="line-clamp-2 rounded-xl bg-emerald-50 p-4 text-sm leading-6 text-emerald-950">
                         {training.goal}
                       </p>
                     ) : null}
@@ -573,7 +577,11 @@ export default async function TrainingsPage() {
                     </details>
 
                     {phases.length > 0 ? (
-                      <div className="grid gap-3">
+                      <details className="rounded-xl border border-border p-4">
+                        <summary className="cursor-pointer text-sm font-semibold">
+                          Phasen anzeigen ({phases.length})
+                        </summary>
+                        <div className="mt-4 grid gap-3">
                         {phases.map((phase) => (
                           <div
                             className="rounded-xl border border-border bg-background/70 p-4"
@@ -621,11 +629,16 @@ export default async function TrainingsPage() {
                             </div>
                           </div>
                         ))}
-                      </div>
+                        </div>
+                      </details>
                     ) : null}
 
                     {players.length > 0 ? (
-                      <form action={saveAttendance} className="space-y-3 no-print">
+                      <details className="rounded-xl border border-border p-4 no-print">
+                        <summary className="cursor-pointer text-sm font-semibold">
+                          Anwesenheit erfassen ({presentCount}/{players.length})
+                        </summary>
+                        <form action={saveAttendance} className="mt-4 space-y-3">
                         <input
                           name="training_id"
                           type="hidden"
@@ -669,7 +682,8 @@ export default async function TrainingsPage() {
                         <Button type="submit" variant="secondary">
                           Anwesenheit speichern
                         </Button>
-                      </form>
+                        </form>
+                      </details>
                     ) : null}
                   </CardContent>
                 </Card>

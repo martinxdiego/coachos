@@ -789,6 +789,216 @@ export async function deleteMatch(formData: FormData) {
   revalidatePath("/matches");
 }
 
+async function buildMaterialContent(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  teamId: string,
+  type: MaterialType,
+  customContent: string | null
+) {
+  if (customContent) {
+    return customContent;
+  }
+
+  if (type === "player_list" || type === "attendance_list") {
+    const { data: players, error } = await supabase
+      .from("players")
+      .select("name,position,birth_year,jersey_number,status")
+      .eq("team_id", teamId)
+      .order("name", { ascending: true });
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    if (!players || players.length === 0) {
+      return "Noch keine Spieler im Workspace.";
+    }
+
+    if (type === "attendance_list") {
+      return [
+        "Anwesenheitsliste",
+        "",
+        ...players.map(
+          (player, index) =>
+            `[ ] ${index + 1}. ${player.name} | ${player.position ?? "-"} | #${player.jersey_number ?? "-"}`
+        )
+      ].join("\n");
+    }
+
+    return [
+      "Spielerliste",
+      "",
+      "Nr. | Name | Position | Jahrgang | Status",
+      "--- | --- | --- | --- | ---",
+      ...players.map(
+        (player) =>
+          `${player.jersey_number ?? "-"} | ${player.name} | ${player.position ?? "-"} | ${player.birth_year ?? "-"} | ${player.status}`
+      )
+    ].join("\n");
+  }
+
+  if (type === "training_plan") {
+    const { data: training, error } = await supabase
+      .from("training_sessions")
+      .select("id,date,start_time,duration_minutes,focus,goal,location,intensity")
+      .eq("team_id", teamId)
+      .order("date", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    if (!training) {
+      return [
+        "Trainingsplan",
+        "",
+        "Datum:",
+        "Ziel:",
+        "Schwerpunkt:",
+        "",
+        "Warm-up:",
+        "Technik:",
+        "Taktik:",
+        "Spielform:",
+        "Abschluss:",
+        "Cooldown:"
+      ].join("\n");
+    }
+
+    const { data: phases, error: phaseError } = await supabase
+      .from("training_phases")
+      .select("phase_type,title,duration_minutes,description,coaching_points,material")
+      .eq("team_id", teamId)
+      .eq("training_id", training.id)
+      .order("sort_order", { ascending: true });
+
+    if (phaseError) {
+      throw new Error(phaseError.message);
+    }
+
+    return [
+      `Trainingsplan: ${training.focus}`,
+      `Datum: ${training.date}${training.start_time ? ` ${training.start_time.slice(0, 5)}` : ""}`,
+      `Ort: ${training.location ?? "-"}`,
+      `Dauer: ${training.duration_minutes ?? "-"} Minuten`,
+      `Intensität: ${training.intensity ?? "-"}`,
+      "",
+      `Ziel: ${training.goal ?? "-"}`,
+      "",
+      ...(phases ?? []).map(
+        (phase) =>
+          `${phase.title} (${phase.duration_minutes ?? "-"} Min)\n${phase.description ?? ""}\nCoaching: ${phase.coaching_points ?? "-"}\nMaterial: ${phase.material ?? "-"}\n`
+      )
+    ].join("\n");
+  }
+
+  if (type === "match_plan") {
+    const today = new Date().toISOString().slice(0, 10);
+    const { data: match, error } = await supabase
+      .from("matches")
+      .select("opponent,date,kickoff_time,location,meeting_point,formation,starting_lineup,substitutes,tactical_instructions,match_goals")
+      .eq("team_id", teamId)
+      .gte("date", today)
+      .order("date", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return match
+      ? [
+          `Matchplan: ${match.opponent}`,
+          `Datum: ${match.date}${match.kickoff_time ? ` ${match.kickoff_time.slice(0, 5)}` : ""}`,
+          `Ort: ${match.location ?? "-"}`,
+          `Treffpunkt: ${match.meeting_point ?? "-"}`,
+          `Formation: ${match.formation ?? "-"}`,
+          "",
+          "Startelf:",
+          match.starting_lineup ?? "-",
+          "",
+          "Ersatzspieler:",
+          match.substitutes ?? "-",
+          "",
+          "Taktik:",
+          match.tactical_instructions ?? "-",
+          "",
+          "Matchziele:",
+          match.match_goals ?? "-"
+        ].join("\n")
+      : "Matchplan\n\nGegner:\nDatum:\nTreffpunkt:\nFormation:\nStartelf:\nTaktik:\nMatchziele:";
+  }
+
+  if (type === "week_plan" || type === "month_plan") {
+    const [trainingsResult, matchesResult] = await Promise.all([
+      supabase
+        .from("training_sessions")
+        .select("date,start_time,focus,location")
+        .eq("team_id", teamId)
+        .order("date", { ascending: true })
+        .limit(type === "week_plan" ? 10 : 40),
+      supabase
+        .from("matches")
+        .select("date,kickoff_time,opponent,location")
+        .eq("team_id", teamId)
+        .order("date", { ascending: true })
+        .limit(type === "week_plan" ? 10 : 40)
+    ]);
+
+    if (trainingsResult.error) {
+      throw new Error(trainingsResult.error.message);
+    }
+
+    if (matchesResult.error) {
+      throw new Error(matchesResult.error.message);
+    }
+
+    const events = [
+      ...(trainingsResult.data ?? []).map(
+        (event) =>
+          `${event.date} ${event.start_time?.slice(0, 5) ?? ""} | Training | ${event.focus} | ${event.location ?? "-"}`
+      ),
+      ...(matchesResult.data ?? []).map(
+        (event) =>
+          `${event.date} ${event.kickoff_time?.slice(0, 5) ?? ""} | Spiel | ${event.opponent} | ${event.location ?? "-"}`
+      )
+    ].sort();
+
+    return [
+      type === "week_plan" ? "Wochenplan" : "Monatsplan",
+      "",
+      ...(events.length > 0 ? events : ["Noch keine Termine geplant."])
+    ].join("\n");
+  }
+
+  if (type === "tactics_sheet") {
+    return [
+      "Taktikblatt",
+      "",
+      "Formation:",
+      "Prinzipien:",
+      "Pressingauslöser:",
+      "Aufbau:",
+      "Umschalten:",
+      "Standards:"
+    ].join("\n");
+  }
+
+  return [
+    "Übungsblatt",
+    "",
+    "Ziel:",
+    "Organisation:",
+    "Ablauf:",
+    "Coachingpunkte:",
+    "Varianten:",
+    "Material:"
+  ].join("\n");
+}
+
 export async function createMaterial(formData: FormData) {
   const { supabase, user, team } = await requireActiveTeam();
   const type = enumValue(formData, "type", [
@@ -806,13 +1016,20 @@ export async function createMaterial(formData: FormData) {
     throw new Error("Material type is required.");
   }
 
+  const content = await buildMaterialContent(
+    supabase,
+    team.id,
+    type,
+    optionalString(formData, "content")
+  );
+
   const { error } = await supabase.from("materials").insert({
     team_id: team.id,
     user_id: user.id,
     type,
     title: requiredString(formData, "title", "Title"),
     description: optionalString(formData, "description"),
-    content: optionalString(formData, "content")
+    content
   });
 
   if (error) {
