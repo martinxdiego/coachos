@@ -4,16 +4,20 @@ import { useState } from "react";
 import {
   CalendarPlus,
   ClipboardList,
+  HeartPulse,
+  Medal,
   Plus,
   Trophy,
   UserPlus,
   X
 } from "lucide-react";
 import {
+  addWinnerPoints,
   createMatch,
   createPlayer,
   createTask,
-  createTraining
+  createTraining,
+  saveHealthCheckin
 } from "@/app/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,12 +25,26 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { cn, todayIsoDate } from "@/lib/utils";
 
-type QuickCreateMode = "player" | "training" | "match" | "task";
+type QuickCreateMode =
+  | "player"
+  | "training"
+  | "match"
+  | "winner"
+  | "health"
+  | "task";
+
+type QuickPlayer = {
+  id: string;
+  name: string;
+  position: string | null;
+};
 
 const quickCreateModes = [
   { id: "player", label: "Spieler", icon: UserPlus },
   { id: "training", label: "Training", icon: CalendarPlus },
   { id: "match", label: "Spiel", icon: Trophy },
+  { id: "winner", label: "Winner", icon: Medal },
+  { id: "health", label: "Check-in", icon: HeartPulse },
   { id: "task", label: "Aufgabe", icon: ClipboardList }
 ] satisfies { id: QuickCreateMode; label: string; icon: typeof Plus }[];
 
@@ -56,7 +74,13 @@ function ModeButton({
   );
 }
 
-export function QuickCreate({ enabled }: { enabled: boolean }) {
+export function QuickCreate({
+  enabled,
+  players
+}: {
+  enabled: boolean;
+  players: QuickPlayer[];
+}) {
   const [isOpen, setIsOpen] = useState(false);
   const [mode, setMode] = useState<QuickCreateMode>("training");
   const today = todayIsoDate();
@@ -103,7 +127,7 @@ export function QuickCreate({ enabled }: { enabled: boolean }) {
               </Button>
             </div>
 
-            <div className="mt-5 grid grid-cols-2 gap-2">
+            <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-3">
               {quickCreateModes.map((item) => (
                 <ModeButton
                   active={mode === item.id}
@@ -198,6 +222,136 @@ export function QuickCreate({ enabled }: { enabled: boolean }) {
                     Spiel planen
                   </Button>
                 </form>
+              ) : null}
+
+              {mode === "winner" ? (
+                players.length > 0 ? (
+                  <form
+                    action={addWinnerPoints}
+                    className="space-y-4"
+                    onSubmit={() => setIsOpen(false)}
+                  >
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <select
+                        className="flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        name="player_id"
+                        required
+                      >
+                        {players.map((player) => (
+                          <option key={player.id} value={player.id}>
+                            {player.name}
+                            {player.position ? ` · ${player.position}` : ""}
+                          </option>
+                        ))}
+                      </select>
+                      <Input
+                        defaultValue="3"
+                        max={50}
+                        min={1}
+                        name="points"
+                        type="number"
+                      />
+                    </div>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <select
+                        className="flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        defaultValue="training"
+                        name="context_type"
+                      >
+                        <option value="training">Training</option>
+                        <option value="match">Spiel</option>
+                        <option value="event">Event</option>
+                        <option value="monday_training">Montag</option>
+                        <option value="other">Sonstiges</option>
+                      </select>
+                      <Input defaultValue={today} name="awarded_at" type="date" />
+                    </div>
+                    <Input
+                      name="context_label"
+                      placeholder="Kontext, Gegner oder Event"
+                    />
+                    <Textarea name="reason" placeholder="Begründung optional" />
+                    <Button className="w-full" type="submit">
+                      Winnerpunkte speichern
+                    </Button>
+                  </form>
+                ) : (
+                  <p className="rounded-xl border border-dashed border-border p-4 text-sm text-muted-foreground">
+                    Erfasse zuerst Spieler, damit Winnerpunkte vergeben werden
+                    können.
+                  </p>
+                )
+              ) : null}
+
+              {mode === "health" ? (
+                players.length > 0 ? (
+                  <form
+                    action={saveHealthCheckin}
+                    className="space-y-4"
+                    onSubmit={() => setIsOpen(false)}
+                  >
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <select
+                        className="flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        name="player_id"
+                        required
+                      >
+                        {players.map((player) => (
+                          <option key={player.id} value={player.id}>
+                            {player.name}
+                          </option>
+                        ))}
+                      </select>
+                      <Input defaultValue={today} name="checkin_date" type="date" />
+                    </div>
+                    <select
+                      className="flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      defaultValue="training"
+                      name="context_type"
+                    >
+                      <option value="training">Vor Training</option>
+                      <option value="match">Vor Spiel</option>
+                      <option value="free">Freier Check</option>
+                    </select>
+                    <div className="grid grid-cols-3 gap-2">
+                      {[
+                        ["fatigue", "Müdigkeit"],
+                        ["sleep_quality", "Schlaf"],
+                        ["soreness", "Muskel"],
+                        ["pain", "Schmerz"],
+                        ["stress", "Stress"],
+                        ["motivation", "Motivation"],
+                        ["energy", "Energie"],
+                        ["injury_feeling", "Verletzung"],
+                        ["wellbeing", "Wohlbefinden"]
+                      ].map(([name, label]) => (
+                        <label className="space-y-1 text-xs" key={name}>
+                          <span>{label}</span>
+                          <select
+                            className="flex h-9 w-full rounded-lg border border-input bg-background px-2 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                            defaultValue="3"
+                            name={name}
+                          >
+                            {[1, 2, 3, 4, 5].map((value) => (
+                              <option key={value} value={value}>
+                                {value}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      ))}
+                    </div>
+                    <Textarea name="notes" placeholder="Hinweis optional" />
+                    <Button className="w-full" type="submit">
+                      Check-in speichern
+                    </Button>
+                  </form>
+                ) : (
+                  <p className="rounded-xl border border-dashed border-border p-4 text-sm text-muted-foreground">
+                    Erfasse zuerst Spieler, damit Check-ins gespeichert werden
+                    können.
+                  </p>
+                )
               ) : null}
 
               {mode === "task" ? (

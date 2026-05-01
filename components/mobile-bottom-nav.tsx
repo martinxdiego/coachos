@@ -2,15 +2,21 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CalendarDays, Dumbbell, LayoutDashboard, Shield, UsersRound } from "lucide-react";
+import {
+  ClipboardList,
+  LayoutDashboard,
+  Medal,
+  Trophy,
+  UsersRound
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const mobileItems = [
   { href: "/", label: "Heute", icon: LayoutDashboard },
-  { href: "/calendar", label: "Kalender", icon: CalendarDays },
-  { href: "/pitch", label: "Platz", icon: Dumbbell },
   { href: "/players", label: "Kader", icon: UsersRound },
-  { href: "/tactics", label: "Taktik", icon: Shield }
+  { href: "/trainings", label: "Training", icon: ClipboardList },
+  { href: "/matches", label: "Spiele", icon: Trophy },
+  { href: "/winnerpunkte", label: "Winner", icon: Medal }
 ];
 
 export function MobileBottomNav({ enabled }: { enabled: boolean }) {

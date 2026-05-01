@@ -29,6 +29,26 @@ export type MaterialType =
   | "week_plan"
   | "month_plan";
 export type TaskStatus = "open" | "done";
+export type WinnerPointContextType =
+  | "training"
+  | "match"
+  | "event"
+  | "other"
+  | "monday_training";
+export type ExternalLinkType =
+  | "clubcorner"
+  | "player_stats"
+  | "quali_document"
+  | "meeting_notes"
+  | "medical"
+  | "other";
+export type EvaluationContextType =
+  | "training"
+  | "match"
+  | "event"
+  | "monday_training";
+export type HealthContextType = "training" | "match" | "free";
+export type MondayAttendanceStatus = "present" | "absent" | "injured";
 
 export interface Database {
   public: {
@@ -109,7 +129,9 @@ export interface Database {
           last_name: string | null;
           position: string | null;
           secondary_positions: string[] | null;
+          birth_date: string | null;
           birth_year: number | null;
+          team_category: string | null;
           jersey_number: number | null;
           photo_url: string | null;
           strong_foot: StrongFoot | null;
@@ -117,6 +139,18 @@ export interface Database {
           weight_kg: number | null;
           contact: string | null;
           parent_contact: string | null;
+          emergency_contact: string | null;
+          player_account_email: string | null;
+          favorite_team: string | null;
+          favorite_player: string | null;
+          football_goals: string | null;
+          motivation: string | null;
+          allergies: string | null;
+          injuries: string | null;
+          limitations: string | null;
+          medications: string | null;
+          coach_alerts: string | null;
+          season_form_completed_at: string | null;
           medical_notes: string | null;
           strengths: string | null;
           weaknesses: string | null;
@@ -138,7 +172,9 @@ export interface Database {
           last_name?: string | null;
           position?: string | null;
           secondary_positions?: string[] | null;
+          birth_date?: string | null;
           birth_year?: number | null;
+          team_category?: string | null;
           jersey_number?: number | null;
           photo_url?: string | null;
           strong_foot?: StrongFoot | null;
@@ -146,6 +182,18 @@ export interface Database {
           weight_kg?: number | null;
           contact?: string | null;
           parent_contact?: string | null;
+          emergency_contact?: string | null;
+          player_account_email?: string | null;
+          favorite_team?: string | null;
+          favorite_player?: string | null;
+          football_goals?: string | null;
+          motivation?: string | null;
+          allergies?: string | null;
+          injuries?: string | null;
+          limitations?: string | null;
+          medications?: string | null;
+          coach_alerts?: string | null;
+          season_form_completed_at?: string | null;
           medical_notes?: string | null;
           strengths?: string | null;
           weaknesses?: string | null;
@@ -256,6 +304,9 @@ export interface Database {
           user_id: string;
           opponent: string;
           date: string;
+          competition: string | null;
+          team_category: string | null;
+          upload_source: string | null;
           kickoff_time: string | null;
           location: string | null;
           home_away: HomeAway | null;
@@ -285,6 +336,9 @@ export interface Database {
           user_id: string;
           opponent: string;
           date: string;
+          competition?: string | null;
+          team_category?: string | null;
+          upload_source?: string | null;
           kickoff_time?: string | null;
           location?: string | null;
           home_away?: HomeAway | null;
@@ -467,6 +521,298 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["notes"]["Insert"]>;
         Relationships: [];
       };
+      winner_points: {
+        Row: {
+          id: string;
+          team_id: string;
+          user_id: string;
+          player_id: string;
+          context_type: WinnerPointContextType;
+          context_id: string | null;
+          context_label: string | null;
+          points: number;
+          reason: string | null;
+          awarded_at: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          team_id: string;
+          user_id: string;
+          player_id: string;
+          context_type: WinnerPointContextType;
+          context_id?: string | null;
+          context_label?: string | null;
+          points: number;
+          reason?: string | null;
+          awarded_at?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["winner_points"]["Insert"]
+        >;
+        Relationships: [];
+      };
+      external_links: {
+        Row: {
+          id: string;
+          team_id: string;
+          user_id: string;
+          player_id: string | null;
+          link_type: ExternalLinkType;
+          title: string;
+          url: string;
+          notes: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          team_id: string;
+          user_id: string;
+          player_id?: string | null;
+          link_type: ExternalLinkType;
+          title: string;
+          url: string;
+          notes?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["external_links"]["Insert"]
+        >;
+        Relationships: [];
+      };
+      player_evaluations: {
+        Row: {
+          id: string;
+          team_id: string;
+          user_id: string;
+          player_id: string;
+          context_type: EvaluationContextType;
+          context_id: string | null;
+          context_label: string | null;
+          evaluation_date: string;
+          participation: number | null;
+          motivation: number | null;
+          training_quality: number | null;
+          match_quality: number | null;
+          behavior: number | null;
+          effort: number | null;
+          concentration: number | null;
+          notes: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          team_id: string;
+          user_id: string;
+          player_id: string;
+          context_type: EvaluationContextType;
+          context_id?: string | null;
+          context_label?: string | null;
+          evaluation_date?: string;
+          participation?: number | null;
+          motivation?: number | null;
+          training_quality?: number | null;
+          match_quality?: number | null;
+          behavior?: number | null;
+          effort?: number | null;
+          concentration?: number | null;
+          notes?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["player_evaluations"]["Insert"]
+        >;
+        Relationships: [];
+      };
+      health_checkins: {
+        Row: {
+          id: string;
+          team_id: string;
+          user_id: string;
+          player_id: string;
+          checkin_date: string;
+          context_type: HealthContextType;
+          fatigue: number;
+          sleep_quality: number;
+          soreness: number;
+          pain: number;
+          stress: number;
+          motivation: number;
+          energy: number;
+          injury_feeling: number;
+          wellbeing: number;
+          notes: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          team_id: string;
+          user_id: string;
+          player_id: string;
+          checkin_date?: string;
+          context_type?: HealthContextType;
+          fatigue: number;
+          sleep_quality: number;
+          soreness: number;
+          pain: number;
+          stress: number;
+          motivation: number;
+          energy: number;
+          injury_feeling: number;
+          wellbeing: number;
+          notes?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["health_checkins"]["Insert"]
+        >;
+        Relationships: [];
+      };
+      match_analyses: {
+        Row: {
+          id: string;
+          team_id: string;
+          user_id: string;
+          match_id: string;
+          opponent_analysis: string | null;
+          match_preparation: string | null;
+          match_targets: string | null;
+          lineup_notes: string | null;
+          went_well: string | null;
+          needs_work: string | null;
+          key_moments: string | null;
+          individual_performances: string | null;
+          team_performance: string | null;
+          tactical_lessons: string | null;
+          next_training_focus: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          team_id: string;
+          user_id: string;
+          match_id: string;
+          opponent_analysis?: string | null;
+          match_preparation?: string | null;
+          match_targets?: string | null;
+          lineup_notes?: string | null;
+          went_well?: string | null;
+          needs_work?: string | null;
+          key_moments?: string | null;
+          individual_performances?: string | null;
+          team_performance?: string | null;
+          tactical_lessons?: string | null;
+          next_training_focus?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["match_analyses"]["Insert"]
+        >;
+        Relationships: [];
+      };
+      monday_trainings: {
+        Row: {
+          id: string;
+          team_id: string;
+          user_id: string;
+          date: string;
+          topic: string;
+          goal: string | null;
+          duration_minutes: number | null;
+          staff_notes: string | null;
+          sandu_notes: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          team_id: string;
+          user_id: string;
+          date: string;
+          topic: string;
+          goal?: string | null;
+          duration_minutes?: number | null;
+          staff_notes?: string | null;
+          sandu_notes?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["monday_trainings"]["Insert"]
+        >;
+        Relationships: [];
+      };
+      monday_attendance: {
+        Row: {
+          id: string;
+          team_id: string;
+          user_id: string;
+          monday_training_id: string;
+          player_id: string;
+          status: MondayAttendanceStatus;
+          note: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          team_id: string;
+          user_id: string;
+          monday_training_id: string;
+          player_id: string;
+          status: MondayAttendanceStatus;
+          note?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["monday_attendance"]["Insert"]
+        >;
+        Relationships: [];
+      };
+      player_awards: {
+        Row: {
+          id: string;
+          team_id: string;
+          user_id: string;
+          player_id: string;
+          previous_player_id: string | null;
+          match_id: string | null;
+          event_label: string | null;
+          award_date: string;
+          reason: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          team_id: string;
+          user_id: string;
+          player_id: string;
+          previous_player_id?: string | null;
+          match_id?: string | null;
+          event_label?: string | null;
+          award_date?: string;
+          reason?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["player_awards"]["Insert"]
+        >;
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {
@@ -514,3 +860,19 @@ export type TacticBoard =
   Database["public"]["Tables"]["tactic_boards"]["Row"];
 export type Task = Database["public"]["Tables"]["tasks"]["Row"];
 export type Note = Database["public"]["Tables"]["notes"]["Row"];
+export type WinnerPoint =
+  Database["public"]["Tables"]["winner_points"]["Row"];
+export type ExternalLink =
+  Database["public"]["Tables"]["external_links"]["Row"];
+export type PlayerEvaluation =
+  Database["public"]["Tables"]["player_evaluations"]["Row"];
+export type HealthCheckin =
+  Database["public"]["Tables"]["health_checkins"]["Row"];
+export type MatchAnalysis =
+  Database["public"]["Tables"]["match_analyses"]["Row"];
+export type MondayTraining =
+  Database["public"]["Tables"]["monday_trainings"]["Row"];
+export type MondayAttendance =
+  Database["public"]["Tables"]["monday_attendance"]["Row"];
+export type PlayerAward =
+  Database["public"]["Tables"]["player_awards"]["Row"];

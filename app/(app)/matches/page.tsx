@@ -1,5 +1,12 @@
+import Link from "next/link";
 import { CalendarPlus, Save, Trash2, Trophy } from "lucide-react";
-import { createMatch, deleteMatch, updateMatch } from "@/app/actions";
+import {
+  createMatch,
+  deleteMatch,
+  importMatches,
+  savePlayerEvaluation,
+  updateMatch
+} from "@/app/actions";
 import { CreateMatchDrawer } from "@/components/create-match-drawer";
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
@@ -97,6 +104,8 @@ function MatchFields({
   match?: {
     opponent: string;
     date: string;
+    competition: string | null;
+    team_category: string | null;
     kickoff_time: string | null;
     location: string | null;
     home_away: string | null;
@@ -127,6 +136,22 @@ function MatchFields({
             defaultValue={match?.opponent ?? ""}
             name="opponent"
             required
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>Wettbewerb</Label>
+          <Input
+            defaultValue={match?.competition ?? ""}
+            name="competition"
+            placeholder="Meisterschaft, Cup"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>Kategorie</Label>
+          <Input
+            defaultValue={match?.team_category ?? ""}
+            name="team_category"
+            placeholder="U16, B-Junioren"
           />
         </div>
         <div className="space-y-2">
@@ -331,11 +356,49 @@ export default async function MatchesPage({ searchParams }: MatchesPageProps) {
       />
 
       <section className="grid gap-4 xl:grid-cols-[420px_1fr]">
-        <CreateMatchDrawer
-          initialDate={initialDate}
-          suggestedLineup={suggestedLineup}
-          suggestedSubstitutes={suggestedSubstitutes}
-        />
+        <aside className="space-y-4">
+          <CreateMatchDrawer
+            ageGroup={team.age_group}
+            initialDate={initialDate}
+            suggestedLineup={suggestedLineup}
+            suggestedSubstitutes={suggestedSubstitutes}
+          />
+          <Card>
+            <CardHeader>
+              <CardTitle>Spiele importieren</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <form action={importMatches} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="matches-file">CSV/TXT-Datei optional</Label>
+                  <Input
+                    accept=".csv,.txt"
+                    id="matches-file"
+                    name="matches_file"
+                    type="file"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="matches-csv">Oder Liste einfügen</Label>
+                  <Textarea
+                    id="matches-csv"
+                    name="matches_csv"
+                    placeholder={
+                      "Datum;Gegner;Anspielzeit;Ort;home/away/neutral;Wettbewerb;Resultat;Kategorie\n2026-05-09;FC Beispiel;10:00;Gersag;home;Meisterschaft;;U16"
+                    }
+                  />
+                </div>
+                <p className="text-xs leading-5 text-muted-foreground">
+                  Excel als CSV exportieren. PDF-Import kann später über einen
+                  spezialisierten Parser ergänzt werden.
+                </p>
+                <Button className="w-full" type="submit" variant="secondary">
+                  Spiele importieren
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+        </aside>
         <Card className="hidden h-fit border-emerald-200 bg-emerald-50/70">
           <CardHeader>
             <CardTitle>Spiel planen</CardTitle>
@@ -466,6 +529,83 @@ export default async function MatchesPage({ searchParams }: MatchesPageProps) {
                           ))}
                         </div>
                       </div>
+
+                      <div className="grid gap-2 sm:grid-cols-3">
+                        <Button asChild variant="outline">
+                          <Link href={`/analysis?match=${match.id}`}>
+                            Vorbereitung / Analyse
+                          </Link>
+                        </Button>
+                        <Button asChild variant="outline">
+                          <Link href={`/winnerpunkte?type=match`}>
+                            Winnerpunkte
+                          </Link>
+                        </Button>
+                        <Button asChild variant="outline">
+                          <Link href="/evaluations">Bewertungen</Link>
+                        </Button>
+                      </div>
+
+                      <details className="rounded-xl border border-border p-4">
+                        <summary className="cursor-pointer text-sm font-semibold">
+                          Spielerbewertung für dieses Spiel
+                        </summary>
+                        <form
+                          action={savePlayerEvaluation}
+                          className="mt-4 grid gap-3 md:grid-cols-6"
+                        >
+                          <input name="context_type" type="hidden" value="match" />
+                          <input name="context_id" type="hidden" value={match.id} />
+                          <input
+                            name="context_label"
+                            type="hidden"
+                            value={match.opponent}
+                          />
+                          <input
+                            name="evaluation_date"
+                            type="hidden"
+                            value={match.date}
+                          />
+                          <select
+                            className="flex h-10 rounded-lg border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:col-span-2"
+                            name="player_id"
+                          >
+                            {players.map((player) => (
+                              <option key={player.id} value={player.id}>
+                                {player.name}
+                              </option>
+                            ))}
+                          </select>
+                          {[
+                            ["match_quality", "Spiel"],
+                            ["effort", "Einsatz"],
+                            ["behavior", "Verhalten"],
+                            ["concentration", "Fokus"]
+                          ].map(([name, label]) => (
+                            <select
+                              aria-label={label}
+                              className="flex h-10 rounded-lg border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                              defaultValue="3"
+                              key={name}
+                              name={name}
+                            >
+                              {[1, 2, 3, 4, 5].map((value) => (
+                                <option key={value} value={value}>
+                                  {value}
+                                </option>
+                              ))}
+                            </select>
+                          ))}
+                          <Textarea
+                            className="md:col-span-5"
+                            name="notes"
+                            placeholder="Kurzfeedback"
+                          />
+                          <Button className="md:col-span-1" type="submit">
+                            Speichern
+                          </Button>
+                        </form>
+                      </details>
 
                       <details className="rounded-xl border border-border p-4">
                         <summary className="cursor-pointer text-sm font-semibold">

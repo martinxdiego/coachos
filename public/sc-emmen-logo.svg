@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" viewBox="0 0 160 160" role="img" aria-labelledby="title desc">
+  <title id="title">SC Emmen</title>
+  <desc id="desc">Editable SC Emmen crest placeholder for CoachOS.</desc>
+  <rect width="160" height="160" rx="34" fill="#052e22"/>
+  <path d="M80 16 128 34v42c0 34-19 57-48 72-29-15-48-38-48-72V34l48-18Z" fill="#10b981"/>
+  <path d="M80 27 117 41v35c0 27-14 46-37 58-23-12-37-31-37-58V41l37-14Z" fill="#f8fafc"/>
+  <path d="M53 68c0-18 13-31 31-31 10 0 19 4 25 11l-11 10c-4-4-8-6-14-6-9 0-16 7-16 16s7 16 16 16c6 0 11-2 15-7l11 10c-6 8-15 12-26 12-18 0-31-13-31-31Z" fill="#052e22"/>
+  <text x="80" y="121" fill="#052e22" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="700" text-anchor="middle">SC EMMEN</text>
+</svg>

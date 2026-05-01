@@ -15,6 +15,7 @@ import {
   deleteTraining,
   duplicateTraining,
   saveAttendance,
+  savePlayerEvaluation,
   updateTraining
 } from "@/app/actions";
 import { Badge } from "@/components/ui/badge";
@@ -184,6 +185,9 @@ export function TrainingWeekAccordion({
   const [openTrainings, setOpenTrainings] = useState<Set<string>>(new Set());
   const [editingIds, setEditingIds] = useState<Set<string>>(new Set());
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
+  const [query, setQuery] = useState("");
+  const [intensityFilter, setIntensityFilter] = useState("all");
+  const [teamFilter, setTeamFilter] = useState("all");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -209,9 +213,45 @@ export function TrainingWeekAccordion({
     return map;
   }, [attendanceRows]);
 
-  const weekGroups = useMemo(
-    () => groupTrainingsByWeek(visibleTrainings),
+  const filteredTrainings = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+
+    return visibleTrainings.filter((training) => {
+      const haystack = [
+        training.focus,
+        training.date,
+        training.goal,
+        training.notes,
+        training.age_group,
+        training.intensity
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+      return (
+        (!normalizedQuery || haystack.includes(normalizedQuery)) &&
+        (intensityFilter === "all" ||
+          training.intensity === intensityFilter) &&
+        (teamFilter === "all" || training.age_group === teamFilter)
+      );
+    });
+  }, [intensityFilter, query, teamFilter, visibleTrainings]);
+
+  const teamOptions = useMemo(
+    () => [
+      ...new Set(
+        visibleTrainings
+          .map((training) => training.age_group)
+          .filter((value): value is string => Boolean(value))
+      )
+    ],
     [visibleTrainings]
+  );
+
+  const weekGroups = useMemo(
+    () => groupTrainingsByWeek(filteredTrainings),
+    [filteredTrainings]
   );
 
   function toggleWeek(key: string) {
@@ -332,11 +372,66 @@ export function TrainingWeekAccordion({
 
   return (
     <div className="space-y-3">
+      <div className="rounded-xl border border-border bg-white p-4">
+        <div className="grid gap-3 md:grid-cols-[1.4fr_0.8fr_0.8fr]">
+          <div className="space-y-2">
+            <Label htmlFor="training-search">Suche</Label>
+            <Input
+              id="training-search"
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Thema, Ziel, Coachingpunkt, Notiz..."
+              value={query}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="training-intensity-filter">Intensität</Label>
+            <select
+              className="flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              id="training-intensity-filter"
+              onChange={(event) => setIntensityFilter(event.target.value)}
+              value={intensityFilter}
+            >
+              <option value="all">Alle</option>
+              <option value="low">Niedrig</option>
+              <option value="medium">Mittel</option>
+              <option value="high">Hoch</option>
+            </select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="training-team-filter">Team/Kategorie</Label>
+            <select
+              className="flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              id="training-team-filter"
+              onChange={(event) => setTeamFilter(event.target.value)}
+              value={teamFilter}
+            >
+              <option value="all">Alle</option>
+              {teamOptions.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </div>
+
       {error ? (
         <div className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">
           <AlertCircle aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0" />
           <span>{error}</span>
         </div>
+      ) : null}
+
+      {weekGroups.length === 0 ? (
+        <Card>
+          <CardContent className="p-6">
+            <p className="font-semibold">Keine Trainings im Filter.</p>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Passe Suche, Team oder Intensität an.
+            </p>
+          </CardContent>
+        </Card>
       ) : null}
 
       {weekGroups.map((week) => {
@@ -585,6 +680,61 @@ export function TrainingWeekAccordion({
                                     </div>
                                     <Button type="submit" variant="secondary">
                                       Anwesenheit speichern
+                                    </Button>
+                                  </form>
+                                </details>
+                              ) : null}
+
+                              {players.length > 0 ? (
+                                <details className="rounded-xl border border-border bg-background/70 p-4 no-print">
+                                  <summary className="cursor-pointer text-sm font-semibold">
+                                    Spielerbewertung erfassen
+                                  </summary>
+                                  <form
+                                    action={savePlayerEvaluation}
+                                    className="mt-4 grid gap-3 md:grid-cols-6"
+                                  >
+                                    <input name="context_type" type="hidden" value="training" />
+                                    <input name="context_id" type="hidden" value={training.id} />
+                                    <input name="context_label" type="hidden" value={training.focus} />
+                                    <input name="evaluation_date" type="hidden" value={training.date} />
+                                    <select
+                                      className="flex h-10 rounded-lg border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:col-span-2"
+                                      name="player_id"
+                                    >
+                                      {players.map((player) => (
+                                        <option key={player.id} value={player.id}>
+                                          {player.name}
+                                        </option>
+                                      ))}
+                                    </select>
+                                    {[
+                                      ["participation", "Beteiligung"],
+                                      ["motivation", "Motivation"],
+                                      ["training_quality", "Qualität"],
+                                      ["effort", "Einsatz"]
+                                    ].map(([name, label]) => (
+                                      <select
+                                        aria-label={label}
+                                        className="flex h-10 rounded-lg border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                        defaultValue="3"
+                                        key={name}
+                                        name={name}
+                                      >
+                                        {[1, 2, 3, 4, 5].map((value) => (
+                                          <option key={value} value={value}>
+                                            {value}
+                                          </option>
+                                        ))}
+                                      </select>
+                                    ))}
+                                    <Textarea
+                                      className="md:col-span-5"
+                                      name="notes"
+                                      placeholder="Kurzfeedback zum Training"
+                                    />
+                                    <Button className="md:col-span-1" type="submit">
+                                      Speichern
                                     </Button>
                                   </form>
                                 </details>

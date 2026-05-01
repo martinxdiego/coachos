@@ -3,10 +3,13 @@ import type { ReactNode } from "react";
 import {
   ArrowRight,
   AlertCircle,
+  BarChart3,
   CalendarCheck,
   CheckCircle2,
   ClipboardList,
   FileText,
+  HeartPulse,
+  Medal,
   Plus,
   Shield,
   Trophy,
@@ -518,6 +521,24 @@ export default async function DashboardPage() {
               <Link href="/matches">
                 Spiel planen
                 <Trophy aria-hidden="true" className="h-4 w-4" />
+              </Link>
+            </Button>
+            <Button asChild className="justify-between" variant="outline">
+              <Link href="/winnerpunkte">
+                Winnerpunkte vergeben
+                <Medal aria-hidden="true" className="h-4 w-4" />
+              </Link>
+            </Button>
+            <Button asChild className="justify-between" variant="outline">
+              <Link href="/analysis">
+                Spiel analysieren
+                <BarChart3 aria-hidden="true" className="h-4 w-4" />
+              </Link>
+            </Button>
+            <Button asChild className="justify-between" variant="outline">
+              <Link href="/health">
+                Belastung prüfen
+                <HeartPulse aria-hidden="true" className="h-4 w-4" />
               </Link>
             </Button>
             <Button asChild className="justify-between" variant="outline">

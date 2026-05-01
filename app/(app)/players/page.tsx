@@ -38,7 +38,7 @@ export default async function PlayersPage() {
   const { data: players, error } = await supabase
     .from("players")
     .select(
-      "id,name,first_name,last_name,position,birth_year,jersey_number,status,rating,development_goals,updated_at"
+      "id,name,first_name,last_name,position,birth_date,birth_year,team_category,jersey_number,status,rating,development_goals,photo_url,contact,emergency_contact,player_account_email,strengths,weaknesses,medical_notes,updated_at"
     )
     .eq("team_id", team.id)
     .order("last_name", { ascending: true });
@@ -196,6 +196,11 @@ export default async function PlayersPage() {
                                   {player.rating}/10
                                 </Badge>
                               ) : null}
+                              {player.team_category ? (
+                                <Badge variant="outline">
+                                  {player.team_category}
+                                </Badge>
+                              ) : null}
                             </div>
                           </div>
                         </div>
@@ -234,7 +239,34 @@ export default async function PlayersPage() {
                         </p>
                       ) : null}
 
-                      <form action={deletePlayer} className="mt-4">
+                      <div className="mt-3 rounded-lg bg-secondary px-3 py-2 text-sm">
+                        <p className="text-xs text-muted-foreground">
+                          Portfolio
+                        </p>
+                        <p className="font-medium">
+                          {[
+                            player.birth_date || player.birth_year,
+                            player.photo_url,
+                            player.contact,
+                            player.emergency_contact,
+                            player.player_account_email,
+                            player.strengths,
+                            player.weaknesses,
+                            player.medical_notes
+                          ].filter(Boolean).length}
+                          /8 Felder
+                        </p>
+                      </div>
+
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        <Button asChild size="sm" variant="outline">
+                          <Link href={`/player-mode?player=${player.id}`}>
+                            Spieler-Modus
+                          </Link>
+                        </Button>
+                      </div>
+
+                      <form action={deletePlayer} className="mt-3">
                         <input name="id" type="hidden" value={player.id} />
                         <Button size="sm" type="submit" variant="ghost">
                           Entfernen

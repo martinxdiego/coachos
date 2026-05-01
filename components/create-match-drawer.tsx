@@ -43,10 +43,12 @@ function StepTabs({
 }
 
 export function CreateMatchDrawer({
+  ageGroup,
   initialDate,
   suggestedLineup,
   suggestedSubstitutes
 }: {
+  ageGroup: string | null;
   initialDate: string;
   suggestedLineup: string;
   suggestedSubstitutes: string;
@@ -115,6 +117,14 @@ export function CreateMatchDrawer({
             <div className="grid gap-3 sm:grid-cols-2">
               <Input name="location" placeholder="Ort" />
               <Input name="meeting_point" placeholder="Treffpunkt" />
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Input name="competition" placeholder="Wettbewerb" />
+              <Input
+                defaultValue={ageGroup ?? ""}
+                name="team_category"
+                placeholder="Team/Kategorie"
+              />
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <select

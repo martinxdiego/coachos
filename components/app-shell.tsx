@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { Dumbbell, LogOut, Plus } from "lucide-react";
+import Image from "next/image";
+import { LogOut, Plus } from "lucide-react";
 import { signOut } from "@/app/actions";
 import { AppNav } from "@/components/app-nav";
 import { MobileBottomNav } from "@/components/mobile-bottom-nav";
@@ -13,12 +14,18 @@ import type { Team } from "@/lib/types";
 interface AppShellProps {
   activeTeam?: Team | null;
   children: React.ReactNode;
+  quickPlayers?: {
+    id: string;
+    name: string;
+    position: string | null;
+  }[];
   teamOptions: TeamOption[];
 }
 
 export function AppShell({
   activeTeam,
   children,
+  quickPlayers = [],
   teamOptions
 }: AppShellProps) {
   return (
@@ -28,15 +35,22 @@ export function AppShell({
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex items-center justify-between gap-4">
               <Link className="flex items-center gap-3" href="/">
-                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-400 text-slate-950 shadow-lg shadow-emerald-500/20">
-                  <Dumbbell aria-hidden="true" className="h-5 w-5" />
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white p-1.5 shadow-lg shadow-emerald-500/20">
+                  <Image
+                    alt="SC Emmen"
+                    className="h-full w-full object-contain"
+                    height={48}
+                    priority
+                    src="/sc-emmen-logo.svg"
+                    width={48}
+                  />
                 </div>
                 <div>
                   <span className="block text-base font-semibold tracking-normal">
-                    CoachOS
+                    CoachOS SC Emmen
                   </span>
                   <span className="block text-xs text-slate-300">
-                    Staff workspace for football coaches
+                    Coaching-Plattform
                   </span>
                 </div>
               </Link>
@@ -100,7 +114,7 @@ export function AppShell({
       <main className="mx-auto max-w-7xl px-4 pb-28 pt-6 sm:px-6 sm:py-8">
         <PageTransition>{children}</PageTransition>
       </main>
-      <QuickCreate enabled={Boolean(activeTeam)} />
+      <QuickCreate enabled={Boolean(activeTeam)} players={quickPlayers} />
       <MobileBottomNav enabled={Boolean(activeTeam)} />
     </div>
   );

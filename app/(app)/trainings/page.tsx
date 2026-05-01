@@ -46,7 +46,7 @@ export default async function TrainingsPage({ searchParams }: TrainingsPageProps
       .select("*")
       .eq("team_id", team.id)
       .order("date", { ascending: false })
-      .limit(48)
+      .limit(250)
   ]);
 
   if (playersResult.error) {
