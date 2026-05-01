@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { X } from "lucide-react";
 import { isActiveHref, moreSections } from "@/components/nav-config";
 import { cn } from "@/lib/utils";
@@ -14,19 +14,19 @@ interface MoreNavSheetProps {
 
 export function MoreNavSheet({ isOpen, onClose }: MoreNavSheetProps) {
   const pathname = usePathname();
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   useEffect(() => {
     if (!isOpen) return;
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
+      if (event.key === "Escape") onCloseRef.current();
     };
     document.addEventListener("keydown", onKey);
-    document.body.style.overflow = "hidden";
     return () => {
       document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = "";
     };
-  }, [isOpen, onClose]);
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -34,18 +34,19 @@ export function MoreNavSheet({ isOpen, onClose }: MoreNavSheetProps) {
     <div className="fixed inset-0 z-50">
       <button
         aria-label="Schließen"
-        className="absolute inset-0 bg-slate-950/40 backdrop-blur-sm animate-fade-in"
+        className="absolute inset-0 bg-slate-950/45 animate-fade-in"
         onClick={onClose}
         type="button"
       />
       <aside
         aria-modal="true"
-        className="absolute inset-x-0 bottom-0 flex max-h-[92dvh] w-full flex-col overflow-hidden rounded-t-3xl bg-card/95 shadow-elevated backdrop-blur-xl animate-slide-up md:inset-x-auto md:bottom-4 md:right-4 md:top-4 md:w-[420px] md:rounded-3xl"
+        className="absolute inset-x-0 bottom-0 flex max-h-[92dvh] w-full flex-col overflow-hidden rounded-t-3xl border border-border/60 bg-card shadow-elevated animate-slide-up md:inset-x-auto md:bottom-4 md:right-4 md:top-4 md:w-[420px] md:rounded-3xl"
         role="dialog"
+        style={{ willChange: "transform, opacity" }}
       >
         <header className="flex items-center justify-between gap-3 px-6 pt-5 pb-3">
           <div>
-            <p className="text-xs font-medium uppercase tracking-[0.16em] text-primary">
+            <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-primary">
               Navigation
             </p>
             <h2 className="mt-1 text-2xl font-semibold tracking-tight">
@@ -54,7 +55,7 @@ export function MoreNavSheet({ isOpen, onClose }: MoreNavSheetProps) {
           </div>
           <button
             aria-label="Schließen"
-            className="flex h-9 w-9 items-center justify-center rounded-full bg-secondary text-secondary-foreground transition hover:bg-secondary/80 active:scale-95"
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-secondary text-secondary-foreground transition-transform duration-150 ease-spring active:scale-95"
             onClick={onClose}
             type="button"
           >
