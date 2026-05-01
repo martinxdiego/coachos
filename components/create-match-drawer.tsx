@@ -4,9 +4,9 @@ import { useState } from "react";
 import { Check, ChevronLeft, ChevronRight, Trophy } from "lucide-react";
 import { createMatch } from "@/app/actions";
 import { SideDrawer } from "@/components/side-drawer";
+import { ToastForm } from "@/components/toast-form";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -23,13 +23,14 @@ function StepTabs({
   setStep: (step: number) => void;
 }) {
   return (
-    <div className="grid grid-cols-3 gap-2">
+    <div className="grid grid-cols-3 gap-1.5 rounded-2xl bg-secondary p-1">
       {steps.map((step, index) => (
         <button
           className={cn(
-            "min-w-0 rounded-lg border border-border px-2 py-2 text-xs font-medium transition hover:bg-secondary sm:px-3 sm:text-sm",
-            currentStep === index &&
-              "border-slate-950 bg-slate-950 text-white hover:bg-slate-900"
+            "rounded-xl px-3 py-2 text-[13px] font-medium tracking-tight transition-colors duration-200 ease-spring active:scale-[0.97]",
+            currentStep === index
+              ? "bg-card text-foreground shadow-soft"
+              : "text-muted-foreground hover:text-foreground"
           )}
           key={step}
           onClick={() => setStep(index)}
@@ -63,20 +64,10 @@ export function CreateMatchDrawer({
 
   return (
     <>
-      <Card className="h-fit border-emerald-200 bg-emerald-50/70">
-        <CardHeader>
-          <CardTitle>Spiel planen</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <p className="text-sm leading-6 text-emerald-950/80">
-            Geführter Matchday-Flow mit Termin, Aufgebot, Formation und Zielen.
-          </p>
-          <Button className="w-full" onClick={() => setIsOpen(true)} type="button">
-            <Trophy aria-hidden="true" className="h-4 w-4" />
-            Spiel planen
-          </Button>
-        </CardContent>
-      </Card>
+      <Button onClick={() => setIsOpen(true)} type="button">
+        <Trophy aria-hidden="true" className="h-4 w-4" />
+        Spiel planen
+      </Button>
 
       <SideDrawer
         description="Plane zuerst das Nötige. Details wie Notizen und Fazit kannst du später im Spiel bearbeiten."
@@ -85,7 +76,12 @@ export function CreateMatchDrawer({
         onClose={close}
         title="Neues Spiel"
       >
-        <form action={createMatch} className="space-y-5" onSubmit={close}>
+        <ToastForm
+          action={createMatch}
+          className="space-y-5"
+          onComplete={close}
+          successMessage="Spiel geplant"
+        >
           <StepTabs currentStep={step} setStep={setStep} />
 
           <section className={cn("space-y-4", step !== 0 && "hidden")}>
@@ -115,46 +111,66 @@ export function CreateMatchDrawer({
               </div>
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
-              <Input name="location" placeholder="Ort" />
-              <Input name="meeting_point" placeholder="Treffpunkt" />
+              <div className="space-y-2">
+                <Label htmlFor="drawer-match-location">Ort</Label>
+                <Input id="drawer-match-location" name="location" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="drawer-match-meeting">Treffpunkt</Label>
+                <Input id="drawer-match-meeting" name="meeting_point" />
+              </div>
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
-              <Input name="competition" placeholder="Wettbewerb" />
-              <Input
-                defaultValue={ageGroup ?? ""}
-                name="team_category"
-                placeholder="Team/Kategorie"
-              />
+              <div className="space-y-2">
+                <Label htmlFor="drawer-match-competition">Wettbewerb</Label>
+                <Input id="drawer-match-competition" name="competition" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="drawer-match-category">Team / Kategorie</Label>
+                <Input
+                  defaultValue={ageGroup ?? ""}
+                  id="drawer-match-category"
+                  name="team_category"
+                />
+              </div>
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
-              <select
-                className="flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                defaultValue="home"
-                name="home_away"
-              >
-                <option value="home">Heim</option>
-                <option value="away">Auswärts</option>
-                <option value="neutral">Neutral</option>
-              </select>
-              <select
-                className="flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                defaultValue="4-3-3"
-                name="formation"
-              >
-                {formations.map((formation) => (
-                  <option key={formation} value={formation}>
-                    {formation}
-                  </option>
-                ))}
-              </select>
+              <div className="space-y-2">
+                <Label htmlFor="drawer-match-home">Heim/Auswärts</Label>
+                <select
+                  className="flex h-11 w-full rounded-xl border border-input bg-card px-3.5 text-[15px] text-foreground shadow-sm focus-visible:outline-none focus-visible:border-primary/60 focus-visible:ring-4 focus-visible:ring-primary/15"
+                  defaultValue="home"
+                  id="drawer-match-home"
+                  name="home_away"
+                >
+                  <option value="home">Heim</option>
+                  <option value="away">Auswärts</option>
+                  <option value="neutral">Neutral</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="drawer-match-formation">Formation</Label>
+                <select
+                  className="flex h-11 w-full rounded-xl border border-input bg-card px-3.5 text-[15px] text-foreground shadow-sm focus-visible:outline-none focus-visible:border-primary/60 focus-visible:ring-4 focus-visible:ring-primary/15"
+                  defaultValue="4-3-3"
+                  id="drawer-match-formation"
+                  name="formation"
+                >
+                  {formations.map((formation) => (
+                    <option key={formation} value={formation}>
+                      {formation}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
           </section>
 
           <section className={cn("space-y-4", step !== 1 && "hidden")}>
-            <div className="rounded-xl border border-border bg-background/70 p-4">
+            <div className="rounded-2xl border border-border/70 bg-secondary/40 p-4">
               <div className="flex items-center justify-between gap-3">
-                <p className="text-sm font-semibold">Aufgebot</p>
-                <Badge variant="secondary">aus Kader vorbefüllt</Badge>
+                <p className="text-[14px] font-semibold tracking-tight">Aufgebot</p>
+                <Badge variant="secondary">Aus Kader vorbefüllt</Badge>
               </div>
               <div className="mt-4 grid gap-4">
                 <div className="space-y-2">
@@ -184,7 +200,7 @@ export function CreateMatchDrawer({
               <Textarea
                 id="drawer-match-goals"
                 name="match_goals"
-                placeholder="2-3 klare Ziele für das Spiel"
+                placeholder="2–3 klare Ziele für das Spiel"
               />
             </div>
             <div className="space-y-2">
@@ -197,7 +213,7 @@ export function CreateMatchDrawer({
             </div>
             <Textarea
               name="squad_notes"
-              placeholder="Aufgebot / Kadernotizen optional"
+              placeholder="Aufgebot- / Kadernotizen optional"
             />
             <Textarea
               name="pre_match_notes"
@@ -205,7 +221,7 @@ export function CreateMatchDrawer({
             />
           </section>
 
-          <div className="sticky bottom-0 -mx-4 flex flex-col-reverse gap-2 border-t border-border bg-white/95 px-4 py-4 backdrop-blur sm:-mx-5 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+          <div className="sticky bottom-0 -mx-4 flex flex-col-reverse gap-2 border-t border-border bg-card/95 px-4 py-4 backdrop-blur sm:-mx-5 sm:flex-row sm:items-center sm:justify-between sm:px-5">
             <Button
               className="w-full sm:w-auto"
               disabled={step === 0}
@@ -234,7 +250,7 @@ export function CreateMatchDrawer({
               </Button>
             )}
           </div>
-        </form>
+        </ToastForm>
       </SideDrawer>
     </>
   );
