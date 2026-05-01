@@ -3,49 +3,59 @@ import type { ReactNode } from "react";
 import {
   ArrowRight,
   AlertCircle,
-  BarChart3,
   CalendarCheck,
   CheckCircle2,
   ClipboardList,
   FileText,
-  HeartPulse,
-  Medal,
-  Plus,
   Shield,
   Trophy,
   UsersRound
 } from "lucide-react";
-import { createTask, toggleTask } from "@/app/actions";
+import { toggleTask } from "@/app/actions";
 import { EmptyState } from "@/components/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle
-} from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireActiveTeam } from "@/lib/auth";
 import { formatDate, formatDateTime, todayIsoDate } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
-function metric(label: string, value: number | string, icon: ReactNode) {
+function MetricCard({
+  label,
+  value,
+  icon
+}: {
+  label: string;
+  value: number | string;
+  icon: ReactNode;
+}) {
   return (
-    <Card className="overflow-hidden">
+    <Card>
       <CardContent className="flex items-center justify-between gap-4 p-5">
         <div>
-          <p className="text-sm text-muted-foreground">{label}</p>
-          <p className="mt-2 text-3xl font-semibold tracking-normal">{value}</p>
+          <p className="text-[12px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
+            {label}
+          </p>
+          <p className="mt-1.5 text-3xl font-semibold tracking-tight">
+            {value}
+          </p>
         </div>
-        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-secondary text-foreground/70">
           {icon}
         </div>
       </CardContent>
     </Card>
   );
+}
+
+function germanGreeting(): string {
+  const hour = new Date().getHours();
+  if (hour < 5) return "Gute Nacht";
+  if (hour < 11) return "Guten Morgen";
+  if (hour < 17) return "Hallo";
+  if (hour < 22) return "Guten Abend";
+  return "Gute Nacht";
 }
 
 export default async function DashboardPage() {
@@ -60,8 +70,7 @@ export default async function DashboardPage() {
     matchesResult,
     materialsResult,
     boardsResult,
-    tasksResult,
-    feedbackResult
+    tasksResult
   ] = await Promise.all([
     supabase
       .from("players")
@@ -114,13 +123,7 @@ export default async function DashboardPage() {
       .eq("team_id", team.id)
       .order("status", { ascending: false })
       .order("due_date", { ascending: true, nullsFirst: false })
-      .limit(6),
-    supabase
-      .from("player_feedback")
-      .select("id,rating,created_at")
-      .eq("team_id", team.id)
-      .order("created_at", { ascending: false })
-      .limit(5)
+      .limit(6)
   ]);
 
   for (const result of [
@@ -131,8 +134,7 @@ export default async function DashboardPage() {
     matchesResult,
     materialsResult,
     boardsResult,
-    tasksResult,
-    feedbackResult
+    tasksResult
   ]) {
     if (result.error) {
       throw new Error(result.error.message);
@@ -240,147 +242,208 @@ export default async function DashboardPage() {
       : null
   ].filter((hint): hint is NonNullable<typeof hint> => hint !== null);
 
+  const heroFocus = nextTraining
+    ? {
+        kind: "Training",
+        title: nextTraining.focus,
+        subtitle: `${formatDate(nextTraining.date)}${
+          nextTraining.start_time ? ` · ${nextTraining.start_time.slice(0, 5)}` : ""
+        }`,
+        href: "/trainings"
+      }
+    : nextMatch
+    ? {
+        kind: "Spiel",
+        title: `vs. ${nextMatch.opponent}`,
+        subtitle: `${formatDate(nextMatch.date)}${
+          nextMatch.kickoff_time ? ` · ${nextMatch.kickoff_time.slice(0, 5)}` : ""
+        }${nextMatch.formation ? ` · ${nextMatch.formation}` : ""}`,
+        href: "/matches"
+      }
+    : null;
+
   return (
-    <div className="space-y-6">
-      <section className="grid gap-4 lg:grid-cols-[1.5fr_0.9fr]">
-        <div className="overflow-hidden rounded-2xl bg-slate-950 p-6 text-white shadow-soft">
-          <div className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
-            <div>
-              <p className="text-sm font-medium text-emerald-300">
-                Workspace Dashboard
+    <div className="space-y-8">
+      {/* Hero */}
+      <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950 p-7 text-white shadow-elevated sm:p-10">
+        <div
+          aria-hidden="true"
+          className="absolute -right-20 -top-24 h-72 w-72 rounded-full bg-emerald-500/20 blur-3xl"
+        />
+        <div
+          aria-hidden="true"
+          className="absolute -left-16 bottom-0 h-64 w-64 rounded-full bg-indigo-500/10 blur-3xl"
+        />
+        <div className="relative flex flex-col gap-7 lg:flex-row lg:items-end lg:justify-between">
+          <div className="max-w-xl">
+            <p className="text-[12px] font-medium uppercase tracking-[0.18em] text-emerald-300">
+              {germanGreeting()}, Coach
+            </p>
+            <h1 className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">
+              {team.name}
+            </h1>
+            <p className="mt-2 text-[14px] text-slate-300">
+              {team.season ?? "Aktuelle Saison"} ·{" "}
+              {team.age_group ?? "Altersklasse offen"}
+            </p>
+
+            {heroFocus ? (
+              <Link
+                className="mt-6 inline-flex items-center gap-3 rounded-2xl bg-white/10 px-4 py-3 backdrop-blur-md ring-1 ring-white/15 transition hover:bg-white/15"
+                href={heroFocus.href}
+              >
+                <span className="rounded-full bg-emerald-400/20 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-200">
+                  Nächstes {heroFocus.kind}
+                </span>
+                <span>
+                  <span className="block text-[15px] font-semibold tracking-tight">
+                    {heroFocus.title}
+                  </span>
+                  <span className="block text-[12px] text-slate-300">
+                    {heroFocus.subtitle}
+                  </span>
+                </span>
+                <ArrowRight aria-hidden="true" className="h-4 w-4 text-slate-300" />
+              </Link>
+            ) : (
+              <p className="mt-6 text-[14px] text-slate-300">
+                Plane deine Woche — Training, Spieltag, Material und Taktik an
+                einem Ort.
               </p>
-              <h2 className="mt-3 max-w-2xl text-3xl font-semibold tracking-normal">
-                Plane die Woche für {team.name}
-              </h2>
-              <p className="mt-3 max-w-xl text-sm leading-6 text-slate-300">
-                Schneller Zugriff auf Training, Spieltag, Spielerentwicklung,
-                Material und Taktik. Alles ist an diesen Workspace gebunden.
-              </p>
-            </div>
-            <div className="grid grid-cols-2 gap-2 sm:flex">
-              <Button asChild className="bg-white text-slate-950 hover:bg-slate-100">
-                <Link href="/players">
-                  <Plus aria-hidden="true" className="h-4 w-4" />
-                  Spieler
-                </Link>
-              </Button>
-              <Button asChild className="border-white/15 bg-white/10 text-white hover:bg-white/15">
-                <Link href="/trainings">Training</Link>
-              </Button>
-              <Button asChild className="border-white/15 bg-white/10 text-white hover:bg-white/15">
-                <Link href="/tactics">Taktik</Link>
-              </Button>
-            </div>
+            )}
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <Button
+              asChild
+              className="bg-white text-slate-950 hover:bg-slate-100"
+              size="sm"
+            >
+              <Link href="/trainings">Training</Link>
+            </Button>
+            <Button
+              asChild
+              className="bg-white/10 text-white ring-1 ring-white/15 backdrop-blur hover:bg-white/15"
+              size="sm"
+            >
+              <Link href="/matches">Spieltag</Link>
+            </Button>
+            <Button
+              asChild
+              className="bg-white/10 text-white ring-1 ring-white/15 backdrop-blur hover:bg-white/15"
+              size="sm"
+            >
+              <Link href="/tactics">Taktik</Link>
+            </Button>
           </div>
         </div>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Schnellaufgabe</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <form action={createTask} className="space-y-3">
-              <div className="space-y-2">
-                <Label htmlFor="title">Aufgabe</Label>
-                <Input
-                  id="title"
-                  name="title"
-                  placeholder="Kader bis Freitag finalisieren"
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="due_date">Fällig</Label>
-                <Input id="due_date" name="due_date" type="date" />
-              </div>
-              <Button className="w-full" type="submit">
-                Aufgabe hinzufügen
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
       </section>
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {metric("Spieler", players.length, <UsersRound className="h-5 w-5" />)}
-        {metric("Offene Aufgaben", openTasks.length, <ClipboardList className="h-5 w-5" />)}
-        {metric("Materialien", materials.length, <FileText className="h-5 w-5" />)}
-        {metric("Taktikboards", boards.length, <Shield className="h-5 w-5" />)}
+      {/* Metrics */}
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <MetricCard
+          label="Spieler"
+          value={players.length}
+          icon={<UsersRound className="h-4.5 w-4.5" />}
+        />
+        <MetricCard
+          label="Offene Aufgaben"
+          value={openTasks.length}
+          icon={<ClipboardList className="h-4.5 w-4.5" />}
+        />
+        <MetricCard
+          label="Materialien"
+          value={materials.length}
+          icon={<FileText className="h-4.5 w-4.5" />}
+        />
+        <MetricCard
+          label="Taktikboards"
+          value={boards.length}
+          icon={<Shield className="h-4.5 w-4.5" />}
+        />
       </section>
 
+      {/* Trainer-Hinweise */}
       <section>
-        <Card>
-          <CardHeader>
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <CardTitle>Trainer-Hinweise</CardTitle>
-              <Badge variant={coachHints.length > 0 ? "secondary" : "success"}>
-                {coachHints.length > 0 ? `${coachHints.length} offen` : "Alles bereit"}
-              </Badge>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {coachHints.length > 0 ? (
-              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                {coachHints.slice(0, 6).map((hint) => (
-                  <Link
-                    className="group rounded-xl border border-border bg-background/70 p-4 transition hover:-translate-y-0.5 hover:border-primary/40 hover:bg-white hover:shadow-soft"
-                    href={hint.href}
-                    key={hint.title}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <Badge variant="secondary">{hint.label}</Badge>
-                      <AlertCircle
-                        aria-hidden="true"
-                        className="h-4 w-4 text-primary transition group-hover:scale-110"
-                      />
-                    </div>
-                    <p className="mt-3 font-semibold">{hint.title}</p>
-                    <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                      {hint.body}
-                    </p>
-                  </Link>
-                ))}
-              </div>
-            ) : (
-              <div className="flex items-center gap-3 rounded-xl bg-emerald-50 p-4 text-emerald-950">
-                <CheckCircle2 aria-hidden="true" className="h-5 w-5" />
-                <p className="text-sm font-medium">
-                  Kader, nächste Termine und Kernplanung sehen vollständig aus.
+        <div className="mb-3 flex items-end justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold tracking-tight">
+              Trainer-Hinweise
+            </h2>
+            <p className="text-[13px] text-muted-foreground">
+              Was du als Nächstes sauber machen solltest.
+            </p>
+          </div>
+          <Badge variant={coachHints.length > 0 ? "secondary" : "success"}>
+            {coachHints.length > 0
+              ? `${coachHints.length} offen`
+              : "Alles bereit"}
+          </Badge>
+        </div>
+        {coachHints.length > 0 ? (
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {coachHints.slice(0, 6).map((hint) => (
+              <Link
+                className="group rounded-2xl border border-border/70 bg-card p-5 shadow-soft transition-[transform,box-shadow,border-color] duration-200 ease-spring hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-elevated"
+                href={hint.href}
+                key={hint.title}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <Badge variant="secondary">{hint.label}</Badge>
+                  <AlertCircle
+                    aria-hidden="true"
+                    className="h-4 w-4 text-primary opacity-70 transition group-hover:opacity-100"
+                  />
+                </div>
+                <p className="mt-3 text-[15px] font-semibold tracking-tight">
+                  {hint.title}
                 </p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+                <p className="mt-1.5 text-[13px] leading-6 text-muted-foreground">
+                  {hint.body}
+                </p>
+              </Link>
+            ))}
+          </div>
+        ) : (
+          <div className="flex items-center gap-3 rounded-2xl border border-emerald-200/60 bg-emerald-50/70 p-4 text-emerald-900">
+            <CheckCircle2 aria-hidden="true" className="h-5 w-5" />
+            <p className="text-[14px] font-medium">
+              Kader, nächste Termine und Kernplanung sehen vollständig aus.
+            </p>
+          </div>
+        )}
       </section>
 
+      {/* Nächstes Training / Spiel */}
       <section className="grid gap-4 lg:grid-cols-2">
-        <Card className="overflow-hidden">
+        <Card>
           <CardHeader>
-            <CardTitle>Nächstes Training</CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle>Nächstes Training</CardTitle>
+              {nextTraining?.intensity ? (
+                <Badge variant="success">{nextTraining.intensity}</Badge>
+              ) : null}
+            </div>
           </CardHeader>
           <CardContent>
             {nextTraining ? (
               <div className="space-y-4">
-                <div className="rounded-xl bg-emerald-50 p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="font-semibold">{nextTraining.focus}</p>
-                      <p className="mt-1 text-sm text-muted-foreground">
-                        {formatDate(nextTraining.date)}
-                        {nextTraining.start_time
-                          ? ` · ${nextTraining.start_time.slice(0, 5)}`
-                          : ""}
-                      </p>
-                    </div>
-                    {nextTraining.intensity ? (
-                      <Badge variant="success">{nextTraining.intensity}</Badge>
-                    ) : null}
-                  </div>
-                  <p className="mt-3 text-sm leading-6 text-slate-700">
+                <div className="rounded-2xl bg-secondary/60 p-4">
+                  <p className="text-[15px] font-semibold tracking-tight">
+                    {nextTraining.focus}
+                  </p>
+                  <p className="mt-1 text-[13px] text-muted-foreground">
+                    {formatDate(nextTraining.date)}
+                    {nextTraining.start_time
+                      ? ` · ${nextTraining.start_time.slice(0, 5)}`
+                      : ""}
+                    {nextTraining.location ? ` · ${nextTraining.location}` : ""}
+                  </p>
+                  <p className="mt-3 text-[13px] leading-6 text-foreground/80">
                     {nextTraining.goal ?? "Noch kein Trainingsziel hinterlegt."}
                   </p>
                 </div>
-                <Button asChild variant="outline">
+                <Button asChild size="sm" variant="outline">
                   <Link href="/trainings">
                     Trainingsplan öffnen
                     <ArrowRight aria-hidden="true" className="h-4 w-4" />
@@ -403,17 +466,26 @@ export default async function DashboardPage() {
           <CardContent>
             {nextMatch ? (
               <div className="space-y-4">
-                <div className="rounded-xl bg-slate-950 p-4 text-white">
-                  <div className="flex items-start justify-between gap-3">
+                <div className="relative overflow-hidden rounded-2xl bg-slate-950 p-4 text-white">
+                  <div
+                    aria-hidden="true"
+                    className="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-emerald-500/15 blur-2xl"
+                  />
+                  <div className="relative flex items-start justify-between gap-3">
                     <div>
-                      <p className="text-sm text-slate-300">Gegner</p>
-                      <p className="mt-1 text-xl font-semibold">
+                      <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-emerald-300">
+                        Gegner
+                      </p>
+                      <p className="mt-1 text-xl font-semibold tracking-tight">
                         {nextMatch.opponent}
                       </p>
                     </div>
-                    <Trophy aria-hidden="true" className="h-5 w-5 text-emerald-300" />
+                    <Trophy
+                      aria-hidden="true"
+                      className="h-5 w-5 text-emerald-300"
+                    />
                   </div>
-                  <p className="mt-3 text-sm text-slate-300">
+                  <p className="relative mt-3 text-[13px] text-slate-300">
                     {formatDate(nextMatch.date)}
                     {nextMatch.kickoff_time
                       ? ` · ${nextMatch.kickoff_time.slice(0, 5)}`
@@ -421,7 +493,7 @@ export default async function DashboardPage() {
                     {nextMatch.formation ? ` · ${nextMatch.formation}` : ""}
                   </p>
                 </div>
-                <Button asChild variant="outline">
+                <Button asChild size="sm" variant="outline">
                   <Link href="/matches">
                     Spielplanung öffnen
                     <ArrowRight aria-hidden="true" className="h-4 w-4" />
@@ -438,34 +510,54 @@ export default async function DashboardPage() {
         </Card>
       </section>
 
-      <section className="grid gap-4 lg:grid-cols-[1fr_1fr_0.9fr]">
+      {/* Aufgaben & Aktivität */}
+      <section className="grid gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle>Offene Aufgaben</CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle>Offene Aufgaben</CardTitle>
+              <Badge variant="secondary">{openTasks.length}</Badge>
+            </div>
           </CardHeader>
-          <CardContent className="space-y-3">
+          <CardContent className="space-y-2">
             {tasks.length > 0 ? (
               tasks.map((task) => (
                 <form
                   action={toggleTask}
-                  className="flex items-center justify-between gap-3 rounded-xl border border-border bg-background/70 px-3 py-3"
+                  className="flex items-center justify-between gap-3 rounded-xl border border-border/60 bg-secondary/40 px-3.5 py-3 transition-colors hover:bg-secondary/60"
                   key={task.id}
                 >
                   <input name="id" type="hidden" value={task.id} />
                   <input name="status" type="hidden" value={task.status} />
-                  <div>
-                    <p className="text-sm font-medium">{task.title}</p>
-                    <p className="mt-1 text-xs text-muted-foreground">
+                  <div className="min-w-0">
+                    <p
+                      className={`text-[14px] font-medium tracking-tight ${
+                        task.status === "done"
+                          ? "text-muted-foreground line-through"
+                          : "text-foreground"
+                      }`}
+                    >
+                      {task.title}
+                    </p>
+                    <p className="mt-0.5 text-[12px] text-muted-foreground">
                       {task.due_date ? formatDate(task.due_date) : "Ohne Datum"}
                     </p>
                   </div>
-                  <Button size="sm" type="submit" variant="outline">
+                  <Button
+                    className="shrink-0"
+                    size="sm"
+                    type="submit"
+                    variant={task.status === "done" ? "secondary" : "outline"}
+                  >
                     {task.status === "done" ? "Erledigt" : "Offen"}
                   </Button>
                 </form>
               ))
             ) : (
-              <EmptyState title="Keine offenen Aufgaben." />
+              <EmptyState
+                body="Erstelle Aufgaben über das + unten rechts."
+                title="Keine offenen Aufgaben."
+              />
             )}
           </CardContent>
         </Card>
@@ -474,85 +566,33 @@ export default async function DashboardPage() {
           <CardHeader>
             <CardTitle>Letzte Aktivitäten</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3">
+          <CardContent className="space-y-2">
             {recentActivity.length > 0 ? (
               recentActivity.map((item) => (
                 <div
-                  className="flex items-center justify-between gap-3 rounded-xl border border-border bg-background/70 px-3 py-3"
+                  className="flex items-center justify-between gap-3 rounded-xl border border-border/60 bg-secondary/40 px-3.5 py-3"
                   key={item.id}
                 >
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
                       <Badge variant="secondary">{item.label}</Badge>
-                      <p className="truncate text-sm font-medium">
+                      <p className="truncate text-[14px] font-medium tracking-tight">
                         {item.title}
                       </p>
                     </div>
-                    <p className="mt-1 text-xs text-muted-foreground">
+                    <p className="mt-0.5 text-[12px] text-muted-foreground">
                       {formatDateTime(item.createdAt)}
                     </p>
                   </div>
+                  <CalendarCheck
+                    aria-hidden="true"
+                    className="h-4 w-4 shrink-0 text-muted-foreground"
+                  />
                 </div>
               ))
             ) : (
               <EmptyState title="Noch keine Aktivität." />
             )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Schnellaktionen</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-2">
-            <Button asChild className="justify-between" variant="outline">
-              <Link href="/players">
-                Spieler hinzufügen
-                <UsersRound aria-hidden="true" className="h-4 w-4" />
-              </Link>
-            </Button>
-            <Button asChild className="justify-between" variant="outline">
-              <Link href="/trainings">
-                Training erstellen
-                <CalendarCheck aria-hidden="true" className="h-4 w-4" />
-              </Link>
-            </Button>
-            <Button asChild className="justify-between" variant="outline">
-              <Link href="/matches">
-                Spiel planen
-                <Trophy aria-hidden="true" className="h-4 w-4" />
-              </Link>
-            </Button>
-            <Button asChild className="justify-between" variant="outline">
-              <Link href="/winnerpunkte">
-                Winnerpunkte vergeben
-                <Medal aria-hidden="true" className="h-4 w-4" />
-              </Link>
-            </Button>
-            <Button asChild className="justify-between" variant="outline">
-              <Link href="/analysis">
-                Spiel analysieren
-                <BarChart3 aria-hidden="true" className="h-4 w-4" />
-              </Link>
-            </Button>
-            <Button asChild className="justify-between" variant="outline">
-              <Link href="/health">
-                Belastung prüfen
-                <HeartPulse aria-hidden="true" className="h-4 w-4" />
-              </Link>
-            </Button>
-            <Button asChild className="justify-between" variant="outline">
-              <Link href="/materials">
-                Material erstellen
-                <FileText aria-hidden="true" className="h-4 w-4" />
-              </Link>
-            </Button>
-            <Button asChild className="justify-between" variant="outline">
-              <Link href="/tactics">
-                Taktikboard öffnen
-                <Shield aria-hidden="true" className="h-4 w-4" />
-              </Link>
-            </Button>
           </CardContent>
         </Card>
       </section>

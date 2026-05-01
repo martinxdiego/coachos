@@ -62,8 +62,8 @@ function ModeButton({
   return (
     <button
       className={cn(
-        "flex h-11 items-center justify-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-medium transition-all hover:-translate-y-0.5 hover:border-primary/40",
-        active && "border-slate-950 bg-slate-950 text-white hover:bg-slate-900"
+        "flex h-11 items-center justify-center gap-2 rounded-xl border border-border/70 bg-card text-[13px] font-medium tracking-tight transition-colors duration-200 ease-spring active:scale-[0.97] hover:border-primary/40",
+        active && "border-slate-950 bg-slate-950 text-white hover:border-slate-950"
       )}
       onClick={onClick}
       type="button"
@@ -93,7 +93,7 @@ export function QuickCreate({
     <>
       <button
         aria-label="Schnell erstellen"
-        className="fixed bottom-24 right-5 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500 text-slate-950 shadow-[0_18px_40px_rgba(16,185,129,0.35)] transition-all duration-300 hover:-translate-y-1 hover:bg-emerald-400 md:bottom-7 md:right-7"
+        className="fixed bottom-24 right-5 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-[0_12px_32px_rgba(16,185,129,0.32),0_2px_6px_rgba(15,23,42,0.18)] transition-transform duration-200 ease-spring hover:scale-105 active:scale-95 md:bottom-7 md:right-7"
         onClick={() => setIsOpen(true)}
         type="button"
       >
@@ -103,18 +103,20 @@ export function QuickCreate({
       {isOpen ? (
         <div className="fixed inset-0 z-50">
           <button
-            aria-label="Quick Create schließen"
-            className="absolute inset-0 bg-slate-950/45 backdrop-blur-sm"
+            aria-label="Schnell erstellen schließen"
+            className="absolute inset-0 bg-slate-950/40 backdrop-blur-sm animate-fade-in"
             onClick={() => setIsOpen(false)}
             type="button"
           />
-          <section className="absolute bottom-0 right-0 max-h-[92vh] w-full overflow-y-auto rounded-t-2xl bg-white p-5 shadow-2xl md:bottom-5 md:right-5 md:w-[460px] md:rounded-2xl">
+          <section className="absolute bottom-0 right-0 max-h-[92vh] w-full overflow-y-auto rounded-t-3xl bg-card/95 p-6 shadow-elevated backdrop-blur-xl animate-slide-up md:bottom-5 md:right-5 md:w-[460px] md:rounded-3xl">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="text-xs uppercase tracking-[0.18em] text-primary">
-                  Quick Create
+                <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-primary">
+                  Schnellerfassung
                 </p>
-                <h2 className="mt-1 text-xl font-semibold">Schnell erfassen</h2>
+                <h2 className="mt-1 text-2xl font-semibold tracking-tight">
+                  Was möchtest du anlegen?
+                </h2>
               </div>
               <Button
                 aria-label="Schließen"

@@ -1,0 +1,118 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { useEffect } from "react";
+import { X } from "lucide-react";
+import { isActiveHref, moreSections } from "@/components/nav-config";
+import { cn } from "@/lib/utils";
+
+interface MoreNavSheetProps {
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+export function MoreNavSheet({ isOpen, onClose }: MoreNavSheetProps) {
+  const pathname = usePathname();
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", onKey);
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = "";
+    };
+  }, [isOpen, onClose]);
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50">
+      <button
+        aria-label="Schließen"
+        className="absolute inset-0 bg-slate-950/40 backdrop-blur-sm animate-fade-in"
+        onClick={onClose}
+        type="button"
+      />
+      <aside
+        aria-modal="true"
+        className="absolute inset-x-0 bottom-0 flex max-h-[92dvh] w-full flex-col overflow-hidden rounded-t-3xl bg-card/95 shadow-elevated backdrop-blur-xl animate-slide-up md:inset-x-auto md:bottom-4 md:right-4 md:top-4 md:w-[420px] md:rounded-3xl"
+        role="dialog"
+      >
+        <header className="flex items-center justify-between gap-3 px-6 pt-5 pb-3">
+          <div>
+            <p className="text-xs font-medium uppercase tracking-[0.16em] text-primary">
+              Navigation
+            </p>
+            <h2 className="mt-1 text-2xl font-semibold tracking-tight">
+              Alle Bereiche
+            </h2>
+          </div>
+          <button
+            aria-label="Schließen"
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-secondary text-secondary-foreground transition hover:bg-secondary/80 active:scale-95"
+            onClick={onClose}
+            type="button"
+          >
+            <X aria-hidden="true" className="h-4 w-4" />
+          </button>
+        </header>
+
+        <div className="flex-1 overflow-y-auto overscroll-contain px-3 pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
+          {moreSections.map((section) => (
+            <section key={section.title} className="mb-5">
+              <h3 className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                {section.title}
+              </h3>
+              <ul className="space-y-0.5">
+                {section.items.map((item) => {
+                  const Icon = item.icon;
+                  const isActive = isActiveHref(pathname, item.href);
+                  return (
+                    <li key={`${section.title}-${item.href}`}>
+                      <Link
+                        className={cn(
+                          "flex items-center gap-3 rounded-xl px-3 py-2.5 transition-colors duration-150 active:scale-[0.98]",
+                          isActive
+                            ? "bg-secondary text-foreground"
+                            : "text-foreground/90 hover:bg-secondary/70"
+                        )}
+                        href={item.href}
+                        onClick={onClose}
+                      >
+                        <span
+                          className={cn(
+                            "flex h-9 w-9 items-center justify-center rounded-xl",
+                            isActive
+                              ? "bg-primary text-primary-foreground"
+                              : "bg-secondary text-foreground/80"
+                          )}
+                        >
+                          <Icon aria-hidden="true" className="h-4 w-4" />
+                        </span>
+                        <span className="flex-1 min-w-0">
+                          <span className="block text-[15px] font-medium leading-tight">
+                            {item.label}
+                          </span>
+                          {item.description ? (
+                            <span className="mt-0.5 block truncate text-[13px] text-muted-foreground">
+                              {item.description}
+                            </span>
+                          ) : null}
+                        </span>
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          ))}
+        </div>
+      </aside>
+    </div>
+  );
+}

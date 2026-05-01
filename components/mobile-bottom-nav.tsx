@@ -2,53 +2,62 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  ClipboardList,
-  LayoutDashboard,
-  Medal,
-  Trophy,
-  UsersRound
-} from "lucide-react";
+import { useState } from "react";
+import { MoreHorizontal } from "lucide-react";
+import { MoreNavSheet } from "@/components/more-nav-sheet";
+import { isActiveHref, primaryMobileNav } from "@/components/nav-config";
 import { cn } from "@/lib/utils";
-
-const mobileItems = [
-  { href: "/", label: "Heute", icon: LayoutDashboard },
-  { href: "/players", label: "Kader", icon: UsersRound },
-  { href: "/trainings", label: "Training", icon: ClipboardList },
-  { href: "/matches", label: "Spiele", icon: Trophy },
-  { href: "/winnerpunkte", label: "Winner", icon: Medal }
-];
 
 export function MobileBottomNav({ enabled }: { enabled: boolean }) {
   const pathname = usePathname();
+  const [showMore, setShowMore] = useState(false);
 
   if (!enabled) {
     return null;
   }
 
   return (
-    <nav className="fixed inset-x-3 bottom-3 z-40 rounded-2xl border border-slate-900/10 bg-white/92 p-1.5 shadow-[0_16px_50px_rgba(15,23,42,0.22)] backdrop-blur md:hidden">
-      <div className="grid grid-cols-5 gap-1">
-        {mobileItems.map((item) => {
-          const Icon = item.icon;
-          const isActive =
-            item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
+    <>
+      <nav
+        aria-label="Mobile Navigation"
+        className="glass fixed inset-x-3 bottom-3 z-40 rounded-2xl border p-1.5 shadow-elevated md:hidden"
+        style={{ paddingBottom: "max(0.375rem, env(safe-area-inset-bottom))" }}
+      >
+        <div className="grid grid-cols-5 gap-1">
+          {primaryMobileNav.map((item) => {
+            const Icon = item.icon;
+            const isActive = isActiveHref(pathname, item.href);
 
-          return (
-            <Link
-              className={cn(
-                "flex h-12 flex-col items-center justify-center gap-0.5 rounded-xl text-[11px] font-medium text-slate-500 transition-all",
-                isActive && "bg-slate-950 text-white shadow-sm"
-              )}
-              href={item.href}
-              key={item.href}
-            >
-              <Icon aria-hidden="true" className="h-4 w-4" />
-              {item.label}
-            </Link>
-          );
-        })}
-      </div>
-    </nav>
+            return (
+              <Link
+                className={cn(
+                  "flex h-12 flex-col items-center justify-center gap-0.5 rounded-xl text-[10.5px] font-medium tracking-tight transition-colors duration-200 ease-spring active:scale-95",
+                  isActive
+                    ? "bg-foreground text-background"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+                href={item.href}
+                key={item.href}
+              >
+                <Icon aria-hidden="true" className="h-[18px] w-[18px]" />
+                {item.label}
+              </Link>
+            );
+          })}
+
+          <button
+            aria-label="Mehr Bereiche"
+            className="flex h-12 flex-col items-center justify-center gap-0.5 rounded-xl text-[10.5px] font-medium tracking-tight text-muted-foreground transition-colors duration-200 ease-spring hover:text-foreground active:scale-95"
+            onClick={() => setShowMore(true)}
+            type="button"
+          >
+            <MoreHorizontal aria-hidden="true" className="h-[18px] w-[18px]" />
+            Mehr
+          </button>
+        </div>
+      </nav>
+
+      <MoreNavSheet isOpen={showMore} onClose={() => setShowMore(false)} />
+    </>
   );
 }

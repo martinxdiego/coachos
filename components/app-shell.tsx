@@ -30,90 +30,71 @@ export function AppShell({
 }: AppShellProps) {
   return (
     <div className="min-h-screen bg-background">
-      <header className="sticky top-0 z-30 border-b border-slate-900/10 bg-slate-950 text-white shadow-[0_18px_60px_rgba(15,23,42,0.18)]">
-        <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-4 sm:px-6">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex items-center justify-between gap-4">
-              <Link className="flex items-center gap-3" href="/">
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white p-1.5 shadow-lg shadow-emerald-500/20">
-                  <Image
-                    alt="SC Emmen"
-                    className="h-full w-full object-contain"
-                    height={48}
-                    priority
-                    src="/sc-emmen-logo.svg"
-                    width={48}
-                  />
-                </div>
-                <div>
-                  <span className="block text-base font-semibold tracking-normal">
-                    CoachOS SC Emmen
-                  </span>
-                  <span className="block text-xs text-slate-300">
-                    Coaching-Plattform
-                  </span>
-                </div>
-              </Link>
-              <form action={signOut} className="lg:hidden">
-                <Button
-                  aria-label="Sign out"
-                  className="text-white hover:bg-white/10 hover:text-white"
-                  size="icon"
-                  type="submit"
-                  variant="ghost"
-                >
-                  <LogOut aria-hidden="true" className="h-4 w-4" />
-                </Button>
-              </form>
-            </div>
-
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-              <WorkspaceSwitcher
-                activeTeamId={activeTeam?.id}
-                teams={teamOptions}
+      <header className="sticky top-0 z-30 border-b border-white/5 bg-slate-950/85 text-white shadow-[0_12px_40px_rgba(15,23,42,0.18)] backdrop-blur-xl">
+        <div className="mx-auto flex max-w-7xl items-center gap-4 px-4 py-3 sm:px-6">
+          <Link className="flex items-center gap-2.5" href="/">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white p-1 shadow-sm">
+              <Image
+                alt="SC Emmen"
+                className="h-full w-full object-contain"
+                height={36}
+                priority
+                src="/SCE.jpg"
+                width={36}
               />
-              <Button asChild className="bg-white text-slate-950 hover:bg-slate-100">
-                <Link href="/workspaces">
-                  <Plus aria-hidden="true" className="h-4 w-4" />
-                  Workspace
-                </Link>
-              </Button>
-              <form action={signOut} className="hidden lg:block">
-                <Button
-                  aria-label="Sign out"
-                  className="text-white hover:bg-white/10 hover:text-white"
-                  size="icon"
-                  type="submit"
-                  variant="ghost"
-                >
-                  <LogOut aria-hidden="true" className="h-4 w-4" />
-                </Button>
-              </form>
-            </div>
-          </div>
+            </span>
+            <span className="hidden flex-col leading-tight sm:flex">
+              <span className="text-[14px] font-semibold tracking-tight">
+                CoachOS
+              </span>
+              <span className="text-[11px] text-slate-400">
+                {activeTeam?.name ?? "Workspace wählen"}
+              </span>
+            </span>
+          </Link>
 
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-            <div>
-              <p className="text-xs uppercase tracking-[0.22em] text-emerald-300">
-                Active workspace
-              </p>
-              <h1 className="mt-1 text-2xl font-semibold tracking-normal">
-                {activeTeam?.name ?? "Create or join a workspace"}
-              </h1>
-              {activeTeam ? (
-                <p className="mt-1 text-sm text-slate-300">
-                  {activeTeam.season ?? "No season"} ·{" "}
-                  {activeTeam.age_group ?? "No age group"}
-                </p>
-              ) : null}
-            </div>
+          <div className="hidden flex-1 lg:flex lg:justify-center">
             <AppNav />
           </div>
+
+          <div className="ml-auto flex items-center gap-2">
+            <WorkspaceSwitcher
+              activeTeamId={activeTeam?.id}
+              teams={teamOptions}
+            />
+            <Button
+              asChild
+              className="hidden bg-white text-slate-950 hover:bg-slate-100 sm:inline-flex"
+              size="sm"
+            >
+              <Link href="/workspaces">
+                <Plus aria-hidden="true" className="h-4 w-4" />
+                Workspace
+              </Link>
+            </Button>
+            <form action={signOut}>
+              <Button
+                aria-label="Abmelden"
+                className="text-white hover:bg-white/10"
+                size="icon"
+                type="submit"
+                variant="ghost"
+              >
+                <LogOut aria-hidden="true" className="h-4 w-4" />
+              </Button>
+            </form>
+          </div>
+        </div>
+
+        <div className="border-t border-white/5 px-4 pb-3 pt-2 lg:hidden">
+          <AppNav />
         </div>
       </header>
-      <main className="mx-auto max-w-7xl px-4 pb-28 pt-6 sm:px-6 sm:py-8">
+
+      <main className="mx-auto max-w-7xl px-4 pb-32 pt-6 sm:px-6 sm:pt-8">
         <PageTransition>{children}</PageTransition>
       </main>
+
       <QuickCreate enabled={Boolean(activeTeam)} players={quickPlayers} />
       <MobileBottomNav enabled={Boolean(activeTeam)} />
     </div>

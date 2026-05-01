@@ -1,3 +1,6 @@
+"use client";
+
+import { ChevronsUpDown } from "lucide-react";
 import { setActiveTeam } from "@/app/actions";
 import type { TeamOption } from "@/lib/auth";
 
@@ -15,28 +18,30 @@ export function WorkspaceSwitcher({
   }
 
   return (
-    <form action={setActiveTeam} className="flex items-center gap-2">
+    <form action={setActiveTeam} className="relative">
       <label className="sr-only" htmlFor="team_id">
         Workspace
       </label>
-      <select
-        className="h-10 min-w-[190px] rounded-lg border border-white/10 bg-white/10 px-3 text-sm font-medium text-white shadow-sm outline-none transition hover:bg-white/15 focus:ring-2 focus:ring-emerald-300/70"
-        defaultValue={activeTeamId}
-        id="team_id"
-        name="team_id"
-      >
-        {teams.map(({ team }) => (
-          <option className="text-slate-950" key={team.id} value={team.id}>
-            {team.name}
-          </option>
-        ))}
-      </select>
-      <button
-        className="h-10 rounded-lg border border-white/10 px-3 text-sm font-medium text-white transition hover:bg-white/10"
-        type="submit"
-      >
-        Switch
-      </button>
+      <div className="relative inline-flex items-center">
+        <select
+          aria-label="Workspace wählen"
+          className="h-9 min-w-[180px] cursor-pointer appearance-none rounded-full border border-white/10 bg-white/8 pl-4 pr-9 text-[13px] font-medium tracking-tight text-white shadow-soft outline-none backdrop-blur transition hover:bg-white/12 focus-visible:ring-2 focus-visible:ring-emerald-300/70"
+          defaultValue={activeTeamId}
+          id="team_id"
+          name="team_id"
+          onChange={(event) => event.currentTarget.form?.requestSubmit()}
+        >
+          {teams.map(({ team }) => (
+            <option className="text-slate-950" key={team.id} value={team.id}>
+              {team.name}
+            </option>
+          ))}
+        </select>
+        <ChevronsUpDown
+          aria-hidden="true"
+          className="pointer-events-none absolute right-3 h-3.5 w-3.5 text-slate-300"
+        />
+      </div>
     </form>
   );
 }
