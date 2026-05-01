@@ -4,9 +4,9 @@ import { useState } from "react";
 import { CalendarPlus, Check, ChevronLeft, ChevronRight } from "lucide-react";
 import { createTraining } from "@/app/actions";
 import { SideDrawer } from "@/components/side-drawer";
+import { ToastForm } from "@/components/toast-form";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -67,13 +67,14 @@ function StepTabs({
   setStep: (step: number) => void;
 }) {
   return (
-    <div className="grid grid-cols-3 gap-2">
+    <div className="grid grid-cols-3 gap-1.5 rounded-2xl bg-secondary p-1">
       {steps.map((step, index) => (
         <button
           className={cn(
-            "min-w-0 rounded-lg border border-border px-2 py-2 text-xs font-medium transition hover:bg-secondary sm:px-3 sm:text-sm",
-            currentStep === index &&
-              "border-slate-950 bg-slate-950 text-white hover:bg-slate-900"
+            "rounded-xl px-3 py-2 text-[13px] font-medium tracking-tight transition-colors duration-200 ease-spring active:scale-[0.97]",
+            currentStep === index
+              ? "bg-card text-foreground shadow-soft"
+              : "text-muted-foreground hover:text-foreground"
           )}
           key={step}
           onClick={() => setStep(index)}
@@ -103,20 +104,10 @@ export function CreateTrainingDrawer({
 
   return (
     <>
-      <Card className="border-emerald-200 bg-emerald-50/70">
-        <CardHeader>
-          <CardTitle>Training planen</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <p className="text-sm leading-6 text-emerald-950/80">
-            Geführter 3-Schritt-Flow: Basisdaten, Ablaufphasen, speichern.
-          </p>
-          <Button className="w-full" onClick={() => setIsOpen(true)} type="button">
-            <CalendarPlus aria-hidden="true" className="h-4 w-4" />
-            Training erstellen
-          </Button>
-        </CardContent>
-      </Card>
+      <Button onClick={() => setIsOpen(true)} type="button">
+        <CalendarPlus aria-hidden="true" className="h-4 w-4" />
+        Training erstellen
+      </Button>
 
       <SideDrawer
         description="Plane schnell eine nutzbare Einheit, ohne dich sofort durch alle Detailfelder zu kämpfen."
@@ -125,7 +116,12 @@ export function CreateTrainingDrawer({
         onClose={close}
         title="Neues Training"
       >
-        <form action={createTraining} className="space-y-5" onSubmit={close}>
+        <ToastForm
+          action={createTraining}
+          className="space-y-5"
+          onComplete={close}
+          successMessage="Training erstellt"
+        >
           <StepTabs currentStep={step} setStep={setStep} />
 
           <section className={cn("space-y-4", step !== 0 && "hidden")}>
@@ -193,7 +189,7 @@ export function CreateTrainingDrawer({
               <div className="space-y-2">
                 <Label htmlFor="drawer-training-intensity">Intensität</Label>
                 <select
-                  className="flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="flex h-11 w-full rounded-xl border border-input bg-card px-3.5 text-[15px] text-foreground shadow-sm focus-visible:outline-none focus-visible:border-primary/60 focus-visible:ring-4 focus-visible:ring-primary/15"
                   defaultValue="medium"
                   id="drawer-training-intensity"
                   name="intensity"
@@ -204,26 +200,35 @@ export function CreateTrainingDrawer({
                 </select>
               </div>
             </div>
-            <Input
-              name="participants"
-              placeholder="Teilnehmer, z.B. alle Feldspieler"
-            />
+            <div className="space-y-2">
+              <Label htmlFor="drawer-training-participants">Teilnehmer</Label>
+              <Input
+                id="drawer-training-participants"
+                name="participants"
+                placeholder="alle Feldspieler"
+              />
+            </div>
           </section>
 
           <section className={cn("space-y-3", step !== 1 && "hidden")}>
             <div className="flex items-center justify-between gap-3">
-              <p className="text-sm font-semibold">Ablauf als Timeline</p>
+              <p className="text-[14px] font-semibold tracking-tight">
+                Ablauf als Timeline
+              </p>
               <Badge variant="secondary">Optional anpassen</Badge>
             </div>
             {phases.map((phase) => (
               <div
-                className="rounded-xl border border-border bg-background/70 p-3"
+                className="rounded-2xl border border-border/70 bg-card p-3"
                 key={phase.type}
               >
                 <div className="flex items-center justify-between gap-3">
-                  <p className="font-semibold">{phase.label}</p>
+                  <p className="text-[14px] font-semibold tracking-tight">
+                    {phase.label}
+                  </p>
                   <Input
-                    className="w-20 sm:w-24"
+                    aria-label={`${phase.label} Dauer`}
+                    className="w-24"
                     defaultValue={phase.defaultDuration}
                     name={`${phase.type}_duration`}
                     type="number"
@@ -245,19 +250,22 @@ export function CreateTrainingDrawer({
                     name={`${phase.type}_coaching`}
                     placeholder="Coachingpunkte"
                   />
-                  <Input name={`${phase.type}_material`} placeholder="Material" />
+                  <Input
+                    name={`${phase.type}_material`}
+                    placeholder="Material"
+                  />
                 </div>
               </div>
             ))}
           </section>
 
           <section className={cn("space-y-4", step !== 2 && "hidden")}>
-            <div className="rounded-xl border border-border bg-emerald-50 p-4 text-sm leading-6 text-emerald-950">
+            <div className="rounded-2xl border border-emerald-200/60 bg-emerald-50/70 p-4 text-[13px] leading-6 text-emerald-900">
               Die Einheit wird mit Basisdaten und allen ausgefüllten Phasen
               gespeichert. Danach kannst du sie in der Trainingsübersicht weiter
               bearbeiten, duplizieren oder drucken.
             </div>
-            <label className="flex items-center gap-2 text-sm">
+            <label className="flex items-center gap-2 text-[13px]">
               <input name="is_template" type="checkbox" />
               Zusätzlich als Vorlage markieren
             </label>
@@ -265,7 +273,7 @@ export function CreateTrainingDrawer({
             <Textarea name="notes" placeholder="Interne Notizen optional" />
           </section>
 
-          <div className="sticky bottom-0 -mx-4 flex flex-col-reverse gap-2 border-t border-border bg-white/95 px-4 py-4 backdrop-blur sm:-mx-5 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+          <div className="sticky bottom-0 -mx-4 flex flex-col-reverse gap-2 border-t border-border bg-card/95 px-4 py-4 backdrop-blur sm:-mx-5 sm:flex-row sm:items-center sm:justify-between sm:px-5">
             <Button
               className="w-full sm:w-auto"
               disabled={step === 0}
@@ -294,7 +302,7 @@ export function CreateTrainingDrawer({
               </Button>
             )}
           </div>
-        </form>
+        </ToastForm>
       </SideDrawer>
     </>
   );

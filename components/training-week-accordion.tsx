@@ -3,14 +3,17 @@
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
-  AlertCircle,
   ChevronDown,
   ChevronRight,
+  ChevronsUpDown,
   Copy,
   Pencil,
   Save,
-  Trash2
+  Search,
+  Trash2,
+  X
 } from "lucide-react";
+import { toast } from "sonner";
 import {
   deleteTraining,
   duplicateTraining,
@@ -18,6 +21,7 @@ import {
   savePlayerEvaluation,
   updateTraining
 } from "@/app/actions";
+import { ToastForm } from "@/components/toast-form";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -188,7 +192,6 @@ export function TrainingWeekAccordion({
   const [query, setQuery] = useState("");
   const [intensityFilter, setIntensityFilter] = useState("all");
   const [teamFilter, setTeamFilter] = useState("all");
-  const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
@@ -304,7 +307,6 @@ export function TrainingWeekAccordion({
     }
 
     const previousTrainings = visibleTrainings;
-    setError(null);
     setDeletingIds((current) => new Set(current).add(training.id));
     setVisibleTrainings((current) =>
       current.filter((item) => item.id !== training.id)
@@ -321,10 +323,11 @@ export function TrainingWeekAccordion({
 
       try {
         await deleteTraining(formData);
+        toast.success("Training gelöscht");
         router.refresh();
       } catch (deleteError) {
         setVisibleTrainings(previousTrainings);
-        setError(
+        toast.error(
           deleteError instanceof Error
             ? deleteError.message
             : "Training konnte nicht gelöscht werden."
@@ -343,12 +346,12 @@ export function TrainingWeekAccordion({
     const formData = new FormData();
     formData.set("id", trainingId);
     startTransition(async () => {
-      setError(null);
       try {
         await duplicateTraining(formData);
+        toast.success("Training dupliziert");
         router.refresh();
       } catch (duplicateError) {
-        setError(
+        toast.error(
           duplicateError instanceof Error
             ? duplicateError.message
             : "Training konnte nicht dupliziert werden."
@@ -361,73 +364,104 @@ export function TrainingWeekAccordion({
     return (
       <Card>
         <CardContent className="p-6">
-          <p className="font-semibold">Noch keine Trainings geplant.</p>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Erstelle links ein Training oder nutze die Vorlagen-Bibliothek.
+          <p className="text-[15px] font-semibold tracking-tight">
+            Noch keine Trainings geplant.
+          </p>
+          <p className="mt-2 text-[13px] leading-6 text-muted-foreground">
+            Erstelle oben rechts ein Training, eine Vorlage oder einen
+            KI-Entwurf.
           </p>
         </CardContent>
       </Card>
     );
   }
 
+  const intensityChips: { id: string; label: string }[] = [
+    { id: "all", label: "Alle" },
+    { id: "low", label: "Niedrig" },
+    { id: "medium", label: "Mittel" },
+    { id: "high", label: "Hoch" }
+  ];
+
   return (
-    <div className="space-y-3">
-      <div className="rounded-xl border border-border bg-white p-4">
-        <div className="grid gap-3 md:grid-cols-[1.4fr_0.8fr_0.8fr]">
-          <div className="space-y-2">
-            <Label htmlFor="training-search">Suche</Label>
-            <Input
-              id="training-search"
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Thema, Ziel, Coachingpunkt, Notiz..."
-              value={query}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="training-intensity-filter">Intensität</Label>
-            <select
-              className="flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              id="training-intensity-filter"
-              onChange={(event) => setIntensityFilter(event.target.value)}
-              value={intensityFilter}
+    <div className="space-y-4">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="relative flex-1 max-w-md">
+          <Search
+            aria-hidden="true"
+            className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+          />
+          <Input
+            className="pl-10"
+            id="training-search"
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Thema, Ziel, Notiz…"
+            type="search"
+            value={query}
+          />
+          {query ? (
+            <button
+              aria-label="Suche leeren"
+              className="absolute right-2.5 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+              onClick={() => setQuery("")}
+              type="button"
             >
-              <option value="all">Alle</option>
-              <option value="low">Niedrig</option>
-              <option value="medium">Mittel</option>
-              <option value="high">Hoch</option>
-            </select>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="training-team-filter">Team/Kategorie</Label>
-            <select
-              className="flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              id="training-team-filter"
-              onChange={(event) => setTeamFilter(event.target.value)}
-              value={teamFilter}
-            >
-              <option value="all">Alle</option>
-              {teamOptions.map((option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ))}
-            </select>
-          </div>
+              <X aria-hidden="true" className="h-3.5 w-3.5" />
+            </button>
+          ) : null}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          {intensityChips.map((chip) => {
+            const isActive = chip.id === intensityFilter;
+            return (
+              <button
+                className={cn(
+                  "inline-flex h-9 items-center rounded-full border px-3.5 text-[13px] font-medium tracking-tight transition-colors duration-150 active:scale-95",
+                  isActive
+                    ? "border-foreground bg-foreground text-background"
+                    : "border-border bg-card text-foreground/80 hover:border-foreground/40"
+                )}
+                key={chip.id}
+                onClick={() => setIntensityFilter(chip.id)}
+                type="button"
+              >
+                {chip.label}
+              </button>
+            );
+          })}
+
+          {teamOptions.length > 0 ? (
+            <div className="relative">
+              <select
+                aria-label="Team / Kategorie"
+                className="h-9 cursor-pointer appearance-none rounded-full border border-border bg-card pl-3.5 pr-9 text-[13px] font-medium tracking-tight text-foreground/80 transition-colors hover:border-foreground/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                onChange={(event) => setTeamFilter(event.target.value)}
+                value={teamFilter}
+              >
+                <option value="all">Alle Teams</option>
+                {teamOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+              <ChevronsUpDown
+                aria-hidden="true"
+                className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground"
+              />
+            </div>
+          ) : null}
         </div>
       </div>
-
-      {error ? (
-        <div className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">
-          <AlertCircle aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0" />
-          <span>{error}</span>
-        </div>
-      ) : null}
 
       {weekGroups.length === 0 ? (
         <Card>
           <CardContent className="p-6">
-            <p className="font-semibold">Keine Trainings im Filter.</p>
-            <p className="mt-2 text-sm text-muted-foreground">
+            <p className="text-[15px] font-semibold tracking-tight">
+              Keine Trainings im Filter.
+            </p>
+            <p className="mt-2 text-[13px] leading-6 text-muted-foreground">
               Passe Suche, Team oder Intensität an.
             </p>
           </CardContent>
@@ -447,7 +481,7 @@ export function TrainingWeekAccordion({
 
         return (
           <section
-            className="overflow-hidden rounded-xl border border-border bg-card/95 shadow-sm shadow-slate-950/5 transition-all duration-300"
+            className="overflow-hidden rounded-2xl border border-border/70 bg-card shadow-soft"
             key={week.key}
           >
             <button
@@ -507,7 +541,7 @@ export function TrainingWeekAccordion({
                     return (
                       <article
                         className={cn(
-                          "rounded-xl border border-border bg-white transition-all duration-300",
+                          "rounded-2xl border border-border/70 bg-card transition-opacity duration-200",
                           isDeleting && "opacity-50"
                         )}
                         key={training.id}
@@ -634,11 +668,15 @@ export function TrainingWeekAccordion({
                               ) : null}
 
                               {players.length > 0 ? (
-                                <details className="rounded-xl border border-border bg-background/70 p-4 no-print">
-                                  <summary className="cursor-pointer text-sm font-semibold">
+                                <details className="rounded-2xl border border-border/70 bg-secondary/30 p-4 no-print">
+                                  <summary className="cursor-pointer text-[14px] font-semibold tracking-tight">
                                     Anwesenheit erfassen ({presentCount}/{players.length})
                                   </summary>
-                                  <form action={saveAttendance} className="mt-4 space-y-3">
+                                  <ToastForm
+                                    action={saveAttendance}
+                                    className="mt-4 space-y-3"
+                                    successMessage="Anwesenheit gespeichert"
+                                  >
                                     <input
                                       name="training_id"
                                       type="hidden"
@@ -681,18 +719,19 @@ export function TrainingWeekAccordion({
                                     <Button type="submit" variant="secondary">
                                       Anwesenheit speichern
                                     </Button>
-                                  </form>
+                                  </ToastForm>
                                 </details>
                               ) : null}
 
                               {players.length > 0 ? (
-                                <details className="rounded-xl border border-border bg-background/70 p-4 no-print">
-                                  <summary className="cursor-pointer text-sm font-semibold">
+                                <details className="rounded-2xl border border-border/70 bg-secondary/30 p-4 no-print">
+                                  <summary className="cursor-pointer text-[14px] font-semibold tracking-tight">
                                     Spielerbewertung erfassen
                                   </summary>
-                                  <form
+                                  <ToastForm
                                     action={savePlayerEvaluation}
                                     className="mt-4 grid gap-3 md:grid-cols-6"
+                                    successMessage="Bewertung gespeichert"
                                   >
                                     <input name="context_type" type="hidden" value="training" />
                                     <input name="context_id" type="hidden" value={training.id} />
@@ -736,7 +775,7 @@ export function TrainingWeekAccordion({
                                     <Button className="md:col-span-1" type="submit">
                                       Speichern
                                     </Button>
-                                  </form>
+                                  </ToastForm>
                                 </details>
                               ) : null}
 
@@ -781,10 +820,11 @@ export function TrainingWeekAccordion({
                                 )}
                               >
                                 <div className="overflow-hidden">
-                                  <form
+                                  <ToastForm
                                     action={updateTraining}
-                                    className="space-y-4 rounded-xl border border-border bg-background/70 p-4"
-                                    onSubmit={() => toggleEditing(training.id)}
+                                    className="space-y-4 rounded-2xl border border-border/70 bg-secondary/30 p-4"
+                                    onComplete={() => toggleEditing(training.id)}
+                                    successMessage="Training aktualisiert"
                                   >
                                     <input name="id" type="hidden" defaultValue={training.id} />
                                     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -872,7 +912,7 @@ export function TrainingWeekAccordion({
                                         Speichern
                                       </Button>
                                     </div>
-                                  </form>
+                                  </ToastForm>
                                 </div>
                               </div>
                             </div>

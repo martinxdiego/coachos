@@ -1,22 +1,14 @@
-import { Bot, Copy } from "lucide-react";
-import {
-  createAiTrainingDraft,
-  createPresetTraining
-} from "@/app/actions";
+import { Suspense } from "react";
 import { CreateTrainingDrawer } from "@/components/create-training-drawer";
-import { PageHeader } from "@/components/page-header";
+import { TrainingAiDraftDrawer } from "@/components/training-ai-drawer";
+import { TrainingPresetDrawer } from "@/components/training-preset-drawer";
 import { TrainingWeekAccordion } from "@/components/training-week-accordion";
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle
-} from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { requireActiveTeam } from "@/lib/auth";
+import { createClient } from "@/lib/supabase/server";
 import { todayIsoDate } from "@/lib/utils";
+import type { TrainingPhase } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -30,21 +22,61 @@ function safeDate(value?: string) {
   return value && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : todayIsoDate();
 }
 
-export default async function TrainingsPage({ searchParams }: TrainingsPageProps) {
-  const { supabase, team } = await requireActiveTeam();
-  const resolvedSearchParams = await searchParams;
-  const initialDate = safeDate(resolvedSearchParams?.date);
+function StatTile({ label, value }: { label: string; value: number | string }) {
+  return (
+    <Card>
+      <CardContent className="p-4">
+        <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
+          {label}
+        </p>
+        <p className="mt-1.5 text-2xl font-semibold tracking-tight">{value}</p>
+      </CardContent>
+    </Card>
+  );
+}
+
+function TrainingsSkeleton() {
+  return (
+    <div className="space-y-6">
+      <div className="grid gap-3 grid-cols-2 sm:grid-cols-4">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <Card key={i}>
+            <CardContent className="space-y-2 p-4">
+              <Skeleton className="h-3 w-16" />
+              <Skeleton className="h-7 w-10" />
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+      <Skeleton className="h-10 w-full max-w-md rounded-xl" />
+      <div className="space-y-3">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <div
+            className="rounded-2xl border border-border/60 bg-card p-4"
+            key={i}
+          >
+            <Skeleton className="h-4 w-44" />
+            <Skeleton className="mt-2 h-3 w-32" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+async function TrainingsData({ teamId }: { teamId: string }) {
+  const supabase = await createClient();
 
   const [playersResult, trainingsResult] = await Promise.all([
     supabase
       .from("players")
       .select("id,name,position")
-      .eq("team_id", team.id)
+      .eq("team_id", teamId)
       .order("name", { ascending: true }),
     supabase
       .from("training_sessions")
       .select("*")
-      .eq("team_id", team.id)
+      .eq("team_id", teamId)
       .order("date", { ascending: false })
       .limit(250)
   ]);
@@ -52,7 +84,6 @@ export default async function TrainingsPage({ searchParams }: TrainingsPageProps
   if (playersResult.error) {
     throw new Error(playersResult.error.message);
   }
-
   if (trainingsResult.error) {
     throw new Error(trainingsResult.error.message);
   }
@@ -67,12 +98,12 @@ export default async function TrainingsPage({ searchParams }: TrainingsPageProps
           supabase
             .from("attendance")
             .select("training_id,player_id,status")
-            .eq("team_id", team.id)
+            .eq("team_id", teamId)
             .in("training_id", trainingIds),
           supabase
             .from("training_phases")
             .select("*")
-            .eq("team_id", team.id)
+            .eq("team_id", teamId)
             .in("training_id", trainingIds)
             .order("sort_order", { ascending: true })
         ])
@@ -84,132 +115,87 @@ export default async function TrainingsPage({ searchParams }: TrainingsPageProps
   if (attendanceResult.error) {
     throw new Error(attendanceResult.error.message);
   }
-
   if (phasesResult.error) {
     throw new Error(phasesResult.error.message);
   }
 
   const attendanceRows = attendanceResult.data ?? [];
-  const phases = phasesResult.data ?? [];
+  const phases = (phasesResult.data ?? []) as TrainingPhase[];
+
+  const today = todayIsoDate();
+  const startOfWeek = new Date();
+  startOfWeek.setHours(0, 0, 0, 0);
+  const day = (startOfWeek.getDay() + 6) % 7;
+  startOfWeek.setDate(startOfWeek.getDate() - day);
+  const endOfWeek = new Date(startOfWeek);
+  endOfWeek.setDate(endOfWeek.getDate() + 7);
+  const startIso = startOfWeek.toISOString().slice(0, 10);
+  const endIso = endOfWeek.toISOString().slice(0, 10);
+
+  const stats = {
+    total: trainings.length,
+    thisWeek: trainings.filter(
+      (t) => t.date >= startIso && t.date < endIso
+    ).length,
+    intensive: trainings.filter((t) => t.intensity === "high").length,
+    upcoming: trainings.filter((t) => t.date >= today).length
+  };
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        description="Plane Einheiten mit Ziel, Belastung, Phasen, Material und Coachingpunkten."
-        title="Training"
-      />
+      <div className="grid gap-3 grid-cols-2 sm:grid-cols-4">
+        <StatTile label="Gesamt" value={stats.total} />
+        <StatTile label="Diese Woche" value={stats.thisWeek} />
+        <StatTile label="Intensiv" value={stats.intensive} />
+        <StatTile label="Bevorstehend" value={stats.upcoming} />
+      </div>
 
-      <section className="grid gap-4 xl:grid-cols-[420px_1fr]">
-        <aside className="space-y-4">
+      <TrainingWeekAccordion
+        attendanceRows={attendanceRows}
+        phases={phases}
+        players={players}
+        trainings={trainings}
+      />
+    </div>
+  );
+}
+
+export default async function TrainingsPage({ searchParams }: TrainingsPageProps) {
+  const { team } = await requireActiveTeam();
+  const resolvedSearchParams = await searchParams;
+  const initialDate = safeDate(resolvedSearchParams?.date);
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div className="space-y-1.5">
+          <p className="text-[12px] font-medium uppercase tracking-[0.16em] text-primary">
+            Workspace
+          </p>
+          <h1 className="text-[28px] font-semibold leading-tight tracking-tight sm:text-[32px]">
+            Training
+          </h1>
+          <p className="text-[14px] leading-6 text-muted-foreground">
+            Plane Einheiten mit Ziel, Belastung, Phasen, Material und
+            Coachingpunkten.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <TrainingAiDraftDrawer
+            ageGroup={team.age_group}
+            initialDate={initialDate}
+          />
+          <TrainingPresetDrawer initialDate={initialDate} />
           <CreateTrainingDrawer
             ageGroup={team.age_group}
             initialDate={initialDate}
           />
+        </div>
+      </div>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Vorlagen-Bibliothek</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <form action={createPresetTraining} className="space-y-3">
-                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
-                  <div className="space-y-2">
-                    <Label htmlFor="preset">Vorlage</Label>
-                    <select
-                      className="flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                      id="preset"
-                      name="preset"
-                    >
-                      <option value="pressing">Pressing nach Ballverlust</option>
-                      <option value="buildup">Spielaufbau gegen Pressing</option>
-                      <option value="finishing">Abschluss unter Druck</option>
-                    </select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="preset-date">Datum</Label>
-                    <Input
-                      defaultValue={initialDate}
-                      id="preset-date"
-                      name="date"
-                      required
-                      type="date"
-                    />
-                  </div>
-                </div>
-                <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-1">
-                  <Input name="start_time" type="time" />
-                  <Input
-                    defaultValue="90"
-                    name="duration_minutes"
-                    type="number"
-                  />
-                  <Input name="location" placeholder="Ort" />
-                </div>
-                <Button className="w-full" type="submit" variant="secondary">
-                  <Copy aria-hidden="true" className="h-4 w-4" />
-                  Vorlage erstellen
-                </Button>
-              </form>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>KI-Trainingsentwurf</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <form action={createAiTrainingDraft} className="space-y-3">
-                <div className="space-y-2">
-                  <Label htmlFor="ai-date">Datum</Label>
-                  <Input
-                    defaultValue={initialDate}
-                    id="ai-date"
-                    name="date"
-                    required
-                    type="date"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="ai-focus">Ziel / Schwerpunkt</Label>
-                  <Input
-                    id="ai-focus"
-                    name="focus"
-                    placeholder="Spielaufbau gegen Pressing"
-                    required
-                  />
-                </div>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <Input
-                    defaultValue={team.age_group ?? ""}
-                    name="age_group"
-                    placeholder="U16"
-                  />
-                  <Input
-                    defaultValue="90"
-                    name="duration_minutes"
-                    type="number"
-                  />
-                </div>
-                <Button className="w-full" type="submit" variant="secondary">
-                  <Bot aria-hidden="true" className="h-4 w-4" />
-                  KI-Draft erzeugen
-                </Button>
-                <p className="text-xs leading-5 text-muted-foreground">
-                  Erstellt aktuell einen strukturierten Mock-Entwurf. Die Action
-                  ist vorbereitet für echte Modellintegration.
-                </p>
-              </form>
-            </CardContent>
-          </Card>
-        </aside>
-
-        <TrainingWeekAccordion
-          attendanceRows={attendanceRows}
-          phases={phases}
-          players={players}
-          trainings={trainings}
-        />
-      </section>
+      <Suspense fallback={<TrainingsSkeleton />}>
+        <TrainingsData teamId={team.id} />
+      </Suspense>
     </div>
   );
 }
