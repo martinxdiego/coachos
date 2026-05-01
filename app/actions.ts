@@ -109,6 +109,14 @@ function optionalNumber(formData: FormData, key: string) {
   return Number.isFinite(number) ? number : null;
 }
 
+function normalizeExternalUrl(rawUrl: string) {
+  return /^[a-z][a-z0-9+.-]*:/i.test(rawUrl) ||
+    rawUrl.startsWith("/") ||
+    rawUrl.includes(" ")
+    ? rawUrl
+    : `https://${rawUrl}`;
+}
+
 function requiredRating(formData: FormData) {
   const rating = Number(formData.get("rating"));
   if (!Number.isInteger(rating) || rating < 1 || rating > 10) {
@@ -556,6 +564,46 @@ export async function deletePlayer(formData: FormData) {
   revalidatePath("/pitch");
   revalidatePath("/players");
   revalidatePath("/tactics");
+}
+
+export async function submitPlayerSeasonForm(formData: FormData) {
+  const { supabase, team } = await requireActiveTeam();
+  const id = requiredString(formData, "player_id", "Player");
+  const strongFoot = enumValue(formData, "strong_foot", [
+    "left",
+    "right",
+    "both"
+  ] as const) as StrongFoot | null;
+
+  const { error } = await supabase
+    .from("players")
+    .update({
+      strong_foot: strongFoot,
+      contact: optionalString(formData, "contact"),
+      parent_contact: optionalString(formData, "parent_contact"),
+      emergency_contact: optionalString(formData, "emergency_contact"),
+      favorite_team: optionalString(formData, "favorite_team"),
+      favorite_player: optionalString(formData, "favorite_player"),
+      football_goals: optionalString(formData, "football_goals"),
+      motivation: optionalString(formData, "motivation"),
+      strengths: optionalString(formData, "strengths"),
+      weaknesses: optionalString(formData, "weaknesses"),
+      allergies: optionalString(formData, "allergies"),
+      injuries: optionalString(formData, "injuries"),
+      limitations: optionalString(formData, "limitations"),
+      medications: optionalString(formData, "medications"),
+      season_form_completed_at: new Date().toISOString()
+    })
+    .eq("id", id)
+    .eq("team_id", team.id);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  revalidatePath("/player-mode");
+  revalidatePath("/players");
+  revalidatePath(`/players/${id}`);
 }
 
 function trainingPayload(formData: FormData) {
@@ -1589,6 +1637,78 @@ export async function addWinnerPoints(formData: FormData) {
   revalidatePath(`/players/${playerId}`);
 }
 
+export async function updateWinnerPoints(formData: FormData) {
+  const { supabase, team } = await requireActiveTeam();
+  const id = requiredString(formData, "id", "Winnerpunkte");
+  const playerId = requiredString(formData, "player_id", "Player");
+  const contextType = enumValue(formData, "context_type", [
+    "training",
+    "match",
+    "event",
+    "other",
+    "monday_training"
+  ] as const) as WinnerPointContextType | null;
+  const points = optionalNumber(formData, "points");
+
+  if (!contextType) {
+    throw new Error("Context type is required.");
+  }
+
+  if (!points || points < 1 || points > 50) {
+    throw new Error("Winnerpunkte must be between 1 and 50.");
+  }
+
+  const { error } = await supabase
+    .from("winner_points")
+    .update({
+      player_id: playerId,
+      context_type: contextType,
+      context_id: optionalString(formData, "context_id"),
+      context_label: optionalString(formData, "context_label"),
+      points,
+      reason: optionalString(formData, "reason"),
+      awarded_at:
+        optionalString(formData, "awarded_at") ??
+        new Date().toISOString().slice(0, 10)
+    })
+    .eq("id", id)
+    .eq("team_id", team.id);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  revalidatePath("/");
+  revalidatePath("/winnerpunkte");
+  revalidatePath("/clubcorner");
+  revalidatePath("/player-mode");
+  revalidatePath(`/players/${playerId}`);
+}
+
+export async function deleteWinnerPoints(formData: FormData) {
+  const { supabase, team } = await requireActiveTeam();
+  const id = requiredString(formData, "id", "Winnerpunkte");
+  const playerId = optionalString(formData, "player_id");
+
+  const { error } = await supabase
+    .from("winner_points")
+    .delete()
+    .eq("id", id)
+    .eq("team_id", team.id);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  revalidatePath("/");
+  revalidatePath("/winnerpunkte");
+  revalidatePath("/clubcorner");
+  revalidatePath("/player-mode");
+  if (playerId) {
+    revalidatePath(`/players/${playerId}`);
+  }
+}
+
 export async function createExternalLink(formData: FormData) {
   const { supabase, user, team } = await requireActiveTeam();
   const linkType = enumValue(formData, "link_type", [
@@ -1605,12 +1725,7 @@ export async function createExternalLink(formData: FormData) {
     throw new Error("Link type is required.");
   }
 
-  const url =
-    /^[a-z][a-z0-9+.-]*:/i.test(rawUrl) ||
-    rawUrl.startsWith("/") ||
-    rawUrl.includes(" ")
-      ? rawUrl
-      : `https://${rawUrl}`;
+  const url = normalizeExternalUrl(rawUrl);
   const playerId = optionalString(formData, "player_id");
 
   const { error } = await supabase.from("external_links").insert({
@@ -1622,6 +1737,46 @@ export async function createExternalLink(formData: FormData) {
     url,
     notes: optionalString(formData, "notes")
   });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  revalidatePath("/clubcorner");
+  revalidatePath("/players");
+  if (playerId) {
+    revalidatePath(`/players/${playerId}`);
+  }
+}
+
+export async function updateExternalLink(formData: FormData) {
+  const { supabase, team } = await requireActiveTeam();
+  const id = requiredString(formData, "id", "Link");
+  const linkType = enumValue(formData, "link_type", [
+    "clubcorner",
+    "player_stats",
+    "quali_document",
+    "meeting_notes",
+    "medical",
+    "other"
+  ] as const) as ExternalLinkType | null;
+  const playerId = optionalString(formData, "player_id");
+
+  if (!linkType) {
+    throw new Error("Link type is required.");
+  }
+
+  const { error } = await supabase
+    .from("external_links")
+    .update({
+      player_id: playerId,
+      link_type: linkType,
+      title: requiredString(formData, "title", "Title"),
+      url: normalizeExternalUrl(requiredString(formData, "url", "URL")),
+      notes: optionalString(formData, "notes")
+    })
+    .eq("id", id)
+    .eq("team_id", team.id);
 
   if (error) {
     throw new Error(error.message);
@@ -1650,6 +1805,7 @@ export async function deleteExternalLink(formData: FormData) {
   }
 
   revalidatePath("/clubcorner");
+  revalidatePath("/players");
   if (playerId) {
     revalidatePath(`/players/${playerId}`);
   }
@@ -1715,6 +1871,96 @@ export async function savePlayerEvaluation(formData: FormData) {
   revalidatePath(`/players/${playerId}`);
 }
 
+export async function updatePlayerEvaluation(formData: FormData) {
+  const { supabase, team } = await requireActiveTeam();
+  const id = requiredString(formData, "id", "Evaluation");
+  const playerId = requiredString(formData, "player_id", "Player");
+  const contextType = enumValue(formData, "context_type", [
+    "training",
+    "match",
+    "event",
+    "monday_training"
+  ] as const) as EvaluationContextType | null;
+
+  if (!contextType) {
+    throw new Error("Evaluation context is required.");
+  }
+
+  const row = {
+    player_id: playerId,
+    context_type: contextType,
+    context_id: optionalString(formData, "context_id"),
+    context_label: optionalString(formData, "context_label"),
+    evaluation_date:
+      optionalString(formData, "evaluation_date") ??
+      new Date().toISOString().slice(0, 10),
+    participation: optionalScaleFive(formData, "participation"),
+    motivation: optionalScaleFive(formData, "motivation"),
+    training_quality: optionalScaleFive(formData, "training_quality"),
+    match_quality: optionalScaleFive(formData, "match_quality"),
+    behavior: optionalScaleFive(formData, "behavior"),
+    effort: optionalScaleFive(formData, "effort"),
+    concentration: optionalScaleFive(formData, "concentration"),
+    notes: optionalString(formData, "notes")
+  };
+
+  const hasScore = [
+    row.participation,
+    row.motivation,
+    row.training_quality,
+    row.match_quality,
+    row.behavior,
+    row.effort,
+    row.concentration
+  ].some((value) => value !== null);
+
+  if (!hasScore) {
+    throw new Error("At least one score is required.");
+  }
+
+  const { error } = await supabase
+    .from("player_evaluations")
+    .update(row)
+    .eq("id", id)
+    .eq("team_id", team.id);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  revalidatePath("/");
+  revalidatePath("/evaluations");
+  revalidatePath("/clubcorner");
+  revalidatePath("/monday");
+  revalidatePath("/player-mode");
+  revalidatePath(`/players/${playerId}`);
+}
+
+export async function deletePlayerEvaluation(formData: FormData) {
+  const { supabase, team } = await requireActiveTeam();
+  const id = requiredString(formData, "id", "Evaluation");
+  const playerId = optionalString(formData, "player_id");
+
+  const { error } = await supabase
+    .from("player_evaluations")
+    .delete()
+    .eq("id", id)
+    .eq("team_id", team.id);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  revalidatePath("/");
+  revalidatePath("/evaluations");
+  revalidatePath("/clubcorner");
+  revalidatePath("/monday");
+  revalidatePath("/player-mode");
+  if (playerId) {
+    revalidatePath(`/players/${playerId}`);
+  }
+}
+
 export async function saveHealthCheckin(formData: FormData) {
   const { supabase, user, team } = await requireActiveTeam();
   const playerId = requiredString(formData, "player_id", "Player");
@@ -1754,6 +2000,71 @@ export async function saveHealthCheckin(formData: FormData) {
   revalidatePath("/health");
   revalidatePath("/player-mode");
   revalidatePath(`/players/${playerId}`);
+}
+
+export async function updateHealthCheckin(formData: FormData) {
+  const { supabase, team } = await requireActiveTeam();
+  const id = requiredString(formData, "id", "Health check-in");
+  const playerId = requiredString(formData, "player_id", "Player");
+  const contextType = enumValue(formData, "context_type", [
+    "training",
+    "match",
+    "free"
+  ] as const) as HealthContextType | null;
+
+  const { error } = await supabase
+    .from("health_checkins")
+    .update({
+      player_id: playerId,
+      checkin_date:
+        optionalString(formData, "checkin_date") ??
+        new Date().toISOString().slice(0, 10),
+      context_type: contextType ?? "training",
+      fatigue: scaleFive(formData, "fatigue", "Fatigue"),
+      sleep_quality: scaleFive(formData, "sleep_quality", "Sleep quality"),
+      soreness: scaleFive(formData, "soreness", "Soreness"),
+      pain: scaleFive(formData, "pain", "Pain"),
+      stress: scaleFive(formData, "stress", "Stress"),
+      motivation: scaleFive(formData, "motivation", "Motivation"),
+      energy: scaleFive(formData, "energy", "Energy"),
+      injury_feeling: scaleFive(formData, "injury_feeling", "Injury feeling"),
+      wellbeing: scaleFive(formData, "wellbeing", "Wellbeing"),
+      notes: optionalString(formData, "notes")
+    })
+    .eq("id", id)
+    .eq("team_id", team.id);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  revalidatePath("/");
+  revalidatePath("/health");
+  revalidatePath("/player-mode");
+  revalidatePath(`/players/${playerId}`);
+}
+
+export async function deleteHealthCheckin(formData: FormData) {
+  const { supabase, team } = await requireActiveTeam();
+  const id = requiredString(formData, "id", "Health check-in");
+  const playerId = optionalString(formData, "player_id");
+
+  const { error } = await supabase
+    .from("health_checkins")
+    .delete()
+    .eq("id", id)
+    .eq("team_id", team.id);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  revalidatePath("/");
+  revalidatePath("/health");
+  revalidatePath("/player-mode");
+  if (playerId) {
+    revalidatePath(`/players/${playerId}`);
+  }
 }
 
 export async function saveMatchAnalysis(formData: FormData) {
@@ -1889,6 +2200,47 @@ export async function createMondayTraining(formData: FormData) {
   revalidatePath("/monday");
 }
 
+export async function updateMondayTraining(formData: FormData) {
+  const { supabase, team } = await requireActiveTeam();
+  const id = requiredString(formData, "id", "Monday training");
+
+  const { error } = await supabase
+    .from("monday_trainings")
+    .update({
+      date: requiredString(formData, "date", "Date"),
+      topic: requiredString(formData, "topic", "Topic"),
+      goal: optionalString(formData, "goal"),
+      duration_minutes: optionalNumber(formData, "duration_minutes"),
+      staff_notes: optionalString(formData, "staff_notes"),
+      sandu_notes: optionalString(formData, "sandu_notes")
+    })
+    .eq("id", id)
+    .eq("team_id", team.id);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  revalidatePath("/monday");
+}
+
+export async function deleteMondayTraining(formData: FormData) {
+  const { supabase, team } = await requireActiveTeam();
+  const id = requiredString(formData, "id", "Monday training");
+
+  const { error } = await supabase
+    .from("monday_trainings")
+    .delete()
+    .eq("id", id)
+    .eq("team_id", team.id);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  revalidatePath("/monday");
+}
+
 export async function saveMondayAttendance(formData: FormData) {
   const { supabase, user, team } = await requireActiveTeam();
   const mondayTrainingId = requiredString(formData, "monday_training_id", "Monday training");
@@ -1953,6 +2305,36 @@ export async function createPlayerAward(formData: FormData) {
     award_date: optionalString(formData, "award_date") ?? new Date().toISOString().slice(0, 10),
     reason: optionalString(formData, "reason")
   });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  revalidatePath("/");
+  revalidatePath("/awards");
+  revalidatePath("/player-mode");
+  revalidatePath(`/players/${playerId}`);
+}
+
+export async function updatePlayerAward(formData: FormData) {
+  const { supabase, team } = await requireActiveTeam();
+  const id = requiredString(formData, "id", "Award");
+  const playerId = requiredString(formData, "player_id", "Player");
+
+  const { error } = await supabase
+    .from("player_awards")
+    .update({
+      player_id: playerId,
+      previous_player_id: optionalString(formData, "previous_player_id"),
+      match_id: optionalString(formData, "match_id"),
+      event_label: optionalString(formData, "event_label"),
+      award_date:
+        optionalString(formData, "award_date") ??
+        new Date().toISOString().slice(0, 10),
+      reason: optionalString(formData, "reason")
+    })
+    .eq("id", id)
+    .eq("team_id", team.id);
 
   if (error) {
     throw new Error(error.message);

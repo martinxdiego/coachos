@@ -1,6 +1,10 @@
 import Link from "next/link";
-import { AlertTriangle, HeartPulse, ShieldCheck } from "lucide-react";
-import { saveHealthCheckin } from "@/app/actions";
+import { AlertTriangle, HeartPulse, Save, ShieldCheck, Trash2 } from "lucide-react";
+import {
+  deleteHealthCheckin,
+  saveHealthCheckin,
+  updateHealthCheckin
+} from "@/app/actions";
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
@@ -263,6 +267,140 @@ export default async function HealthPage() {
           </CardContent>
         </Card>
       </section>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Check-ins bearbeiten</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {checkins.length > 0 ? (
+            <div className="grid gap-3">
+              {checkins.slice(0, 12).map((checkin) => {
+                const player = players.find((item) => item.id === checkin.player_id);
+                const risk = healthRisk(checkin);
+
+                return (
+                  <details
+                    className="rounded-xl border border-border bg-background/70 p-4"
+                    key={checkin.id}
+                  >
+                    <summary className="cursor-pointer">
+                      <span className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                        <span>
+                          <span className="font-semibold">
+                            {player?.name ?? "Unbekannter Spieler"}
+                          </span>
+                          <span className="ml-2 text-sm text-muted-foreground">
+                            {formatDate(checkin.checkin_date)} ·{" "}
+                            {checkin.context_type}
+                          </span>
+                        </span>
+                        <Badge
+                          variant={
+                            risk === "red"
+                              ? "destructive"
+                              : risk === "yellow"
+                                ? "secondary"
+                                : "success"
+                          }
+                        >
+                          {risk}
+                        </Badge>
+                      </span>
+                    </summary>
+                    <div className="mt-4 grid gap-4 xl:grid-cols-[1fr_auto]">
+                      <form action={updateHealthCheckin} className="space-y-4">
+                        <input name="id" type="hidden" value={checkin.id} />
+                        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                          <div className="space-y-2">
+                            <Label>Spieler</Label>
+                            <select
+                              className="flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                              defaultValue={checkin.player_id}
+                              name="player_id"
+                            >
+                              {players.map((item) => (
+                                <option key={item.id} value={item.id}>
+                                  {item.name}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Datum</Label>
+                            <Input
+                              defaultValue={checkin.checkin_date}
+                              name="checkin_date"
+                              type="date"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Kontext</Label>
+                            <select
+                              className="flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                              defaultValue={checkin.context_type}
+                              name="context_type"
+                            >
+                              <option value="training">Training</option>
+                              <option value="match">Spiel</option>
+                              <option value="free">Frei</option>
+                            </select>
+                          </div>
+                        </div>
+                        <div className="grid gap-3 sm:grid-cols-3">
+                          {checks.map(([name, label]) => (
+                            <div className="space-y-2" key={name}>
+                              <Label>{label}</Label>
+                              <select
+                                className="flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                defaultValue={String(checkin[name])}
+                                name={name}
+                              >
+                                {[1, 2, 3, 4, 5].map((value) => (
+                                  <option key={value} value={value}>
+                                    {value}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          ))}
+                        </div>
+                        <Textarea
+                          defaultValue={checkin.notes ?? ""}
+                          name="notes"
+                          placeholder="Hinweis"
+                        />
+                        <Button type="submit">
+                          <Save aria-hidden="true" className="h-4 w-4" />
+                          Speichern
+                        </Button>
+                      </form>
+                      <form action={deleteHealthCheckin}>
+                        <input name="id" type="hidden" value={checkin.id} />
+                        <input
+                          name="player_id"
+                          type="hidden"
+                          value={checkin.player_id}
+                        />
+                        <Button
+                          className="text-red-700 hover:bg-red-50 hover:text-red-800"
+                          type="submit"
+                          variant="ghost"
+                        >
+                          <Trash2 aria-hidden="true" className="h-4 w-4" />
+                          Löschen
+                        </Button>
+                      </form>
+                    </div>
+                  </details>
+                );
+              })}
+            </div>
+          ) : (
+            <EmptyState title="Noch keine Check-ins zum Bearbeiten." />
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

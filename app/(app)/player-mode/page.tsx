@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Award, CalendarDays, Medal, TrendingUp } from "lucide-react";
+import { saveHealthCheckin, submitPlayerSeasonForm } from "@/app/actions";
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
@@ -10,6 +11,9 @@ import {
   CardHeader,
   CardTitle
 } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { evaluationAverage, healthRisk, winnerPointTotal } from "@/lib/coach-metrics";
 import { requireActiveTeam } from "@/lib/auth";
 import { formatDate, todayIsoDate } from "@/lib/utils";
@@ -21,6 +25,18 @@ interface PlayerModePageProps {
     player?: string;
   }>;
 }
+
+const healthChecks = [
+  ["fatigue", "Müdigkeit"],
+  ["sleep_quality", "Schlaf"],
+  ["soreness", "Muskelkater"],
+  ["pain", "Schmerzen"],
+  ["stress", "Stress"],
+  ["motivation", "Motivation"],
+  ["energy", "Energie"],
+  ["injury_feeling", "Verletzungsgefühl"],
+  ["wellbeing", "Wohlbefinden"]
+] as const;
 
 export default async function PlayerModePage({
   searchParams
@@ -146,6 +162,8 @@ export default async function PlayerModePage({
         evaluationValues.length
       : null;
   const latestHealth = checkins[0] ?? null;
+  const todayHealth =
+    checkins.find((checkin) => checkin.checkin_date === today) ?? null;
   const risk = latestHealth ? healthRisk(latestHealth) : null;
   const trainings = trainingsResult.data ?? [];
   const matches = matchesResult.data ?? [];
@@ -261,7 +279,7 @@ export default async function PlayerModePage({
               <CardHeader>
                 <CardTitle>Check-in</CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="space-y-4">
                 {latestHealth ? (
                   <div>
                     <Badge
@@ -290,9 +308,159 @@ export default async function PlayerModePage({
                     Noch kein Check-in vorhanden.
                   </p>
                 )}
+                <form action={saveHealthCheckin} className="space-y-3">
+                  <input name="player_id" type="hidden" value={player.id} />
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="player-health-date">Datum</Label>
+                      <Input
+                        defaultValue={today}
+                        id="player-health-date"
+                        name="checkin_date"
+                        type="date"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="player-health-context">Kontext</Label>
+                      <select
+                        className="flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        defaultValue={todayHealth?.context_type ?? "training"}
+                        id="player-health-context"
+                        name="context_type"
+                      >
+                        <option value="training">Training</option>
+                        <option value="match">Spiel</option>
+                        <option value="free">Freier Check</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div className="grid gap-2 sm:grid-cols-3">
+                    {healthChecks.map(([name, label]) => (
+                      <div className="space-y-1" key={name}>
+                        <Label>{label}</Label>
+                        <select
+                          className="flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          defaultValue={String(todayHealth?.[name] ?? 3)}
+                          name={name}
+                        >
+                          {[1, 2, 3, 4, 5].map((value) => (
+                            <option key={value} value={value}>
+                              {value}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    ))}
+                  </div>
+                  <Textarea
+                    defaultValue={todayHealth?.notes ?? ""}
+                    name="notes"
+                    placeholder="Kurzer Hinweis an den Trainer"
+                  />
+                  <Button className="w-full" type="submit">
+                    Check-in speichern
+                  </Button>
+                </form>
               </CardContent>
             </Card>
           </section>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Saisonblatt</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <form action={submitPlayerSeasonForm} className="space-y-4">
+                <input name="player_id" type="hidden" value={player.id} />
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  <Input
+                    defaultValue={player.contact ?? ""}
+                    name="contact"
+                    placeholder="Eigener Kontakt"
+                  />
+                  <Input
+                    defaultValue={player.parent_contact ?? ""}
+                    name="parent_contact"
+                    placeholder="Elternkontakt"
+                  />
+                  <Input
+                    defaultValue={player.emergency_contact ?? ""}
+                    name="emergency_contact"
+                    placeholder="Notfallkontakt"
+                  />
+                  <select
+                    className="flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    defaultValue={player.strong_foot ?? ""}
+                    name="strong_foot"
+                  >
+                    <option value="">Fuss offen</option>
+                    <option value="left">Links</option>
+                    <option value="right">Rechts</option>
+                    <option value="both">Beide</option>
+                  </select>
+                  <Input
+                    defaultValue={player.favorite_team ?? ""}
+                    name="favorite_team"
+                    placeholder="Lieblingsteam"
+                  />
+                  <Input
+                    defaultValue={player.favorite_player ?? ""}
+                    name="favorite_player"
+                    placeholder="Lieblingsspieler"
+                  />
+                  <Textarea
+                    className="lg:col-span-2"
+                    defaultValue={player.football_goals ?? ""}
+                    name="football_goals"
+                    placeholder="Meine Fussballziele"
+                  />
+                  <Textarea
+                    className="lg:col-span-2"
+                    defaultValue={player.strengths ?? ""}
+                    name="strengths"
+                    placeholder="Meine Stärken"
+                  />
+                  <Textarea
+                    className="lg:col-span-2"
+                    defaultValue={player.weaknesses ?? ""}
+                    name="weaknesses"
+                    placeholder="Woran ich arbeiten will"
+                  />
+                  <Textarea
+                    className="lg:col-span-2"
+                    defaultValue={player.motivation ?? ""}
+                    name="motivation"
+                    placeholder="Was motiviert mich?"
+                  />
+                  <Textarea
+                    className="lg:col-span-2"
+                    defaultValue={player.allergies ?? ""}
+                    name="allergies"
+                    placeholder="Allergien"
+                  />
+                  <Textarea
+                    className="lg:col-span-2"
+                    defaultValue={player.injuries ?? ""}
+                    name="injuries"
+                    placeholder="Verletzungen"
+                  />
+                  <Textarea
+                    className="lg:col-span-2"
+                    defaultValue={player.limitations ?? ""}
+                    name="limitations"
+                    placeholder="Einschränkungen"
+                  />
+                  <Textarea
+                    className="lg:col-span-2"
+                    defaultValue={player.medications ?? ""}
+                    name="medications"
+                    placeholder="Medikamente"
+                  />
+                </div>
+                <Button type="submit">Saisonblatt speichern</Button>
+              </form>
+            </CardContent>
+          </Card>
 
           <section className="grid gap-4 lg:grid-cols-2">
             <Card>
@@ -377,11 +545,13 @@ export default async function PlayerModePage({
             </Card>
           </section>
 
-          <div className="flex justify-end">
-            <Button asChild variant="outline">
-              <Link href={`/players/${player.id}`}>Trainer-Portfolio</Link>
-            </Button>
-          </div>
+          {isStaffPreview ? (
+            <div className="flex justify-end">
+              <Button asChild variant="outline">
+                <Link href={`/players/${player.id}`}>Trainer-Portfolio</Link>
+              </Button>
+            </div>
+          ) : null}
         </>
       ) : (
         <EmptyState title="Wähle einen Spieler, um den Spieler-Modus zu öffnen." />

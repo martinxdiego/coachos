@@ -1,8 +1,9 @@
 import Link from "next/link";
-import { Crown, Trash2, Trophy } from "lucide-react";
+import { Crown, Save, Trash2, Trophy } from "lucide-react";
 import {
   createPlayerAward,
-  deletePlayerAward
+  deletePlayerAward,
+  updatePlayerAward
 } from "@/app/actions";
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
@@ -180,43 +181,130 @@ export default async function AwardsPage() {
                     : null;
 
                   return (
-                    <div
-                      className="grid gap-3 rounded-xl border border-border bg-background/70 p-4 lg:grid-cols-[1fr_1.2fr_auto]"
+                    <details
+                      className="rounded-xl border border-border bg-background/70 p-4"
                       key={award.id}
                     >
-                      <div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <p className="font-semibold">
-                            {player?.name ?? "Unbekannt"}
-                          </p>
-                          <Badge variant="success">{formatDate(award.award_date)}</Badge>
-                        </div>
-                        <p className="mt-1 text-sm text-muted-foreground">
-                          {match
-                            ? `${match.opponent}${match.result ? ` · ${match.result}` : ""}`
-                            : award.event_label ?? "Freies Event"}
-                        </p>
-                        {previous ? (
-                          <p className="mt-1 text-xs text-muted-foreground">
-                            Übergabe von {previous.name}
-                          </p>
-                        ) : null}
+                      <summary className="cursor-pointer">
+                        <span className="grid gap-3 lg:grid-cols-[1fr_1.2fr_auto]">
+                          <span>
+                            <span className="flex flex-wrap items-center gap-2">
+                              <span className="font-semibold">
+                                {player?.name ?? "Unbekannt"}
+                              </span>
+                              <Badge variant="success">
+                                {formatDate(award.award_date)}
+                              </Badge>
+                            </span>
+                            <span className="mt-1 block text-sm text-muted-foreground">
+                              {match
+                                ? `${match.opponent}${match.result ? ` · ${match.result}` : ""}`
+                                : award.event_label ?? "Freies Event"}
+                            </span>
+                            {previous ? (
+                              <span className="mt-1 block text-xs text-muted-foreground">
+                                Übergabe von {previous.name}
+                              </span>
+                            ) : null}
+                          </span>
+                          <span className="whitespace-pre-wrap text-sm leading-6 text-muted-foreground">
+                            {award.reason ?? "Keine Begründung."}
+                          </span>
+                          <span className="text-sm text-muted-foreground">
+                            Bearbeiten
+                          </span>
+                        </span>
+                      </summary>
+                      <div className="mt-4 grid gap-4 xl:grid-cols-[1fr_auto]">
+                        <form action={updatePlayerAward} className="space-y-4">
+                          <input name="id" type="hidden" value={award.id} />
+                          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                            <div className="space-y-2">
+                              <Label>Gewinner</Label>
+                              <select
+                                className="flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                defaultValue={award.player_id}
+                                name="player_id"
+                              >
+                                {players.map((item) => (
+                                  <option key={item.id} value={item.id}>
+                                    {item.name}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Vorheriger Gewinner</Label>
+                              <select
+                                className="flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                defaultValue={award.previous_player_id ?? ""}
+                                name="previous_player_id"
+                              >
+                                <option value="">Keine Übergabe</option>
+                                {players.map((item) => (
+                                  <option key={item.id} value={item.id}>
+                                    {item.name}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Datum</Label>
+                              <Input
+                                defaultValue={award.award_date}
+                                name="award_date"
+                                type="date"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Spiel/Event</Label>
+                              <select
+                                className="flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                defaultValue={award.match_id ?? ""}
+                                name="match_id"
+                              >
+                                <option value="">Freies Event</option>
+                                {matches.map((item) => (
+                                  <option key={item.id} value={item.id}>
+                                    {formatDate(item.date)} · {item.opponent}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          </div>
+                          <Input
+                            defaultValue={award.event_label ?? ""}
+                            name="event_label"
+                            placeholder="Event falls kein Spiel ausgewählt"
+                          />
+                          <Textarea
+                            defaultValue={award.reason ?? ""}
+                            name="reason"
+                            placeholder="Begründung"
+                          />
+                          <Button type="submit">
+                            <Save aria-hidden="true" className="h-4 w-4" />
+                            Auszeichnung speichern
+                          </Button>
+                        </form>
+                        <form action={deletePlayerAward}>
+                          <input name="id" type="hidden" value={award.id} />
+                          <input
+                            name="player_id"
+                            type="hidden"
+                            value={award.player_id}
+                          />
+                          <Button
+                            className="text-red-700 hover:bg-red-50 hover:text-red-800"
+                            type="submit"
+                            variant="ghost"
+                          >
+                            <Trash2 aria-hidden="true" className="h-4 w-4" />
+                            Löschen
+                          </Button>
+                        </form>
                       </div>
-                      <p className="whitespace-pre-wrap text-sm leading-6 text-muted-foreground">
-                        {award.reason ?? "Keine Begründung."}
-                      </p>
-                      <form action={deletePlayerAward}>
-                        <input name="id" type="hidden" value={award.id} />
-                        <input
-                          name="player_id"
-                          type="hidden"
-                          value={award.player_id}
-                        />
-                        <Button size="sm" type="submit" variant="ghost">
-                          <Trash2 aria-hidden="true" className="h-4 w-4" />
-                        </Button>
-                      </form>
-                    </div>
+                    </details>
                   );
                 })}
               </div>

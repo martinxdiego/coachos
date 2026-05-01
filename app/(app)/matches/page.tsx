@@ -28,7 +28,11 @@ export const dynamic = "force-dynamic";
 
 interface MatchesPageProps {
   searchParams?: Promise<{
+    competition?: string;
     date?: string;
+    from?: string;
+    team?: string;
+    to?: string;
   }>;
 }
 
@@ -310,13 +314,17 @@ export default async function MatchesPage({ searchParams }: MatchesPageProps) {
   const { supabase, team } = await requireActiveTeam();
   const resolvedSearchParams = await searchParams;
   const initialDate = safeDate(resolvedSearchParams?.date);
+  const teamFilter = resolvedSearchParams?.team ?? "all";
+  const competitionFilter = resolvedSearchParams?.competition ?? "all";
+  const fromFilter = resolvedSearchParams?.from ?? "";
+  const toFilter = resolvedSearchParams?.to ?? "";
   const [matchesResult, playersResult] = await Promise.all([
     supabase
       .from("matches")
       .select("*")
       .eq("team_id", team.id)
       .order("date", { ascending: false })
-      .limit(12),
+      .limit(200),
     supabase
       .from("players")
       .select("id,name,position,jersey_number")
@@ -335,6 +343,34 @@ export default async function MatchesPage({ searchParams }: MatchesPageProps) {
 
   const matches = matchesResult.data ?? [];
   const players = playersResult.data ?? [];
+  const teamCategories = [
+    ...new Set(matches.map((match) => match.team_category).filter(Boolean))
+  ] as string[];
+  const competitions = [
+    ...new Set(matches.map((match) => match.competition).filter(Boolean))
+  ] as string[];
+  const filteredMatches = matches.filter((match) => {
+    if (teamFilter !== "all" && match.team_category !== teamFilter) {
+      return false;
+    }
+
+    if (
+      competitionFilter !== "all" &&
+      match.competition !== competitionFilter
+    ) {
+      return false;
+    }
+
+    if (fromFilter && match.date < fromFilter) {
+      return false;
+    }
+
+    if (toFilter && match.date > toFilter) {
+      return false;
+    }
+
+    return true;
+  });
   const suggestedLineup = players
     .slice(0, 11)
     .map((player) =>
@@ -398,6 +434,76 @@ export default async function MatchesPage({ searchParams }: MatchesPageProps) {
               </form>
             </CardContent>
           </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>Spiele filtern</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <form className="space-y-4" method="get">
+                <div className="space-y-2">
+                  <Label htmlFor="match-filter-team">Team/Kategorie</Label>
+                  <select
+                    className="flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    defaultValue={teamFilter}
+                    id="match-filter-team"
+                    name="team"
+                  >
+                    <option value="all">Alle Kategorien</option>
+                    {teamCategories.map((item) => (
+                      <option key={item} value={item}>
+                        {item}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="match-filter-competition">Wettbewerb</Label>
+                  <select
+                    className="flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    defaultValue={competitionFilter}
+                    id="match-filter-competition"
+                    name="competition"
+                  >
+                    <option value="all">Alle Wettbewerbe</option>
+                    {competitions.map((item) => (
+                      <option key={item} value={item}>
+                        {item}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+                  <div className="space-y-2">
+                    <Label htmlFor="match-filter-from">Von</Label>
+                    <Input
+                      defaultValue={fromFilter}
+                      id="match-filter-from"
+                      name="from"
+                      type="date"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="match-filter-to">Bis</Label>
+                    <Input
+                      defaultValue={toFilter}
+                      id="match-filter-to"
+                      name="to"
+                      type="date"
+                    />
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button type="submit">Filter anwenden</Button>
+                  <Button asChild variant="outline">
+                    <Link href="/matches">Zurücksetzen</Link>
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {filteredMatches.length} von {matches.length} Spielen sichtbar
+                </p>
+              </form>
+            </CardContent>
+          </Card>
         </aside>
         <Card className="hidden h-fit border-emerald-200 bg-emerald-50/70">
           <CardHeader>
@@ -419,8 +525,8 @@ export default async function MatchesPage({ searchParams }: MatchesPageProps) {
         </Card>
 
         <div className="space-y-4">
-          {matches.length > 0 ? (
-            matches.map((match) => {
+          {filteredMatches.length > 0 ? (
+            filteredMatches.map((match) => {
               const lineup = splitNames(match.starting_lineup);
               return (
                 <Card className="overflow-hidden" key={match.id}>
@@ -640,8 +746,16 @@ export default async function MatchesPage({ searchParams }: MatchesPageProps) {
             })
           ) : (
             <EmptyState
-              body="Erfasse Gegner, Datum, Formation und Matchziele. Die visuelle Aufstellung entsteht aus der Startelf."
-              title="Noch keine Spiele geplant."
+              body={
+                matches.length > 0
+                  ? "Passe die Filter links an oder setze sie zurück."
+                  : "Erfasse Gegner, Datum, Formation und Matchziele. Die visuelle Aufstellung entsteht aus der Startelf."
+              }
+              title={
+                matches.length > 0
+                  ? "Keine Spiele für diese Filter."
+                  : "Noch keine Spiele geplant."
+              }
             />
           )}
         </div>

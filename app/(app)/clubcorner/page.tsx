@@ -1,8 +1,15 @@
 import Link from "next/link";
-import { ExternalLink as ExternalLinkIcon, FileText, Link2 } from "lucide-react";
+import {
+  ExternalLink as ExternalLinkIcon,
+  FileText,
+  Link2,
+  Save,
+  Trash2
+} from "lucide-react";
 import {
   createExternalLink,
-  deleteExternalLink
+  deleteExternalLink,
+  updateExternalLink
 } from "@/app/actions";
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
@@ -95,6 +102,7 @@ export default async function ClubcornerPage() {
   const evaluations = evaluationsResult.data ?? [];
   const points = pointsResult.data ?? [];
   const globalLinks = links.filter((link) => !link.player_id);
+  const playerById = new Map(players.map((player) => [player.id, player]));
 
   const summaries = players.map((player) => {
     const attendanceForPlayer = attendance.filter(
@@ -265,6 +273,119 @@ export default async function ClubcornerPage() {
           </CardContent>
         </Card>
       </section>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Linkverwaltung</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {links.length > 0 ? (
+            <div className="grid gap-3">
+              {links.map((link) => {
+                const player = link.player_id
+                  ? playerById.get(link.player_id)
+                  : null;
+
+                return (
+                  <details
+                    className="rounded-xl border border-border bg-background/70 p-4"
+                    key={link.id}
+                  >
+                    <summary className="cursor-pointer">
+                      <span className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                        <span>
+                          <span className="font-semibold">{link.title}</span>
+                          <span className="ml-2 text-sm text-muted-foreground">
+                            {linkLabels[link.link_type]}
+                            {player ? ` · ${player.name}` : " · Team"}
+                          </span>
+                        </span>
+                        <Badge variant="secondary">
+                          {formatDateTime(link.created_at)}
+                        </Badge>
+                      </span>
+                    </summary>
+                    <div className="mt-4 grid gap-4 xl:grid-cols-[1fr_auto]">
+                      <form action={updateExternalLink} className="space-y-4">
+                        <input name="id" type="hidden" value={link.id} />
+                        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                          <div className="space-y-2">
+                            <Label>Titel</Label>
+                            <Input
+                              defaultValue={link.title}
+                              name="title"
+                              required
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Typ</Label>
+                            <select
+                              className="flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                              defaultValue={link.link_type}
+                              name="link_type"
+                            >
+                              {Object.entries(linkLabels).map(
+                                ([value, label]) => (
+                                  <option key={value} value={value}>
+                                    {label}
+                                  </option>
+                                )
+                              )}
+                            </select>
+                          </div>
+                          <div className="space-y-2 lg:col-span-2">
+                            <Label>Spielerbezug</Label>
+                            <select
+                              className="flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                              defaultValue={link.player_id ?? ""}
+                              name="player_id"
+                            >
+                              <option value="">Team / Staff allgemein</option>
+                              {players.map((item) => (
+                                <option key={item.id} value={item.id}>
+                                  {item.name}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+                        <Input defaultValue={link.url} name="url" required />
+                        <Textarea
+                          defaultValue={link.notes ?? ""}
+                          name="notes"
+                          placeholder="Notiz"
+                        />
+                        <Button type="submit">
+                          <Save aria-hidden="true" className="h-4 w-4" />
+                          Link speichern
+                        </Button>
+                      </form>
+                      <form action={deleteExternalLink}>
+                        <input name="id" type="hidden" value={link.id} />
+                        <input
+                          name="player_id"
+                          type="hidden"
+                          value={link.player_id ?? ""}
+                        />
+                        <Button
+                          className="text-red-700 hover:bg-red-50 hover:text-red-800"
+                          type="submit"
+                          variant="ghost"
+                        >
+                          <Trash2 aria-hidden="true" className="h-4 w-4" />
+                          Löschen
+                        </Button>
+                      </form>
+                    </div>
+                  </details>
+                );
+              })}
+            </div>
+          ) : (
+            <EmptyState title="Noch keine Links zum Bearbeiten." />
+          )}
+        </CardContent>
+      </Card>
 
       <section className="space-y-3">
         <div className="flex items-center gap-2">

@@ -1,6 +1,17 @@
 import Link from "next/link";
-import { AlertTriangle, Star, TrendingDown, TrendingUp } from "lucide-react";
-import { savePlayerEvaluation } from "@/app/actions";
+import {
+  AlertTriangle,
+  Save,
+  Star,
+  Trash2,
+  TrendingDown,
+  TrendingUp
+} from "lucide-react";
+import {
+  deletePlayerEvaluation,
+  savePlayerEvaluation,
+  updatePlayerEvaluation
+} from "@/app/actions";
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
@@ -83,6 +94,10 @@ export default async function EvaluationsPage() {
   const trainings = trainingsResult.data ?? [];
   const matches = matchesResult.data ?? [];
   const evaluations = evaluationsResult.data ?? [];
+  const knownContextIds = new Set([
+    ...trainings.map((training) => training.id),
+    ...matches.map((match) => match.id)
+  ]);
   const overview = players
     .map((player) => {
       const rows = evaluations.filter((row) => row.player_id === player.id);
@@ -325,6 +340,173 @@ export default async function EvaluationsPage() {
           </CardContent>
         </Card>
       </section>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Letzte Bewertungen bearbeiten</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {evaluations.length > 0 ? (
+            <div className="grid gap-3">
+              {evaluations.slice(0, 16).map((evaluation) => {
+                const player = players.find(
+                  (item) => item.id === evaluation.player_id
+                );
+                const average = evaluationAverage(evaluation);
+
+                return (
+                  <details
+                    className="rounded-xl border border-border bg-background/70 p-4"
+                    key={evaluation.id}
+                  >
+                    <summary className="cursor-pointer">
+                      <span className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                        <span>
+                          <span className="font-semibold">
+                            {player?.name ?? "Unbekannter Spieler"}
+                          </span>
+                          <span className="ml-2 text-sm text-muted-foreground">
+                            {formatDate(evaluation.evaluation_date)} ·{" "}
+                            {contextLabels[evaluation.context_type]}
+                          </span>
+                        </span>
+                        <Badge variant="secondary">
+                          {average !== null ? `${average.toFixed(1)}/5` : "Offen"}
+                        </Badge>
+                      </span>
+                    </summary>
+                    <div className="mt-4 grid gap-4 xl:grid-cols-[1fr_auto]">
+                      <form action={updatePlayerEvaluation} className="space-y-4">
+                        <input name="id" type="hidden" value={evaluation.id} />
+                        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                          <div className="space-y-2">
+                            <Label>Spieler</Label>
+                            <select
+                              className="flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                              defaultValue={evaluation.player_id}
+                              name="player_id"
+                            >
+                              {players.map((item) => (
+                                <option key={item.id} value={item.id}>
+                                  {item.name}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Kontext</Label>
+                            <select
+                              className="flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                              defaultValue={evaluation.context_type}
+                              name="context_type"
+                            >
+                              {Object.entries(contextLabels).map(
+                                ([value, label]) => (
+                                  <option key={value} value={value}>
+                                    {label}
+                                  </option>
+                                )
+                              )}
+                            </select>
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Datum</Label>
+                            <Input
+                              defaultValue={evaluation.evaluation_date}
+                              name="evaluation_date"
+                              type="date"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Einheit / Gegner</Label>
+                            <Input
+                              defaultValue={evaluation.context_label ?? ""}
+                              name="context_label"
+                            />
+                          </div>
+                        </div>
+                        <select
+                          className="flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          defaultValue={evaluation.context_id ?? ""}
+                          name="context_id"
+                        >
+                          <option value="">Ohne Verknüpfung</option>
+                          {evaluation.context_id &&
+                          !knownContextIds.has(evaluation.context_id) ? (
+                            <option value={evaluation.context_id}>
+                              Bestehende Verknüpfung
+                            </option>
+                          ) : null}
+                          <optgroup label="Trainings">
+                            {trainings.map((training) => (
+                              <option key={training.id} value={training.id}>
+                                {formatDate(training.date)} · {training.focus}
+                              </option>
+                            ))}
+                          </optgroup>
+                          <optgroup label="Spiele">
+                            {matches.map((match) => (
+                              <option key={match.id} value={match.id}>
+                                {formatDate(match.date)} · {match.opponent}
+                              </option>
+                            ))}
+                          </optgroup>
+                        </select>
+                        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                          {criteria.map(([name, label]) => (
+                            <div className="space-y-2" key={name}>
+                              <Label>{label}</Label>
+                              <select
+                                className="flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                defaultValue={String(evaluation[name] ?? "")}
+                                name={name}
+                              >
+                                <option value="">Offen</option>
+                                {[1, 2, 3, 4, 5].map((value) => (
+                                  <option key={value} value={value}>
+                                    {value}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          ))}
+                        </div>
+                        <Textarea
+                          defaultValue={evaluation.notes ?? ""}
+                          name="notes"
+                          placeholder="Notiz"
+                        />
+                        <Button type="submit">
+                          <Save aria-hidden="true" className="h-4 w-4" />
+                          Bewertung speichern
+                        </Button>
+                      </form>
+                      <form action={deletePlayerEvaluation}>
+                        <input name="id" type="hidden" value={evaluation.id} />
+                        <input
+                          name="player_id"
+                          type="hidden"
+                          value={evaluation.player_id}
+                        />
+                        <Button
+                          className="text-red-700 hover:bg-red-50 hover:text-red-800"
+                          type="submit"
+                          variant="ghost"
+                        >
+                          <Trash2 aria-hidden="true" className="h-4 w-4" />
+                          Löschen
+                        </Button>
+                      </form>
+                    </div>
+                  </details>
+                );
+              })}
+            </div>
+          ) : (
+            <EmptyState title="Noch keine Bewertungen zum Bearbeiten." />
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

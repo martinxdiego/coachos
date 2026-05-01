@@ -1,9 +1,11 @@
 import Link from "next/link";
-import { CalendarPlus, Save, UsersRound } from "lucide-react";
+import { CalendarPlus, Save, Trash2, UsersRound } from "lucide-react";
 import {
   createMondayTraining,
+  deleteMondayTraining,
   saveMondayAttendance,
-  savePlayerEvaluation
+  savePlayerEvaluation,
+  updateMondayTraining
 } from "@/app/actions";
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
@@ -328,6 +330,82 @@ export default async function MondayTrainingPage({
                   </Button>
                 ))}
               </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Montage bearbeiten</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {mondayTrainings.length > 0 ? (
+                mondayTrainings.map((training) => (
+                  <details
+                    className="rounded-xl border border-border bg-background/70 p-4"
+                    key={training.id}
+                  >
+                    <summary className="cursor-pointer font-semibold">
+                      {formatDate(training.date)} · {training.topic}
+                    </summary>
+                    <form action={updateMondayTraining} className="mt-4 space-y-3">
+                      <input name="id" type="hidden" value={training.id} />
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <Input
+                          defaultValue={training.date}
+                          name="date"
+                          required
+                          type="date"
+                        />
+                        <Input
+                          defaultValue={training.duration_minutes ?? ""}
+                          name="duration_minutes"
+                          type="number"
+                        />
+                      </div>
+                      <Input
+                        defaultValue={training.topic}
+                        name="topic"
+                        required
+                      />
+                      <Textarea
+                        defaultValue={training.goal ?? ""}
+                        name="goal"
+                        placeholder="Ziel"
+                      />
+                      <Textarea
+                        defaultValue={training.staff_notes ?? ""}
+                        name="staff_notes"
+                        placeholder="Staff-Notizen"
+                      />
+                      <Textarea
+                        defaultValue={training.sandu_notes ?? ""}
+                        name="sandu_notes"
+                        placeholder="Sändu-Auswertung"
+                      />
+                      <div className="flex flex-wrap gap-2">
+                        <Button type="submit">
+                          <Save aria-hidden="true" className="h-4 w-4" />
+                          Speichern
+                        </Button>
+                      </div>
+                    </form>
+                    <form action={deleteMondayTraining} className="mt-2">
+                      <input name="id" type="hidden" value={training.id} />
+                      <Button
+                        className="text-red-700 hover:bg-red-50 hover:text-red-800"
+                        size="sm"
+                        type="submit"
+                        variant="ghost"
+                      >
+                        <Trash2 aria-hidden="true" className="h-4 w-4" />
+                        Löschen
+                      </Button>
+                    </form>
+                  </details>
+                ))
+              ) : (
+                <EmptyState title="Noch keine Montagstrainings." />
+              )}
             </CardContent>
           </Card>
         </div>

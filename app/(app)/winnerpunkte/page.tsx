@@ -1,5 +1,9 @@
 import Link from "next/link";
-import { Medal, Trophy } from "lucide-react";
+import { Medal, Save, Trash2, Trophy } from "lucide-react";
+import {
+  deleteWinnerPoints,
+  updateWinnerPoints
+} from "@/app/actions";
 import { WinnerPointsPanel } from "@/components/winner-points-panel";
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
@@ -11,6 +15,9 @@ import {
   CardTitle
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { requireActiveTeam } from "@/lib/auth";
 import { formatDate } from "@/lib/utils";
 import type { WinnerPointContextType } from "@/lib/types";
@@ -198,6 +205,130 @@ export default async function WinnerPointsPage({
       </section>
 
       <WinnerPointsPanel players={players} />
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Letzte Punktevergaben bearbeiten</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {points.length > 0 ? (
+            <div className="grid gap-3">
+              {points.slice(0, 12).map((point) => {
+                const player = players.find((item) => item.id === point.player_id);
+
+                return (
+                  <details
+                    className="rounded-xl border border-border bg-background/70 p-4"
+                    key={point.id}
+                  >
+                    <summary className="cursor-pointer">
+                      <span className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                        <span>
+                          <span className="font-semibold">
+                            {player?.name ?? "Unbekannter Spieler"}
+                          </span>
+                          <span className="ml-2 text-sm text-muted-foreground">
+                            {formatDate(point.awarded_at)} ·{" "}
+                            {contextLabels[point.context_type]}
+                          </span>
+                        </span>
+                        <Badge variant="success">+{point.points}</Badge>
+                      </span>
+                    </summary>
+                    <div className="mt-4 grid gap-4 xl:grid-cols-[1fr_auto]">
+                      <form action={updateWinnerPoints} className="space-y-4">
+                        <input name="id" type="hidden" value={point.id} />
+                        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                          <div className="space-y-2">
+                            <Label>Spieler</Label>
+                            <select
+                              className="flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                              defaultValue={point.player_id}
+                              name="player_id"
+                            >
+                              {players.map((item) => (
+                                <option key={item.id} value={item.id}>
+                                  {item.name}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Punkte</Label>
+                            <Input
+                              defaultValue={point.points}
+                              max={50}
+                              min={1}
+                              name="points"
+                              type="number"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Datum</Label>
+                            <Input
+                              defaultValue={point.awarded_at}
+                              name="awarded_at"
+                              type="date"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Kontext</Label>
+                            <select
+                              className="flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                              defaultValue={point.context_type}
+                              name="context_type"
+                            >
+                              {Object.entries(contextLabels).map(
+                                ([value, label]) => (
+                                  <option key={value} value={value}>
+                                    {label}
+                                  </option>
+                                )
+                              )}
+                            </select>
+                          </div>
+                        </div>
+                        <Input
+                          defaultValue={point.context_label ?? ""}
+                          name="context_label"
+                          placeholder="Kontext / Event"
+                        />
+                        <Textarea
+                          defaultValue={point.reason ?? ""}
+                          name="reason"
+                          placeholder="Begründung"
+                        />
+                        <Button type="submit">
+                          <Save aria-hidden="true" className="h-4 w-4" />
+                          Speichern
+                        </Button>
+                      </form>
+                      <form action={deleteWinnerPoints}>
+                        <input name="id" type="hidden" value={point.id} />
+                        <input
+                          name="player_id"
+                          type="hidden"
+                          value={point.player_id}
+                        />
+                        <Button
+                          className="text-red-700 hover:bg-red-50 hover:text-red-800"
+                          type="submit"
+                          variant="ghost"
+                        >
+                          <Trash2 aria-hidden="true" className="h-4 w-4" />
+                          Löschen
+                        </Button>
+                      </form>
+                    </div>
+                  </details>
+                );
+              })}
+            </div>
+          ) : (
+            <EmptyState title="Noch keine Punktevergaben zum Bearbeiten." />
+          )}
+        </CardContent>
+      </Card>
 
       <section className="grid gap-4 xl:grid-cols-[1fr_320px]">
         <Card>
