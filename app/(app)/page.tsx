@@ -1,5 +1,5 @@
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { Suspense, type ReactNode } from "react";
 import {
   ArrowRight,
   AlertCircle,
@@ -16,10 +16,22 @@ import { EmptyState } from "@/components/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { requireActiveTeam } from "@/lib/auth";
+import { createClient } from "@/lib/supabase/server";
+import type { Team } from "@/lib/types";
 import { formatDate, formatDateTime, todayIsoDate } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
+
+function germanGreeting(): string {
+  const hour = new Date().getHours();
+  if (hour < 5) return "Gute Nacht";
+  if (hour < 11) return "Guten Morgen";
+  if (hour < 17) return "Hallo";
+  if (hour < 22) return "Guten Abend";
+  return "Gute Nacht";
+}
 
 function MetricCard({
   label,
@@ -49,17 +61,206 @@ function MetricCard({
   );
 }
 
-function germanGreeting(): string {
-  const hour = new Date().getHours();
-  if (hour < 5) return "Gute Nacht";
-  if (hour < 11) return "Guten Morgen";
-  if (hour < 17) return "Hallo";
-  if (hour < 22) return "Guten Abend";
-  return "Gute Nacht";
+async function HeroFocus({ teamId }: { teamId: string }) {
+  const supabase = await createClient();
+  const today = todayIsoDate();
+  const [trainingResult, matchResult] = await Promise.all([
+    supabase
+      .from("training_sessions")
+      .select("id,date,start_time,focus")
+      .eq("team_id", teamId)
+      .gte("date", today)
+      .order("date", { ascending: true })
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from("matches")
+      .select("id,date,kickoff_time,opponent,formation")
+      .eq("team_id", teamId)
+      .gte("date", today)
+      .order("date", { ascending: true })
+      .limit(1)
+      .maybeSingle()
+  ]);
+
+  const training = trainingResult.data;
+  const match = matchResult.data;
+
+  const focus = training
+    ? {
+        kind: "Training",
+        title: training.focus,
+        subtitle: `${formatDate(training.date)}${
+          training.start_time ? ` · ${training.start_time.slice(0, 5)}` : ""
+        }`,
+        href: "/trainings"
+      }
+    : match
+    ? {
+        kind: "Spiel",
+        title: `vs. ${match.opponent}`,
+        subtitle: `${formatDate(match.date)}${
+          match.kickoff_time ? ` · ${match.kickoff_time.slice(0, 5)}` : ""
+        }${match.formation ? ` · ${match.formation}` : ""}`,
+        href: "/matches"
+      }
+    : null;
+
+  if (!focus) {
+    return (
+      <p className="mt-6 text-[14px] text-slate-300">
+        Plane deine Woche — Training, Spieltag, Material und Taktik an einem
+        Ort.
+      </p>
+    );
+  }
+
+  return (
+    <Link
+      className="mt-6 inline-flex items-center gap-3 rounded-2xl bg-white/10 px-4 py-3 backdrop-blur-md ring-1 ring-white/15 transition hover:bg-white/15"
+      href={focus.href}
+    >
+      <span className="rounded-full bg-emerald-400/20 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-200">
+        Nächstes {focus.kind}
+      </span>
+      <span>
+        <span className="block text-[15px] font-semibold tracking-tight">
+          {focus.title}
+        </span>
+        <span className="block text-[12px] text-slate-300">
+          {focus.subtitle}
+        </span>
+      </span>
+      <ArrowRight aria-hidden="true" className="h-4 w-4 text-slate-300" />
+    </Link>
+  );
 }
 
-export default async function DashboardPage() {
-  const { supabase, team } = await requireActiveTeam();
+function HeroFocusSkeleton() {
+  return (
+    <div className="mt-6 inline-flex items-center gap-3 rounded-2xl bg-white/10 px-4 py-3 ring-1 ring-white/15">
+      <Skeleton className="h-5 w-28 rounded-full bg-white/20" />
+      <div className="space-y-1.5">
+        <Skeleton className="h-4 w-40 bg-white/20" />
+        <Skeleton className="h-3 w-32 bg-white/15" />
+      </div>
+    </div>
+  );
+}
+
+function Hero({ team }: { team: Team }) {
+  return (
+    <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950 p-7 text-white shadow-elevated sm:p-10">
+      <div
+        aria-hidden="true"
+        className="absolute -right-20 -top-24 h-72 w-72 rounded-full bg-emerald-500/20 blur-3xl"
+      />
+      <div
+        aria-hidden="true"
+        className="absolute -left-16 bottom-0 h-64 w-64 rounded-full bg-indigo-500/10 blur-3xl"
+      />
+      <div className="relative flex flex-col gap-7 lg:flex-row lg:items-end lg:justify-between">
+        <div className="max-w-xl">
+          <p className="text-[12px] font-medium uppercase tracking-[0.18em] text-emerald-300">
+            {germanGreeting()}, Coach
+          </p>
+          <h1 className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">
+            {team.name}
+          </h1>
+          <p className="mt-2 text-[14px] text-slate-300">
+            {team.season ?? "Aktuelle Saison"} ·{" "}
+            {team.age_group ?? "Altersklasse offen"}
+          </p>
+
+          <Suspense fallback={<HeroFocusSkeleton />}>
+            <HeroFocus teamId={team.id} />
+          </Suspense>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          <Button
+            asChild
+            className="bg-white text-slate-950 hover:bg-slate-100"
+            size="sm"
+          >
+            <Link href="/trainings">Training</Link>
+          </Button>
+          <Button
+            asChild
+            className="bg-white/10 text-white ring-1 ring-white/15 backdrop-blur hover:bg-white/15"
+            size="sm"
+          >
+            <Link href="/matches">Spieltag</Link>
+          </Button>
+          <Button
+            asChild
+            className="bg-white/10 text-white ring-1 ring-white/15 backdrop-blur hover:bg-white/15"
+            size="sm"
+          >
+            <Link href="/tactics">Taktik</Link>
+          </Button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function DashboardSectionsSkeleton() {
+  return (
+    <div className="space-y-8">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <Card key={i}>
+            <CardContent className="flex items-center justify-between gap-4 p-5">
+              <div className="flex-1 space-y-2.5">
+                <Skeleton className="h-3 w-20" />
+                <Skeleton className="h-7 w-12" />
+              </div>
+              <Skeleton className="h-10 w-10 rounded-xl" />
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      <div className="space-y-2">
+        <Skeleton className="h-5 w-44" />
+        <Skeleton className="h-3.5 w-64" />
+      </div>
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <Card key={i}>
+            <CardContent className="space-y-3 p-5">
+              <div className="flex items-center justify-between">
+                <Skeleton className="h-5 w-16 rounded-full" />
+                <Skeleton className="h-4 w-4 rounded-full" />
+              </div>
+              <Skeleton className="h-4 w-3/4" />
+              <Skeleton className="h-3 w-full" />
+              <Skeleton className="h-3 w-4/5" />
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        {Array.from({ length: 2 }).map((_, i) => (
+          <Card key={i}>
+            <CardHeader>
+              <Skeleton className="h-5 w-40" />
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <Skeleton className="h-24 w-full rounded-2xl" />
+              <Skeleton className="h-9 w-44 rounded-full" />
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+async function DashboardSections({ teamId }: { teamId: string }) {
+  const supabase = await createClient();
   const today = todayIsoDate();
 
   const [
@@ -75,12 +276,12 @@ export default async function DashboardPage() {
     supabase
       .from("players")
       .select("id,name,position,status,rating,jersey_number,birth_year")
-      .eq("team_id", team.id)
+      .eq("team_id", teamId)
       .order("created_at", { ascending: false }),
     supabase
       .from("training_sessions")
       .select("id,date,start_time,duration_minutes,focus,goal,location,intensity")
-      .eq("team_id", team.id)
+      .eq("team_id", teamId)
       .gte("date", today)
       .order("date", { ascending: true })
       .limit(1)
@@ -88,7 +289,7 @@ export default async function DashboardPage() {
     supabase
       .from("matches")
       .select("id,date,kickoff_time,opponent,location,home_away,formation,result")
-      .eq("team_id", team.id)
+      .eq("team_id", teamId)
       .gte("date", today)
       .order("date", { ascending: true })
       .limit(1)
@@ -96,31 +297,31 @@ export default async function DashboardPage() {
     supabase
       .from("training_sessions")
       .select("id,date,focus,intensity,created_at")
-      .eq("team_id", team.id)
+      .eq("team_id", teamId)
       .order("date", { ascending: false })
       .limit(5),
     supabase
       .from("matches")
       .select("id,date,opponent,result,formation,created_at")
-      .eq("team_id", team.id)
+      .eq("team_id", teamId)
       .order("date", { ascending: false })
       .limit(5),
     supabase
       .from("materials")
       .select("id,title,type,created_at")
-      .eq("team_id", team.id)
+      .eq("team_id", teamId)
       .order("created_at", { ascending: false })
       .limit(5),
     supabase
       .from("tactic_boards")
       .select("id,title,created_at")
-      .eq("team_id", team.id)
+      .eq("team_id", teamId)
       .order("created_at", { ascending: false })
       .limit(3),
     supabase
       .from("tasks")
       .select("id,title,status,due_date,created_at")
-      .eq("team_id", team.id)
+      .eq("team_id", teamId)
       .order("status", { ascending: false })
       .order("due_date", { ascending: true, nullsFirst: false })
       .limit(6)
@@ -242,103 +443,8 @@ export default async function DashboardPage() {
       : null
   ].filter((hint): hint is NonNullable<typeof hint> => hint !== null);
 
-  const heroFocus = nextTraining
-    ? {
-        kind: "Training",
-        title: nextTraining.focus,
-        subtitle: `${formatDate(nextTraining.date)}${
-          nextTraining.start_time ? ` · ${nextTraining.start_time.slice(0, 5)}` : ""
-        }`,
-        href: "/trainings"
-      }
-    : nextMatch
-    ? {
-        kind: "Spiel",
-        title: `vs. ${nextMatch.opponent}`,
-        subtitle: `${formatDate(nextMatch.date)}${
-          nextMatch.kickoff_time ? ` · ${nextMatch.kickoff_time.slice(0, 5)}` : ""
-        }${nextMatch.formation ? ` · ${nextMatch.formation}` : ""}`,
-        href: "/matches"
-      }
-    : null;
-
   return (
-    <div className="space-y-8">
-      {/* Hero */}
-      <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950 p-7 text-white shadow-elevated sm:p-10">
-        <div
-          aria-hidden="true"
-          className="absolute -right-20 -top-24 h-72 w-72 rounded-full bg-emerald-500/20 blur-3xl"
-        />
-        <div
-          aria-hidden="true"
-          className="absolute -left-16 bottom-0 h-64 w-64 rounded-full bg-indigo-500/10 blur-3xl"
-        />
-        <div className="relative flex flex-col gap-7 lg:flex-row lg:items-end lg:justify-between">
-          <div className="max-w-xl">
-            <p className="text-[12px] font-medium uppercase tracking-[0.18em] text-emerald-300">
-              {germanGreeting()}, Coach
-            </p>
-            <h1 className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">
-              {team.name}
-            </h1>
-            <p className="mt-2 text-[14px] text-slate-300">
-              {team.season ?? "Aktuelle Saison"} ·{" "}
-              {team.age_group ?? "Altersklasse offen"}
-            </p>
-
-            {heroFocus ? (
-              <Link
-                className="mt-6 inline-flex items-center gap-3 rounded-2xl bg-white/10 px-4 py-3 backdrop-blur-md ring-1 ring-white/15 transition hover:bg-white/15"
-                href={heroFocus.href}
-              >
-                <span className="rounded-full bg-emerald-400/20 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-200">
-                  Nächstes {heroFocus.kind}
-                </span>
-                <span>
-                  <span className="block text-[15px] font-semibold tracking-tight">
-                    {heroFocus.title}
-                  </span>
-                  <span className="block text-[12px] text-slate-300">
-                    {heroFocus.subtitle}
-                  </span>
-                </span>
-                <ArrowRight aria-hidden="true" className="h-4 w-4 text-slate-300" />
-              </Link>
-            ) : (
-              <p className="mt-6 text-[14px] text-slate-300">
-                Plane deine Woche — Training, Spieltag, Material und Taktik an
-                einem Ort.
-              </p>
-            )}
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            <Button
-              asChild
-              className="bg-white text-slate-950 hover:bg-slate-100"
-              size="sm"
-            >
-              <Link href="/trainings">Training</Link>
-            </Button>
-            <Button
-              asChild
-              className="bg-white/10 text-white ring-1 ring-white/15 backdrop-blur hover:bg-white/15"
-              size="sm"
-            >
-              <Link href="/matches">Spieltag</Link>
-            </Button>
-            <Button
-              asChild
-              className="bg-white/10 text-white ring-1 ring-white/15 backdrop-blur hover:bg-white/15"
-              size="sm"
-            >
-              <Link href="/tactics">Taktik</Link>
-            </Button>
-          </div>
-        </div>
-      </section>
-
+    <>
       {/* Metrics */}
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard
@@ -596,6 +702,19 @@ export default async function DashboardPage() {
           </CardContent>
         </Card>
       </section>
+    </>
+  );
+}
+
+export default async function DashboardPage() {
+  const { team } = await requireActiveTeam();
+
+  return (
+    <div className="space-y-8">
+      <Hero team={team} />
+      <Suspense fallback={<DashboardSectionsSkeleton />}>
+        <DashboardSections teamId={team.id} />
+      </Suspense>
     </div>
   );
 }

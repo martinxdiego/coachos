@@ -19,6 +19,7 @@ import {
   createTraining,
   saveHealthCheckin
 } from "@/app/actions";
+import { ToastForm } from "@/components/toast-form";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -143,10 +144,11 @@ export function QuickCreate({
 
             <div className="mt-5">
               {mode === "player" ? (
-                <form
+                <ToastForm
                   action={createPlayer}
                   className="space-y-4"
-                  onSubmit={() => setIsOpen(false)}
+                  onComplete={() => setIsOpen(false)}
+                  successMessage="Spieler gespeichert"
                 >
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div className="space-y-2">
@@ -166,14 +168,15 @@ export function QuickCreate({
                   <Button className="w-full" type="submit">
                     Spieler speichern
                   </Button>
-                </form>
+                </ToastForm>
               ) : null}
 
               {mode === "training" ? (
-                <form
+                <ToastForm
                   action={createTraining}
                   className="space-y-4"
-                  onSubmit={() => setIsOpen(false)}
+                  onComplete={() => setIsOpen(false)}
+                  successMessage="Training erstellt"
                 >
                   <div className="grid gap-3 sm:grid-cols-2">
                     <Input defaultValue={today} name="date" required type="date" />
@@ -192,14 +195,15 @@ export function QuickCreate({
                   <Button className="w-full" type="submit">
                     Training erstellen
                   </Button>
-                </form>
+                </ToastForm>
               ) : null}
 
               {mode === "match" ? (
-                <form
+                <ToastForm
                   action={createMatch}
                   className="space-y-4"
-                  onSubmit={() => setIsOpen(false)}
+                  onComplete={() => setIsOpen(false)}
+                  successMessage="Spiel geplant"
                 >
                   <Input name="opponent" placeholder="Gegner" required />
                   <div className="grid gap-3 sm:grid-cols-2">
@@ -223,15 +227,16 @@ export function QuickCreate({
                   <Button className="w-full" type="submit">
                     Spiel planen
                   </Button>
-                </form>
+                </ToastForm>
               ) : null}
 
               {mode === "winner" ? (
                 players.length > 0 ? (
-                  <form
+                  <ToastForm
                     action={addWinnerPoints}
                     className="space-y-4"
-                    onSubmit={() => setIsOpen(false)}
+                    onComplete={() => setIsOpen(false)}
+                    successMessage="Winnerpunkte gespeichert"
                   >
                     <div className="grid gap-3 sm:grid-cols-2">
                       <select
@@ -276,7 +281,7 @@ export function QuickCreate({
                     <Button className="w-full" type="submit">
                       Winnerpunkte speichern
                     </Button>
-                  </form>
+                  </ToastForm>
                 ) : (
                   <p className="rounded-xl border border-dashed border-border p-4 text-sm text-muted-foreground">
                     Erfasse zuerst Spieler, damit Winnerpunkte vergeben werden
@@ -287,10 +292,11 @@ export function QuickCreate({
 
               {mode === "health" ? (
                 players.length > 0 ? (
-                  <form
+                  <ToastForm
                     action={saveHealthCheckin}
                     className="space-y-4"
-                    onSubmit={() => setIsOpen(false)}
+                    onComplete={() => setIsOpen(false)}
+                    successMessage="Check-in gespeichert"
                   >
                     <div className="grid gap-3 sm:grid-cols-2">
                       <select
@@ -347,7 +353,7 @@ export function QuickCreate({
                     <Button className="w-full" type="submit">
                       Check-in speichern
                     </Button>
-                  </form>
+                  </ToastForm>
                 ) : (
                   <p className="rounded-xl border border-dashed border-border p-4 text-sm text-muted-foreground">
                     Erfasse zuerst Spieler, damit Check-ins gespeichert werden
@@ -357,17 +363,18 @@ export function QuickCreate({
               ) : null}
 
               {mode === "task" ? (
-                <form
+                <ToastForm
                   action={createTask}
                   className="space-y-4"
-                  onSubmit={() => setIsOpen(false)}
+                  onComplete={() => setIsOpen(false)}
+                  successMessage="Aufgabe erstellt"
                 >
                   <Input name="title" placeholder="Aufgabe" required />
                   <Input name="due_date" type="date" />
                   <Button className="w-full" type="submit">
                     Aufgabe erstellen
                   </Button>
-                </form>
+                </ToastForm>
               ) : null}
             </div>
           </section>
