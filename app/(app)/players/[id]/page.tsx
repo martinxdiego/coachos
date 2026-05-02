@@ -18,6 +18,7 @@ import {
 } from "@/app/actions";
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
+import { PlayerPhotoUpload } from "@/components/player-photo-upload";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -194,7 +195,7 @@ export default async function PlayerProfilePage({
 
       <section className="grid gap-4 xl:grid-cols-[340px_1fr]">
         <Card className="overflow-hidden">
-          <div className="h-44 bg-slate-950">
+          <div className="relative h-44 bg-slate-950">
             {player.photo_url ? (
               <div
                 aria-label={`Portrait von ${player.name}`}
@@ -207,6 +208,11 @@ export default async function PlayerProfilePage({
                 <UserRound aria-hidden="true" className="h-14 w-14" />
               </div>
             )}
+            <PlayerPhotoUpload
+              photoUrl={player.photo_url}
+              playerId={player.id}
+              playerName={player.name}
+            />
           </div>
           <CardContent className="p-5">
             <div className="flex flex-wrap items-center gap-2">
@@ -399,8 +405,12 @@ export default async function PlayerProfilePage({
                       defaultValue={player.photo_url ?? ""}
                       id="photo_url"
                       name="photo_url"
-                      placeholder="https://..."
+                      placeholder="https://… oder Foto oben links hochladen"
                     />
+                    <p className="text-[12px] leading-5 text-muted-foreground">
+                      Schneller Weg: nutze den Foto-ändern-Button auf dem
+                      Portrait oben. Dieses Feld bleibt für externe URLs.
+                    </p>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="height_cm">Grösse cm</Label>

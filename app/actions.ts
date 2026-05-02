@@ -566,6 +566,148 @@ export async function deletePlayer(formData: FormData) {
   revalidatePath("/tactics");
 }
 
+const PLAYER_PHOTO_BUCKET = "player-photos";
+const PLAYER_PHOTO_MAX_BYTES = 6 * 1024 * 1024;
+const PLAYER_PHOTO_MIME_TYPES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/heic",
+  "image/heif"
+]);
+
+function pathFromPublicUrl(url: string, bucket: string): string | null {
+  const marker = `/storage/v1/object/public/${bucket}/`;
+  const idx = url.indexOf(marker);
+  if (idx === -1) {
+    return null;
+  }
+  return url.slice(idx + marker.length).split("?")[0];
+}
+
+export async function uploadPlayerPhoto(formData: FormData) {
+  const { supabase, team } = await requireActiveTeam();
+  const playerId = requiredString(formData, "player_id", "Player");
+  const file = formData.get("photo");
+
+  if (!(file instanceof File) || file.size === 0) {
+    throw new Error("Bitte wähle ein Bild aus.");
+  }
+  if (file.size > PLAYER_PHOTO_MAX_BYTES) {
+    throw new Error("Bild ist zu groß (max 6 MB).");
+  }
+  if (file.type && !PLAYER_PHOTO_MIME_TYPES.has(file.type)) {
+    throw new Error("Nur JPG, PNG, WEBP oder HEIC sind erlaubt.");
+  }
+
+  const { data: player, error: lookupError } = await supabase
+    .from("players")
+    .select("id,team_id,photo_url")
+    .eq("id", playerId)
+    .eq("team_id", team.id)
+    .maybeSingle();
+
+  if (lookupError) {
+    throw new Error(lookupError.message);
+  }
+  if (!player) {
+    throw new Error("Spieler nicht gefunden.");
+  }
+
+  const extFromName = file.name.split(".").pop()?.toLowerCase();
+  const extFromMime = file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpg";
+  const ext =
+    extFromName && /^[a-z0-9]+$/.test(extFromName) && extFromName.length <= 5
+      ? extFromName
+      : extFromMime;
+  const path = `${team.id}/${playerId}-${Date.now()}.${ext}`;
+
+  const { error: uploadError } = await supabase.storage
+    .from(PLAYER_PHOTO_BUCKET)
+    .upload(path, file, {
+      cacheControl: "3600",
+      upsert: false,
+      contentType: file.type || `image/${ext}`
+    });
+
+  if (uploadError) {
+    throw new Error(uploadError.message);
+  }
+
+  const { data: publicUrlData } = supabase.storage
+    .from(PLAYER_PHOTO_BUCKET)
+    .getPublicUrl(path);
+
+  const { error: updateError } = await supabase
+    .from("players")
+    .update({ photo_url: publicUrlData.publicUrl })
+    .eq("id", playerId)
+    .eq("team_id", team.id);
+
+  if (updateError) {
+    // Best effort cleanup of the uploaded blob if the row update fails.
+    await supabase.storage.from(PLAYER_PHOTO_BUCKET).remove([path]);
+    throw new Error(updateError.message);
+  }
+
+  // Best effort cleanup of the previous photo when it lived in our bucket.
+  if (player.photo_url) {
+    const oldPath = pathFromPublicUrl(player.photo_url, PLAYER_PHOTO_BUCKET);
+    if (oldPath && oldPath !== path) {
+      await supabase.storage.from(PLAYER_PHOTO_BUCKET).remove([oldPath]);
+    }
+  }
+
+  revalidatePath("/");
+  revalidatePath("/players");
+  revalidatePath(`/players/${playerId}`);
+  revalidatePath("/tactics");
+  revalidatePath("/pitch");
+}
+
+export async function removePlayerPhoto(formData: FormData) {
+  const { supabase, team } = await requireActiveTeam();
+  const playerId = requiredString(formData, "player_id", "Player");
+
+  const { data: player, error: lookupError } = await supabase
+    .from("players")
+    .select("id,team_id,photo_url")
+    .eq("id", playerId)
+    .eq("team_id", team.id)
+    .maybeSingle();
+
+  if (lookupError) {
+    throw new Error(lookupError.message);
+  }
+  if (!player) {
+    throw new Error("Spieler nicht gefunden.");
+  }
+  if (!player.photo_url) {
+    return;
+  }
+
+  const oldPath = pathFromPublicUrl(player.photo_url, PLAYER_PHOTO_BUCKET);
+  if (oldPath) {
+    await supabase.storage.from(PLAYER_PHOTO_BUCKET).remove([oldPath]);
+  }
+
+  const { error: updateError } = await supabase
+    .from("players")
+    .update({ photo_url: null })
+    .eq("id", playerId)
+    .eq("team_id", team.id);
+
+  if (updateError) {
+    throw new Error(updateError.message);
+  }
+
+  revalidatePath("/");
+  revalidatePath("/players");
+  revalidatePath(`/players/${playerId}`);
+  revalidatePath("/tactics");
+  revalidatePath("/pitch");
+}
+
 export async function submitPlayerSeasonForm(formData: FormData) {
   const { supabase, team } = await requireActiveTeam();
   const id = requiredString(formData, "player_id", "Player");

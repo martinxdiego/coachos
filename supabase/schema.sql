@@ -1048,3 +1048,32 @@ with check (public.is_team_member(team_id));
 drop policy if exists "Team members can delete player awards" on public.player_awards;
 create policy "Team members can delete player awards" on public.player_awards for delete
 using (public.is_team_member(team_id));
+
+-- ===== Storage: player photos bucket =====
+-- Bucket holds JPG/PNG/WEBP/HEIC portraits, public read so <img src> works without
+-- signed URLs. Writes are restricted to authenticated users; the team scoping
+-- happens implicitly via the server action (which checks team membership before
+-- uploading to `${team_id}/...`).
+insert into storage.buckets (id, name, public)
+values ('player-photos', 'player-photos', true)
+on conflict (id) do nothing;
+
+drop policy if exists "Public read player photos" on storage.objects;
+create policy "Public read player photos" on storage.objects for select
+using (bucket_id = 'player-photos');
+
+drop policy if exists "Authenticated upload player photos" on storage.objects;
+create policy "Authenticated upload player photos" on storage.objects for insert
+to authenticated
+with check (bucket_id = 'player-photos');
+
+drop policy if exists "Authenticated update player photos" on storage.objects;
+create policy "Authenticated update player photos" on storage.objects for update
+to authenticated
+using (bucket_id = 'player-photos')
+with check (bucket_id = 'player-photos');
+
+drop policy if exists "Authenticated delete player photos" on storage.objects;
+create policy "Authenticated delete player photos" on storage.objects for delete
+to authenticated
+using (bucket_id = 'player-photos');
