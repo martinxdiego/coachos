@@ -2,7 +2,7 @@ import { FileText, Save, Trash2 } from "lucide-react";
 import { createMaterial, deleteMaterial, updateMaterial } from "@/app/actions";
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
-import { PrintButton } from "@/components/print-button";
+import { PdfDownloadButton } from "@/components/pdf-download-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -277,7 +277,10 @@ export default async function MaterialsPage() {
                       </p>
                     </div>
                     <div className="no-print">
-                      <PrintButton />
+                      <PdfDownloadButton
+                        href={`/api/pdf/material/${material.id}`}
+                        label="PDF herunterladen"
+                      />
                     </div>
                   </div>
                 </CardHeader>

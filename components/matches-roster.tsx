@@ -18,6 +18,7 @@ import {
   updateMatch
 } from "@/app/actions";
 import { EmptyState } from "@/components/empty-state";
+import { PdfDownloadButton } from "@/components/pdf-download-button";
 import { ToastForm } from "@/components/toast-form";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -525,7 +526,11 @@ function MatchCard({
             </ToastForm>
           </details>
 
-          <div className="flex justify-end">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <PdfDownloadButton
+              href={`/api/pdf/match/${match.id}`}
+              label="Spielplan PDF"
+            />
             <ToastForm
               action={deleteMatch}
               successMessage="Spiel gelöscht"

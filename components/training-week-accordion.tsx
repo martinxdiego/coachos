@@ -21,6 +21,7 @@ import {
   savePlayerEvaluation,
   updateTraining
 } from "@/app/actions";
+import { PdfDownloadButton } from "@/components/pdf-download-button";
 import { PhaseImageUploader } from "@/components/phase-image-uploader";
 import { ToastForm } from "@/components/toast-form";
 import { Badge } from "@/components/ui/badge";
@@ -798,6 +799,10 @@ export function TrainingWeekAccordion({
                                   <Pencil aria-hidden="true" className="h-4 w-4" />
                                   Bearbeiten
                                 </Button>
+                                <PdfDownloadButton
+                                  href={`/api/pdf/training/${training.id}`}
+                                  label="PDF"
+                                />
                                 <Button
                                   disabled={isPending || isDeleting}
                                   onClick={() => handleDuplicate(training.id)}
