@@ -1077,3 +1077,38 @@ drop policy if exists "Authenticated delete player photos" on storage.objects;
 create policy "Authenticated delete player photos" on storage.objects for delete
 to authenticated
 using (bucket_id = 'player-photos');
+
+-- ===== Training phase images: column on training_phases =====
+-- Each phase keeps a list of public URLs to drill-Skizzen / Coaching-Bilder.
+-- Column is nullable; default to empty array so reads stay simple.
+alter table public.training_phases
+  add column if not exists image_urls text[] not null default '{}';
+
+-- ===== Storage: training images bucket =====
+-- Mirrors player-photos: public read so <img src> works without signed URLs,
+-- writes restricted to authenticated users. Team scoping is enforced by the
+-- server action via `${team_id}/...` paths and an explicit team membership check
+-- before each upload.
+insert into storage.buckets (id, name, public)
+values ('training-images', 'training-images', true)
+on conflict (id) do nothing;
+
+drop policy if exists "Public read training images" on storage.objects;
+create policy "Public read training images" on storage.objects for select
+using (bucket_id = 'training-images');
+
+drop policy if exists "Authenticated upload training images" on storage.objects;
+create policy "Authenticated upload training images" on storage.objects for insert
+to authenticated
+with check (bucket_id = 'training-images');
+
+drop policy if exists "Authenticated update training images" on storage.objects;
+create policy "Authenticated update training images" on storage.objects for update
+to authenticated
+using (bucket_id = 'training-images')
+with check (bucket_id = 'training-images');
+
+drop policy if exists "Authenticated delete training images" on storage.objects;
+create policy "Authenticated delete training images" on storage.objects for delete
+to authenticated
+using (bucket_id = 'training-images');

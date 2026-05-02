@@ -708,6 +708,154 @@ export async function removePlayerPhoto(formData: FormData) {
   revalidatePath("/pitch");
 }
 
+const TRAINING_IMAGE_BUCKET = "training-images";
+const TRAINING_IMAGE_MAX_BYTES = 8 * 1024 * 1024;
+const TRAINING_IMAGE_MAX_PER_PHASE = 8;
+const TRAINING_IMAGE_MIME_TYPES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/heic",
+  "image/heif",
+  "image/gif"
+]);
+
+export async function uploadPhaseImage(formData: FormData) {
+  const { supabase, team } = await requireActiveTeam();
+  const phaseId = requiredString(formData, "phase_id", "Trainingsphase");
+  const file = formData.get("image");
+
+  if (!(file instanceof File) || file.size === 0) {
+    throw new Error("Bitte wähle ein Bild aus.");
+  }
+  if (file.size > TRAINING_IMAGE_MAX_BYTES) {
+    throw new Error("Bild ist zu groß (max 8 MB).");
+  }
+  if (file.type && !TRAINING_IMAGE_MIME_TYPES.has(file.type)) {
+    throw new Error("Nur JPG, PNG, WEBP, GIF oder HEIC sind erlaubt.");
+  }
+
+  const { data: phase, error: lookupError } = await supabase
+    .from("training_phases")
+    .select("id,team_id,training_id,image_urls")
+    .eq("id", phaseId)
+    .eq("team_id", team.id)
+    .maybeSingle();
+
+  if (lookupError) {
+    throw new Error(lookupError.message);
+  }
+  if (!phase) {
+    throw new Error("Trainingsphase nicht gefunden.");
+  }
+
+  const currentImages = phase.image_urls ?? [];
+  if (currentImages.length >= TRAINING_IMAGE_MAX_PER_PHASE) {
+    throw new Error(
+      `Maximal ${TRAINING_IMAGE_MAX_PER_PHASE} Bilder pro Phase.`
+    );
+  }
+
+  const extFromName = file.name.split(".").pop()?.toLowerCase();
+  const extFromMime =
+    file.type === "image/png"
+      ? "png"
+      : file.type === "image/webp"
+        ? "webp"
+        : file.type === "image/gif"
+          ? "gif"
+          : "jpg";
+  const ext =
+    extFromName && /^[a-z0-9]+$/.test(extFromName) && extFromName.length <= 5
+      ? extFromName
+      : extFromMime;
+  const path = `${team.id}/${phase.training_id}/${phaseId}-${Date.now()}.${ext}`;
+
+  const { error: uploadError } = await supabase.storage
+    .from(TRAINING_IMAGE_BUCKET)
+    .upload(path, file, {
+      cacheControl: "3600",
+      upsert: false,
+      contentType: file.type || `image/${ext}`
+    });
+
+  if (uploadError) {
+    throw new Error(uploadError.message);
+  }
+
+  const { data: publicUrlData } = supabase.storage
+    .from(TRAINING_IMAGE_BUCKET)
+    .getPublicUrl(path);
+
+  const nextImages = [...currentImages, publicUrlData.publicUrl];
+
+  const { error: updateError } = await supabase
+    .from("training_phases")
+    .update({ image_urls: nextImages })
+    .eq("id", phaseId)
+    .eq("team_id", team.id);
+
+  if (updateError) {
+    // Best effort cleanup of the uploaded blob if the row update fails.
+    await supabase.storage.from(TRAINING_IMAGE_BUCKET).remove([path]);
+    throw new Error(updateError.message);
+  }
+
+  revalidatePath("/");
+  revalidatePath("/calendar");
+  revalidatePath("/pitch");
+  revalidatePath("/trainings");
+}
+
+export async function removePhaseImage(formData: FormData) {
+  const { supabase, team } = await requireActiveTeam();
+  const phaseId = requiredString(formData, "phase_id", "Trainingsphase");
+  const imageUrl = requiredString(formData, "image_url", "Bild-URL");
+
+  const { data: phase, error: lookupError } = await supabase
+    .from("training_phases")
+    .select("id,team_id,image_urls")
+    .eq("id", phaseId)
+    .eq("team_id", team.id)
+    .maybeSingle();
+
+  if (lookupError) {
+    throw new Error(lookupError.message);
+  }
+  if (!phase) {
+    throw new Error("Trainingsphase nicht gefunden.");
+  }
+
+  const currentImages = phase.image_urls ?? [];
+  if (!currentImages.includes(imageUrl)) {
+    return;
+  }
+  const nextImages = currentImages.filter((url) => url !== imageUrl);
+
+  const { error: updateError } = await supabase
+    .from("training_phases")
+    .update({ image_urls: nextImages })
+    .eq("id", phaseId)
+    .eq("team_id", team.id);
+
+  if (updateError) {
+    throw new Error(updateError.message);
+  }
+
+  // Best effort: lösche den Storage-Blob, wenn er aus unserem Bucket stammt.
+  // Bei duplizierten Trainings, die dieselbe URL referenzieren, wird der Link
+  // ggf. ungültig — bewusst akzeptiertes Trade-off (siehe duplicateTraining).
+  const path = pathFromPublicUrl(imageUrl, TRAINING_IMAGE_BUCKET);
+  if (path) {
+    await supabase.storage.from(TRAINING_IMAGE_BUCKET).remove([path]);
+  }
+
+  revalidatePath("/");
+  revalidatePath("/calendar");
+  revalidatePath("/pitch");
+  revalidatePath("/trainings");
+}
+
 export async function submitPlayerSeasonForm(formData: FormData) {
   const { supabase, team } = await requireActiveTeam();
   const id = requiredString(formData, "player_id", "Player");
@@ -771,7 +919,12 @@ function trainingPayload(formData: FormData) {
   };
 }
 
-function phaseRows(formData: FormData, teamId: string, trainingId: string) {
+function phaseRows(
+  formData: FormData,
+  teamId: string,
+  trainingId: string,
+  imagesByType?: Map<TrainingPhaseType, string[]>
+) {
   return phaseTypes
     .map((phaseType, index) => {
       const title = optionalString(formData, `${phaseType}_title`);
@@ -796,6 +949,7 @@ function phaseRows(formData: FormData, teamId: string, trainingId: string) {
         field_size: optionalString(formData, `${phaseType}_field`),
         variations: optionalString(formData, `${phaseType}_variations`),
         load_management: optionalString(formData, `${phaseType}_load`),
+        image_urls: imagesByType?.get(phaseType) ?? [],
         sort_order: index
       };
     })
@@ -850,6 +1004,25 @@ export async function updateTraining(formData: FormData) {
     throw new Error(error.message);
   }
 
+  // Preserve uploaded phase images across the delete/insert cycle by snapshotting
+  // them keyed by phase_type, then re-injecting on the new rows below.
+  const { data: existingPhases, error: existingError } = await supabase
+    .from("training_phases")
+    .select("phase_type,image_urls")
+    .eq("training_id", id)
+    .eq("team_id", team.id);
+
+  if (existingError) {
+    throw new Error(existingError.message);
+  }
+
+  const imagesByType = new Map<TrainingPhaseType, string[]>();
+  for (const row of existingPhases ?? []) {
+    if (row.image_urls && row.image_urls.length > 0) {
+      imagesByType.set(row.phase_type as TrainingPhaseType, row.image_urls);
+    }
+  }
+
   const { error: deleteError } = await supabase
     .from("training_phases")
     .delete()
@@ -860,7 +1033,7 @@ export async function updateTraining(formData: FormData) {
     throw new Error(deleteError.message);
   }
 
-  const rows = phaseRows(formData, team.id, id);
+  const rows = phaseRows(formData, team.id, id, imagesByType);
   if (rows.length > 0) {
     const { error: phaseError } = await supabase
       .from("training_phases")
@@ -944,6 +1117,10 @@ export async function duplicateTraining(formData: FormData) {
       field_size: phase.field_size,
       variations: phase.variations,
       load_management: phase.load_management,
+      // Bilder werden referenziert (nicht neu hochgeladen) — die öffentlichen
+      // URLs bleiben gültig. Lösche ein Bild im Original ⇒ es bleibt im Storage,
+      // bis das Duplikat es ebenfalls entfernt.
+      image_urls: phase.image_urls ?? [],
       sort_order: phase.sort_order
     })) ?? [];
 

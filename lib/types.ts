@@ -269,6 +269,7 @@ export interface Database {
           field_size: string | null;
           variations: string | null;
           load_management: string | null;
+          image_urls: string[] | null;
           sort_order: number;
           created_at: string;
           updated_at: string;
@@ -288,6 +289,7 @@ export interface Database {
           field_size?: string | null;
           variations?: string | null;
           load_management?: string | null;
+          image_urls?: string[] | null;
           sort_order?: number;
           created_at?: string;
           updated_at?: string;
