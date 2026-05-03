@@ -17,6 +17,7 @@ import {
   Plus,
   Redo2,
   RotateCcw,
+  RotateCw,
   Save,
   Square,
   Trash2,
@@ -87,6 +88,7 @@ interface BoardElement {
   arrowKind?: ArrowKind;
   materialKind?: MaterialKind;
   zoneColor?: ZoneColor;
+  rotation?: number;
 }
 
 interface BoardScene {
@@ -429,7 +431,11 @@ function normalizeElements(value: unknown): BoardElement[] {
         color: candidate.color,
         arrowKind,
         materialKind,
-        zoneColor
+        zoneColor,
+        rotation:
+          typeof candidate.rotation === "number"
+            ? ((Math.round(candidate.rotation / 90) * 90) % 360 + 360) % 360
+            : 0
       }
     ];
   });
@@ -699,6 +705,7 @@ export function TacticBoardEditor({
   const [snapEnabled, setSnapEnabled] = useState(true);
   const [snapSize, setSnapSize] = useState(5); // 5% grid by default
   const [activeArrowKind, setActiveArrowKind] = useState<ArrowKind>("run");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const activeScene =
     boardState.scenes.find((scene) => scene.id === activeSceneId) ??
@@ -793,18 +800,32 @@ export function TacticBoardEditor({
         ((event.shiftKey && event.key.toLowerCase() === "z") ||
           event.key.toLowerCase() === "y");
 
+      const isRotate =
+        !event.metaKey &&
+        !event.ctrlKey &&
+        !event.altKey &&
+        event.key.toLowerCase() === "r";
+
+      const isDeselect = event.key === "Escape";
+
       if (isUndo) {
         event.preventDefault();
         undo();
       } else if (isRedo) {
         event.preventDefault();
         redo();
+      } else if (isRotate && selectedId) {
+        event.preventDefault();
+        rotateSelected(event.shiftKey ? "ccw" : "cw");
+      } else if (isDeselect) {
+        setSelectedId(null);
       }
     }
 
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [undo, redo]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [undo, redo, selectedId]);
 
   function setActiveElements(
     updater: BoardElement[] | ((current: BoardElement[]) => BoardElement[])
@@ -1048,10 +1069,14 @@ export function TacticBoardEditor({
   function endDrag() {
     if (dragTarget && dragSnapshotRef.current) {
       const snapshot = dragSnapshotRef.current;
-      // Only push to history if the drag actually changed anything.
+      const dragId = dragTarget.id;
+      const dragPoint = dragTarget.point;
       setBoardState((current) => {
         if (current !== snapshot) {
           pushHistory(snapshot);
+        } else if (dragPoint === "body") {
+          // No movement → treat as select.
+          setSelectedId(dragId);
         }
         return current;
       });
@@ -1061,7 +1086,20 @@ export function TacticBoardEditor({
   }
 
   function deleteElement(id: string) {
+    if (selectedId === id) setSelectedId(null);
     setActiveElements((current) => current.filter((item) => item.id !== id));
+  }
+
+  function rotateSelected(direction: "cw" | "ccw") {
+    if (!selectedId) return;
+    setActiveElements((current) =>
+      current.map((item) => {
+        if (item.id !== selectedId) return item;
+        const currentRotation = item.rotation ?? 0;
+        const next = direction === "cw" ? currentRotation + 90 : currentRotation - 90;
+        return { ...item, rotation: ((next % 360) + 360) % 360 };
+      })
+    );
   }
 
   function resetBoard() {
@@ -1607,6 +1645,32 @@ export function TacticBoardEditor({
             >
               Hütchen
             </Button>
+
+            <span className="mx-1 hidden h-6 w-px self-center bg-border sm:block" />
+
+            <Button
+              disabled={!selectedId}
+              onClick={() => rotateSelected("ccw")}
+              size="sm"
+              title="Selektiertes Element gegen den Uhrzeigersinn drehen (Shift+R)"
+              type="button"
+              variant="outline"
+            >
+              <RotateCcw aria-hidden="true" className="h-4 w-4" />
+              90° ↺
+            </Button>
+            <Button
+              disabled={!selectedId}
+              onClick={() => rotateSelected("cw")}
+              size="sm"
+              title="Selektiertes Element im Uhrzeigersinn drehen (R)"
+              type="button"
+              variant="outline"
+            >
+              <RotateCw aria-hidden="true" className="h-4 w-4" />
+              90° ↻
+            </Button>
+
             <Button
               onClick={resetBoard}
               size="sm"
@@ -1679,6 +1743,12 @@ export function TacticBoardEditor({
           <div
             className="relative aspect-[1.55] min-h-[420px] overflow-hidden rounded-2xl border-4 border-emerald-950/10 bg-emerald-700 shadow-inner [print-color-adjust:exact]"
             id={`field-${board.id}`}
+            onClick={(event) => {
+              // Click on bare field deselects.
+              if (event.target === event.currentTarget) {
+                setSelectedId(null);
+              }
+            }}
             onPointerCancel={endDrag}
             onPointerMove={(event) =>
               updatePosition(event.clientX, event.clientY)
@@ -1863,10 +1933,16 @@ export function TacticBoardEditor({
             })}
 
             {renderBodies.map((item) => {
+              const isSelected = selectedId === item.id && !isAnimating;
+              const rotation = item.rotation ?? 0;
+
               if (item.type === "cone") {
                 return (
                   <button
-                    className="absolute -translate-x-1/2 -translate-y-1/2 touch-none [print-color-adjust:exact]"
+                    className={cn(
+                      "absolute -translate-x-1/2 -translate-y-1/2 touch-none [print-color-adjust:exact]",
+                      isSelected && "rounded-full ring-2 ring-sky-400 ring-offset-1"
+                    )}
                     key={item.id}
                     onPointerDown={
                       isAnimating
@@ -1882,10 +1958,15 @@ export function TacticBoardEditor({
                       isAnimating ? undefined : deleteElement(item.id)
                     }
                     style={{ left: `${item.x}%`, top: `${item.y}%` }}
-                    title="Hütchen — Doppelklick löscht"
+                    title="Hütchen — Klick selektiert, Doppelklick löscht"
                     type="button"
                   >
-                    <svg height="14" viewBox="0 0 14 14" width="14">
+                    <svg
+                      height="14"
+                      style={{ transform: `rotate(${rotation}deg)` }}
+                      viewBox="0 0 14 14"
+                      width="14"
+                    >
                       <polygon
                         fill="#f97316"
                         points="7,1 13,13 1,13"
@@ -1901,7 +1982,10 @@ export function TacticBoardEditor({
               if (item.type === "material" && item.materialKind) {
                 return (
                   <button
-                    className="absolute -translate-x-1/2 -translate-y-1/2 touch-none drop-shadow [print-color-adjust:exact]"
+                    className={cn(
+                      "absolute -translate-x-1/2 -translate-y-1/2 touch-none drop-shadow [print-color-adjust:exact]",
+                      isSelected && "rounded-md ring-2 ring-sky-400 ring-offset-1"
+                    )}
                     key={item.id}
                     onPointerDown={
                       isAnimating
@@ -1917,17 +2001,26 @@ export function TacticBoardEditor({
                       isAnimating ? undefined : deleteElement(item.id)
                     }
                     style={{ left: `${item.x}%`, top: `${item.y}%` }}
-                    title={`${materialLabels[item.materialKind]} — Doppelklick löscht`}
+                    title={`${materialLabels[item.materialKind]} — Klick selektiert, Doppelklick löscht`}
                     type="button"
                   >
-                    <MaterialIcon kind={item.materialKind} size={1.4} />
+                    <span
+                      className="block"
+                      style={{ transform: `rotate(${rotation}deg)` }}
+                    >
+                      <MaterialIcon kind={item.materialKind} size={1.4} />
+                    </span>
                   </button>
                 );
               }
 
               return (
                 <button
-                  className={`absolute flex h-11 min-w-11 -translate-x-1/2 -translate-y-1/2 touch-none items-center justify-center rounded-full border px-2 text-xs font-semibold shadow-lg transition hover:scale-105 [print-color-adjust:exact] ${elementClass(item.type)}`}
+                  className={cn(
+                    "absolute flex h-11 min-w-11 -translate-x-1/2 -translate-y-1/2 touch-none items-center justify-center rounded-full border px-2 text-xs font-semibold shadow-lg transition hover:scale-105 [print-color-adjust:exact]",
+                    elementClass(item.type),
+                    isSelected && "ring-2 ring-sky-400 ring-offset-1"
+                  )}
                   key={item.id}
                   onPointerDown={
                     isAnimating
