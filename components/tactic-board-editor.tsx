@@ -71,6 +71,11 @@ interface PlayerForBoard {
   jersey_number: number | null;
 }
 
+interface PathPoint {
+  x: number;
+  y: number;
+}
+
 interface BoardElement {
   id: string;
   type: BoardElementType;
@@ -89,6 +94,7 @@ interface BoardElement {
   materialKind?: MaterialKind;
   zoneColor?: ZoneColor;
   rotation?: number;
+  path?: PathPoint[];
 }
 
 interface BoardScene {
@@ -258,6 +264,48 @@ const arrowVisuals: Record<ArrowKind, ArrowVisual> = {
 
 function clampPosition(value: number) {
   return Math.min(96, Math.max(4, value));
+}
+
+// Sample a polyline at parameter t in [0,1] using arc-length parameterisation.
+// `points` must include start and end (so animator passes [start, ...path, end]).
+function samplePolyline(points: PathPoint[], t: number): PathPoint {
+  if (points.length === 0) {
+    return { x: 0, y: 0 };
+  }
+  if (points.length === 1) {
+    return points[0];
+  }
+
+  const segLengths: number[] = [];
+  let total = 0;
+  for (let i = 1; i < points.length; i += 1) {
+    const dx = points[i].x - points[i - 1].x;
+    const dy = points[i].y - points[i - 1].y;
+    const len = Math.hypot(dx, dy);
+    segLengths.push(len);
+    total += len;
+  }
+
+  if (total === 0) {
+    return points[0];
+  }
+
+  const target = Math.min(1, Math.max(0, t)) * total;
+  let acc = 0;
+  for (let i = 0; i < segLengths.length; i += 1) {
+    if (acc + segLengths[i] >= target) {
+      const local = segLengths[i] === 0 ? 0 : (target - acc) / segLengths[i];
+      const a = points[i];
+      const b = points[i + 1];
+      return {
+        x: a.x + (b.x - a.x) * local,
+        y: a.y + (b.y - a.y) * local
+      };
+    }
+    acc += segLengths[i];
+  }
+
+  return points[points.length - 1];
 }
 
 function snapToGrid(value: number, gridSize: number) {
@@ -435,7 +483,19 @@ function normalizeElements(value: unknown): BoardElement[] {
         rotation:
           typeof candidate.rotation === "number"
             ? ((Math.round(candidate.rotation / 90) * 90) % 360 + 360) % 360
-            : 0
+            : 0,
+        path: Array.isArray(candidate.path)
+          ? candidate.path.flatMap((point): PathPoint[] => {
+              if (
+                isRecord(point) &&
+                typeof point.x === "number" &&
+                typeof point.y === "number"
+              ) {
+                return [{ x: point.x, y: point.y }];
+              }
+              return [];
+            })
+          : undefined
       }
     ];
   });
@@ -706,6 +766,7 @@ export function TacticBoardEditor({
   const [snapSize, setSnapSize] = useState(5); // 5% grid by default
   const [activeArrowKind, setActiveArrowKind] = useState<ArrowKind>("run");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [pathDrawingFor, setPathDrawingFor] = useState<string | null>(null);
 
   const activeScene =
     boardState.scenes.find((scene) => scene.id === activeSceneId) ??
@@ -819,6 +880,7 @@ export function TacticBoardEditor({
         rotateSelected(event.shiftKey ? "ccw" : "cw");
       } else if (isDeselect) {
         setSelectedId(null);
+        setPathDrawingFor(null);
       }
     }
 
@@ -1102,6 +1164,47 @@ export function TacticBoardEditor({
     );
   }
 
+  function appendWaypoint(elementId: string, point: PathPoint) {
+    setActiveElements((current) =>
+      current.map((item) =>
+        item.id === elementId
+          ? {
+              ...item,
+              path: [...(item.path ?? []), point]
+            }
+          : item
+      )
+    );
+  }
+
+  function moveWaypoint(elementId: string, index: number, point: PathPoint) {
+    setActiveElements((current) =>
+      current.map((item) => {
+        if (item.id !== elementId || !item.path) return item;
+        const next = item.path.map((p, i) => (i === index ? point : p));
+        return { ...item, path: next };
+      })
+    );
+  }
+
+  function removeWaypoint(elementId: string, index: number) {
+    setActiveElements((current) =>
+      current.map((item) => {
+        if (item.id !== elementId || !item.path) return item;
+        const next = item.path.filter((_, i) => i !== index);
+        return { ...item, path: next.length > 0 ? next : undefined };
+      })
+    );
+  }
+
+  function clearPath(elementId: string) {
+    setActiveElements((current) =>
+      current.map((item) =>
+        item.id === elementId ? { ...item, path: undefined } : item
+      )
+    );
+  }
+
   function resetBoard() {
     commit(() => initialBoardState);
     setActiveSceneId(initialBoardState.scenes[0]?.id ?? "scene-1");
@@ -1179,15 +1282,38 @@ export function TacticBoardEditor({
       const match = indexB.get(matchKey(el));
       if (match) {
         usedB.add(matchKey(el));
-        blended.push({
-          ...el,
-          x: lerp(el.x, match.x),
-          y: lerp(el.y, match.y),
-          x2: lerpOptional(el.x2, match.x2),
-          y2: lerpOptional(el.y2, match.y2),
-          width: lerpOptional(el.width, match.width),
-          height: lerpOptional(el.height, match.height)
-        });
+
+        // Stage 2: if the element has a path defined in scene A, follow it.
+        // Path waypoints are intermediate; full polyline is [start, ...path, end].
+        if (el.path && el.path.length > 0) {
+          const polyline: PathPoint[] = [
+            { x: el.x, y: el.y },
+            ...el.path,
+            { x: match.x, y: match.y }
+          ];
+          const sampled = samplePolyline(polyline, t);
+          blended.push({
+            ...el,
+            x: sampled.x,
+            y: sampled.y,
+            x2: lerpOptional(el.x2, match.x2),
+            y2: lerpOptional(el.y2, match.y2),
+            width: lerpOptional(el.width, match.width),
+            height: lerpOptional(el.height, match.height),
+            // Hide path on animated copy so we don't render it during playback.
+            path: undefined
+          });
+        } else {
+          blended.push({
+            ...el,
+            x: lerp(el.x, match.x),
+            y: lerp(el.y, match.y),
+            x2: lerpOptional(el.x2, match.x2),
+            y2: lerpOptional(el.y2, match.y2),
+            width: lerpOptional(el.width, match.width),
+            height: lerpOptional(el.height, match.height)
+          });
+        }
       } else {
         // Element in A only → fade out (kept fully visible, simpler render).
         blended.push(el);
@@ -1671,6 +1797,47 @@ export function TacticBoardEditor({
               90° ↻
             </Button>
 
+            {(() => {
+              const selected = elements.find((el) => el.id === selectedId);
+              const canHavePath =
+                selected &&
+                (selected.type === "player" ||
+                  selected.type === "opponent" ||
+                  selected.type === "ball" ||
+                  selected.type === "material");
+              if (!canHavePath) return null;
+              const isDrawing = pathDrawingFor === selected.id;
+              const hasPath = (selected.path?.length ?? 0) > 0;
+              return (
+                <>
+                  <span className="mx-1 hidden h-6 w-px self-center bg-border sm:block" />
+                  <Button
+                    onClick={() =>
+                      setPathDrawingFor(isDrawing ? null : selected.id)
+                    }
+                    size="sm"
+                    title="Klicke aufs Feld, um Wegpunkte zu setzen. Esc beendet."
+                    type="button"
+                    variant={isDrawing ? "default" : "outline"}
+                  >
+                    {isDrawing ? "Pfad fertig" : "Pfad zeichnen"}
+                  </Button>
+                  {hasPath ? (
+                    <Button
+                      onClick={() => clearPath(selected.id)}
+                      size="sm"
+                      title="Pfad löschen"
+                      type="button"
+                      variant="ghost"
+                    >
+                      <Trash2 aria-hidden="true" className="h-4 w-4" />
+                      Pfad
+                    </Button>
+                  ) : null}
+                </>
+              );
+            })()}
+
             <Button
               onClick={resetBoard}
               size="sm"
@@ -1741,9 +1908,22 @@ export function TacticBoardEditor({
           </div>
 
           <div
-            className="relative aspect-[1.55] min-h-[420px] overflow-hidden rounded-2xl border-4 border-emerald-950/10 bg-emerald-700 shadow-inner [print-color-adjust:exact]"
+            className={cn(
+              "relative aspect-[1.55] min-h-[420px] overflow-hidden rounded-2xl border-4 border-emerald-950/10 bg-emerald-700 shadow-inner [print-color-adjust:exact]",
+              pathDrawingFor && "cursor-crosshair"
+            )}
             id={`field-${board.id}`}
             onClick={(event) => {
+              if (pathDrawingFor) {
+                const point = fieldPoint(event.clientX, event.clientY);
+                if (point) {
+                  appendWaypoint(pathDrawingFor, {
+                    x: maybeSnap(point.x),
+                    y: maybeSnap(point.y)
+                  });
+                }
+                return;
+              }
               // Click on bare field deselects.
               if (event.target === event.currentTarget) {
                 setSelectedId(null);
@@ -1884,7 +2064,74 @@ export function TacticBoardEditor({
                   />
                 );
               })}
+              {!isAnimating &&
+                elements
+                  .filter((item) => (item.path?.length ?? 0) > 0)
+                  .flatMap((item) => {
+                    const polyline: PathPoint[] = [
+                      { x: item.x, y: item.y },
+                      ...(item.path ?? [])
+                    ];
+                    const segments = [];
+                    for (let i = 1; i < polyline.length; i += 1) {
+                      segments.push(
+                        <line
+                          key={`${item.id}-path-${i}`}
+                          stroke="#38bdf8"
+                          strokeDasharray="6 4"
+                          strokeLinecap="round"
+                          strokeWidth="2"
+                          x1={`${polyline[i - 1].x}%`}
+                          x2={`${polyline[i].x}%`}
+                          y1={`${polyline[i - 1].y}%`}
+                          y2={`${polyline[i].y}%`}
+                        />
+                      );
+                    }
+                    return segments;
+                  })}
             </svg>
+
+            {!isAnimating &&
+              elements
+                .filter((item) => (item.path?.length ?? 0) > 0)
+                .flatMap((item) =>
+                  (item.path ?? []).map((point, index) => (
+                    <button
+                      aria-label={`Wegpunkt ${index + 1} verschieben`}
+                      className="absolute h-5 w-5 -translate-x-1/2 -translate-y-1/2 touch-none rounded-full border-2 border-white bg-sky-500 shadow"
+                      key={`${item.id}-wp-${index}`}
+                      onPointerDown={(event) => {
+                        event.preventDefault();
+                        event.currentTarget.setPointerCapture(event.pointerId);
+                        const start = fieldPoint(event.clientX, event.clientY);
+                        if (!start) return;
+                        // Live drag without history per move; commit happens via state diff.
+                        const move = (e: globalThis.PointerEvent) => {
+                          const p = fieldPoint(e.clientX, e.clientY);
+                          if (!p) return;
+                          moveWaypoint(item.id, index, {
+                            x: maybeSnap(p.x),
+                            y: maybeSnap(p.y)
+                          });
+                        };
+                        const up = () => {
+                          window.removeEventListener("pointermove", move);
+                          window.removeEventListener("pointerup", up);
+                        };
+                        window.addEventListener("pointermove", move);
+                        window.addEventListener("pointerup", up);
+                      }}
+                      onDoubleClick={(event) => {
+                        event.stopPropagation();
+                        removeWaypoint(item.id, index);
+                      }}
+                      style={{ left: `${point.x}%`, top: `${point.y}%` }}
+                      title={`Wegpunkt ${index + 1} — Doppelklick löscht`}
+                      type="button"
+                    />
+                  ))
+                )}
 
             {!isAnimating && arrowElements.map((item) => {
               const end = arrowEnd(item);
