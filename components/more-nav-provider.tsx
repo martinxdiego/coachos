@@ -2,26 +2,39 @@
 
 import { createContext, useCallback, useContext, useState } from "react";
 import { MoreNavSheet } from "@/components/more-nav-sheet";
+import type { NavCluster } from "@/components/nav-config";
 
-const MoreNavContext = createContext<(() => void) | null>(null);
+interface MoreNavContextValue {
+  openCluster: (cluster: NavCluster) => void;
+}
+
+const MoreNavContext = createContext<MoreNavContextValue | null>(null);
 
 export function MoreNavProvider({ children }: { children: React.ReactNode }) {
-  const [isOpen, setIsOpen] = useState(false);
-  const open = useCallback(() => setIsOpen(true), []);
-  const close = useCallback(() => setIsOpen(false), []);
+  const [activeCluster, setActiveCluster] = useState<NavCluster | null>(null);
+
+  const openCluster = useCallback((cluster: NavCluster) => {
+    setActiveCluster(cluster);
+  }, []);
+
+  const close = useCallback(() => setActiveCluster(null), []);
 
   return (
-    <MoreNavContext.Provider value={open}>
+    <MoreNavContext.Provider value={{ openCluster }}>
       {children}
-      <MoreNavSheet isOpen={isOpen} onClose={close} />
+      <MoreNavSheet
+        cluster={activeCluster}
+        isOpen={activeCluster !== null}
+        onClose={close}
+      />
     </MoreNavContext.Provider>
   );
 }
 
-export function useOpenMoreNav() {
-  const open = useContext(MoreNavContext);
-  if (!open) {
-    throw new Error("useOpenMoreNav must be used inside MoreNavProvider");
+export function useOpenCluster() {
+  const ctx = useContext(MoreNavContext);
+  if (!ctx) {
+    throw new Error("useOpenCluster must be used inside MoreNavProvider");
   }
-  return open;
+  return ctx.openCluster;
 }

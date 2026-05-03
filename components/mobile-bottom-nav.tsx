@@ -2,14 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { MoreHorizontal } from "lucide-react";
-import { useOpenMoreNav } from "@/components/more-nav-provider";
-import { isActiveHref, primaryMobileNav } from "@/components/nav-config";
+import { useOpenCluster } from "@/components/more-nav-provider";
+import { isClusterActive, navClusters } from "@/components/nav-config";
 import { cn } from "@/lib/utils";
 
 export function MobileBottomNav({ enabled }: { enabled: boolean }) {
   const pathname = usePathname();
-  const openMore = useOpenMoreNav();
+  const openCluster = useOpenCluster();
 
   if (!enabled) {
     return null;
@@ -22,36 +21,46 @@ export function MobileBottomNav({ enabled }: { enabled: boolean }) {
       style={{ paddingBottom: "max(0.375rem, env(safe-area-inset-bottom))" }}
     >
       <div className="grid grid-cols-5 gap-1">
-        {primaryMobileNav.map((item) => {
-          const Icon = item.icon;
-          const isActive = isActiveHref(pathname, item.href);
+        {navClusters.map((cluster) => {
+          const Icon = cluster.icon;
+          const isActive = isClusterActive(pathname, cluster);
+
+          if (cluster.href) {
+            return (
+              <Link
+                className={cn(
+                  "flex h-12 flex-col items-center justify-center gap-0.5 rounded-xl text-[10.5px] font-medium tracking-tight transition-colors duration-200 ease-spring active:scale-95",
+                  isActive
+                    ? "bg-foreground text-background"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+                href={cluster.href}
+                key={cluster.id}
+              >
+                <Icon aria-hidden="true" className="h-[18px] w-[18px]" />
+                {cluster.label}
+              </Link>
+            );
+          }
 
           return (
-            <Link
+            <button
+              aria-label={`${cluster.label} öffnen`}
               className={cn(
                 "flex h-12 flex-col items-center justify-center gap-0.5 rounded-xl text-[10.5px] font-medium tracking-tight transition-colors duration-200 ease-spring active:scale-95",
                 isActive
                   ? "bg-foreground text-background"
                   : "text-muted-foreground hover:text-foreground"
               )}
-              href={item.href}
-              key={item.href}
+              key={cluster.id}
+              onClick={() => openCluster(cluster)}
+              type="button"
             >
               <Icon aria-hidden="true" className="h-[18px] w-[18px]" />
-              {item.label}
-            </Link>
+              {cluster.label}
+            </button>
           );
         })}
-
-        <button
-          aria-label="Mehr Bereiche"
-          className="flex h-12 flex-col items-center justify-center gap-0.5 rounded-xl text-[10.5px] font-medium tracking-tight text-muted-foreground transition-colors duration-200 ease-spring hover:text-foreground active:scale-95"
-          onClick={openMore}
-          type="button"
-        >
-          <MoreHorizontal aria-hidden="true" className="h-[18px] w-[18px]" />
-          Mehr
-        </button>
       </div>
     </nav>
   );

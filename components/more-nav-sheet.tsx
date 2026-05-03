@@ -4,15 +4,16 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef } from "react";
 import { X } from "lucide-react";
-import { isActiveHref, moreSections } from "@/components/nav-config";
+import { isActiveHref, type NavCluster } from "@/components/nav-config";
 import { cn } from "@/lib/utils";
 
 interface MoreNavSheetProps {
   isOpen: boolean;
   onClose: () => void;
+  cluster: NavCluster | null;
 }
 
-export function MoreNavSheet({ isOpen, onClose }: MoreNavSheetProps) {
+export function MoreNavSheet({ isOpen, onClose, cluster }: MoreNavSheetProps) {
   const pathname = usePathname();
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
@@ -28,7 +29,10 @@ export function MoreNavSheet({ isOpen, onClose }: MoreNavSheetProps) {
     };
   }, [isOpen]);
 
-  if (!isOpen) return null;
+  if (!isOpen || !cluster) return null;
+
+  const ClusterIcon = cluster.icon;
+  const items = cluster.items ?? [];
 
   return (
     <div className="fixed inset-0 z-50">
@@ -45,13 +49,18 @@ export function MoreNavSheet({ isOpen, onClose }: MoreNavSheetProps) {
         style={{ willChange: "transform, opacity" }}
       >
         <header className="flex items-center justify-between gap-3 px-6 pt-5 pb-3">
-          <div>
-            <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-primary">
-              Navigation
-            </p>
-            <h2 className="mt-1 text-2xl font-semibold tracking-tight">
-              Alle Bereiche
-            </h2>
+          <div className="flex items-center gap-3">
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-secondary text-foreground">
+              <ClusterIcon aria-hidden="true" className="h-5 w-5" />
+            </span>
+            <div>
+              <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-primary">
+                Bereich
+              </p>
+              <h2 className="mt-0.5 text-2xl font-semibold tracking-tight">
+                {cluster.label}
+              </h2>
+            </div>
           </div>
           <button
             aria-label="Schließen"
@@ -64,54 +73,47 @@ export function MoreNavSheet({ isOpen, onClose }: MoreNavSheetProps) {
         </header>
 
         <div className="flex-1 overflow-y-auto overscroll-contain px-3 pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
-          {moreSections.map((section) => (
-            <section key={section.title} className="mb-5">
-              <h3 className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                {section.title}
-              </h3>
-              <ul className="space-y-0.5">
-                {section.items.map((item) => {
-                  const Icon = item.icon;
-                  const isActive = isActiveHref(pathname, item.href);
-                  return (
-                    <li key={`${section.title}-${item.href}`}>
-                      <Link
-                        className={cn(
-                          "flex items-center gap-3 rounded-xl px-3 py-2.5 transition-colors duration-150 active:scale-[0.98]",
-                          isActive
-                            ? "bg-secondary text-foreground"
-                            : "text-foreground/90 hover:bg-secondary/70"
-                        )}
-                        href={item.href}
-                        onClick={onClose}
-                      >
-                        <span
-                          className={cn(
-                            "flex h-9 w-9 items-center justify-center rounded-xl",
-                            isActive
-                              ? "bg-primary text-primary-foreground"
-                              : "bg-secondary text-foreground/80"
-                          )}
-                        >
-                          <Icon aria-hidden="true" className="h-4 w-4" />
+          <ul className="space-y-0.5">
+            {items.map((item) => {
+              const Icon = item.icon;
+              const isActive = isActiveHref(pathname, item.href);
+              return (
+                <li key={item.href}>
+                  <Link
+                    className={cn(
+                      "flex items-center gap-3 rounded-xl px-3 py-2.5 transition-colors duration-150 active:scale-[0.98]",
+                      isActive
+                        ? "bg-secondary text-foreground"
+                        : "text-foreground/90 hover:bg-secondary/70"
+                    )}
+                    href={item.href}
+                    onClick={onClose}
+                  >
+                    <span
+                      className={cn(
+                        "flex h-9 w-9 items-center justify-center rounded-xl",
+                        isActive
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-secondary text-foreground/80"
+                      )}
+                    >
+                      <Icon aria-hidden="true" className="h-4 w-4" />
+                    </span>
+                    <span className="flex-1 min-w-0">
+                      <span className="block text-[15px] font-medium leading-tight">
+                        {item.label}
+                      </span>
+                      {item.description ? (
+                        <span className="mt-0.5 block truncate text-[13px] text-muted-foreground">
+                          {item.description}
                         </span>
-                        <span className="flex-1 min-w-0">
-                          <span className="block text-[15px] font-medium leading-tight">
-                            {item.label}
-                          </span>
-                          {item.description ? (
-                            <span className="mt-0.5 block truncate text-[13px] text-muted-foreground">
-                              {item.description}
-                            </span>
-                          ) : null}
-                        </span>
-                      </Link>
-                    </li>
-                  );
-                })}
-              </ul>
-            </section>
-          ))}
+                      ) : null}
+                    </span>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
         </div>
       </aside>
     </div>

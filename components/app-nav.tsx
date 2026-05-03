@@ -2,49 +2,182 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { MoreHorizontal } from "lucide-react";
-import { useOpenMoreNav } from "@/components/more-nav-provider";
-import { isActiveHref, primaryDesktopNav } from "@/components/nav-config";
+import { useEffect, useRef, useState } from "react";
+import { ChevronDown } from "lucide-react";
+import {
+  isActiveHref,
+  isClusterActive,
+  navClusters,
+  type NavCluster
+} from "@/components/nav-config";
 import { cn } from "@/lib/utils";
 
 export function AppNav() {
   const pathname = usePathname();
-  const openMore = useOpenMoreNav();
+  const [openClusterId, setOpenClusterId] = useState<string | null>(null);
+  const navRef = useRef<HTMLElement | null>(null);
+
+  // Close on outside click
+  useEffect(() => {
+    if (!openClusterId) return;
+    const onClick = (event: MouseEvent) => {
+      if (!navRef.current) return;
+      if (!navRef.current.contains(event.target as Node)) {
+        setOpenClusterId(null);
+      }
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpenClusterId(null);
+    };
+    document.addEventListener("mousedown", onClick);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onClick);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [openClusterId]);
+
+  // Close dropdown when route changes
+  useEffect(() => {
+    setOpenClusterId(null);
+  }, [pathname]);
 
   return (
     <nav
       aria-label="Hauptnavigation"
-      className="flex items-center gap-1 rounded-full bg-white/8 p-1 ring-1 ring-white/10 backdrop-blur"
+      className="relative flex items-center gap-1 rounded-full bg-white/8 p-1 ring-1 ring-white/10 backdrop-blur"
+      ref={navRef}
     >
-      {primaryDesktopNav.map((item) => {
-        const Icon = item.icon;
-        const isActive = isActiveHref(pathname, item.href);
+      {navClusters.map((cluster) => {
+        const Icon = cluster.icon;
+        const isActive = isClusterActive(pathname, cluster);
+
+        if (cluster.href) {
+          return (
+            <Link
+              className={cn(
+                "inline-flex h-9 shrink-0 items-center gap-2 rounded-full px-3.5 text-[13px] font-medium tracking-tight text-slate-300 transition-colors duration-200 ease-spring hover:text-white",
+                isActive &&
+                  "bg-white text-slate-950 shadow-soft hover:text-slate-950"
+              )}
+              href={cluster.href}
+              key={cluster.id}
+            >
+              <Icon aria-hidden="true" className="h-4 w-4" />
+              {cluster.label}
+            </Link>
+          );
+        }
+
+        const isOpen = openClusterId === cluster.id;
 
         return (
-          <Link
-            className={cn(
-              "inline-flex h-9 shrink-0 items-center gap-2 rounded-full px-3.5 text-[13px] font-medium tracking-tight text-slate-300 transition-colors duration-200 ease-spring hover:text-white",
-              isActive &&
-                "bg-white text-slate-950 shadow-soft hover:text-slate-950"
-            )}
-            href={item.href}
-            key={item.href}
-          >
-            <Icon aria-hidden="true" className="h-4 w-4" />
-            {item.label}
-          </Link>
+          <ClusterButton
+            cluster={cluster}
+            isActive={isActive}
+            isOpen={isOpen}
+            key={cluster.id}
+            onToggle={() =>
+              setOpenClusterId((current) =>
+                current === cluster.id ? null : cluster.id
+              )
+            }
+            pathname={pathname}
+          />
         );
       })}
+    </nav>
+  );
+}
 
+function ClusterButton({
+  cluster,
+  isActive,
+  isOpen,
+  onToggle,
+  pathname
+}: {
+  cluster: NavCluster;
+  isActive: boolean;
+  isOpen: boolean;
+  onToggle: () => void;
+  pathname: string;
+}) {
+  const Icon = cluster.icon;
+  const items = cluster.items ?? [];
+
+  return (
+    <div className="relative">
       <button
-        aria-label="Mehr Bereiche"
-        className="inline-flex h-9 shrink-0 items-center gap-2 rounded-full px-3.5 text-[13px] font-medium tracking-tight text-slate-300 transition-colors duration-200 ease-spring hover:text-white active:scale-95"
-        onClick={openMore}
+        aria-expanded={isOpen}
+        aria-haspopup="menu"
+        className={cn(
+          "inline-flex h-9 shrink-0 items-center gap-2 rounded-full px-3.5 text-[13px] font-medium tracking-tight text-slate-300 transition-colors duration-200 ease-spring hover:text-white",
+          isActive &&
+            "bg-white text-slate-950 shadow-soft hover:text-slate-950"
+        )}
+        onClick={onToggle}
         type="button"
       >
-        <MoreHorizontal aria-hidden="true" className="h-4 w-4" />
-        Mehr
+        <Icon aria-hidden="true" className="h-4 w-4" />
+        {cluster.label}
+        <ChevronDown
+          aria-hidden="true"
+          className={cn(
+            "h-3.5 w-3.5 transition-transform duration-150",
+            isOpen && "rotate-180"
+          )}
+        />
       </button>
-    </nav>
+
+      {isOpen ? (
+        <div
+          className="absolute left-1/2 top-full z-50 mt-2 w-64 -translate-x-1/2 overflow-hidden rounded-2xl border border-border/60 bg-card text-foreground shadow-elevated animate-slide-up"
+          role="menu"
+        >
+          <ul className="p-1.5">
+            {items.map((item) => {
+              const ItemIcon = item.icon;
+              const itemActive = isActiveHref(pathname, item.href);
+              return (
+                <li key={item.href}>
+                  <Link
+                    className={cn(
+                      "flex items-center gap-3 rounded-xl px-2.5 py-2 transition-colors duration-150",
+                      itemActive
+                        ? "bg-secondary text-foreground"
+                        : "text-foreground/90 hover:bg-secondary/70"
+                    )}
+                    href={item.href}
+                    role="menuitem"
+                  >
+                    <span
+                      className={cn(
+                        "flex h-8 w-8 items-center justify-center rounded-lg",
+                        itemActive
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-secondary text-foreground/80"
+                      )}
+                    >
+                      <ItemIcon aria-hidden="true" className="h-4 w-4" />
+                    </span>
+                    <span className="flex-1 min-w-0">
+                      <span className="block text-[13.5px] font-medium leading-tight">
+                        {item.label}
+                      </span>
+                      {item.description ? (
+                        <span className="mt-0.5 block truncate text-[12px] text-muted-foreground">
+                          {item.description}
+                        </span>
+                      ) : null}
+                    </span>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ) : null}
+    </div>
   );
 }
