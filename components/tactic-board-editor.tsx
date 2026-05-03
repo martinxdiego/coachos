@@ -12,10 +12,13 @@ import {
   Copy,
   Grid3x3,
   Move,
+  Pause,
+  Play,
   Plus,
   Redo2,
   RotateCcw,
   Save,
+  Square,
   Trash2,
   Undo2,
   UsersRound
@@ -32,16 +35,32 @@ type BoardElementType =
   | "opponent"
   | "ball"
   | "cone"
-  | "text"
+  | "material"
+  | "zone"
   | "arrow";
 
 type ArrowKind = "pass" | "run" | "shot" | "dribble";
+
+type MaterialKind =
+  | "ball-orange"
+  | "ball-white"
+  | "ball-blue"
+  | "pole"
+  | "hurdle"
+  | "ring"
+  | "ladder"
+  | "mannequin"
+  | "mini-goal-small"
+  | "mini-goal-large"
+  | "pad";
+
+type ZoneColor = "yellow" | "red" | "blue" | "green";
 
 type DragTarget = {
   id: string;
   offsetX?: number;
   offsetY?: number;
-  point: "body" | "start" | "end";
+  point: "body" | "start" | "end" | "resize";
 };
 
 interface PlayerForBoard {
@@ -62,8 +81,12 @@ interface BoardElement {
   y: number;
   x2?: number;
   y2?: number;
+  width?: number;
+  height?: number;
   color?: string;
   arrowKind?: ArrowKind;
+  materialKind?: MaterialKind;
+  zoneColor?: ZoneColor;
 }
 
 interface BoardScene {
@@ -73,7 +96,7 @@ interface BoardScene {
 }
 
 interface BoardState {
-  version: 2;
+  version: 3;
   scenes: BoardScene[];
 }
 
@@ -114,7 +137,8 @@ const validTypes = new Set<BoardElementType>([
   "opponent",
   "ball",
   "cone",
-  "text",
+  "material",
+  "zone",
   "arrow"
 ]);
 
@@ -125,7 +149,71 @@ const validArrowKinds = new Set<ArrowKind>([
   "dribble"
 ]);
 
+const validMaterialKinds = new Set<MaterialKind>([
+  "ball-orange",
+  "ball-white",
+  "ball-blue",
+  "pole",
+  "hurdle",
+  "ring",
+  "ladder",
+  "mannequin",
+  "mini-goal-small",
+  "mini-goal-large",
+  "pad"
+]);
+
+const validZoneColors = new Set<ZoneColor>(["yellow", "red", "blue", "green"]);
+
+const materialLabels: Record<MaterialKind, string> = {
+  "ball-orange": "Ball (orange)",
+  "ball-white": "Ball (weiß)",
+  "ball-blue": "Ball (blau)",
+  pole: "Pylon",
+  hurdle: "Hürde",
+  ring: "Reifen",
+  ladder: "Koordinationsleiter",
+  mannequin: "Mannequin",
+  "mini-goal-small": "Mini-Tor (klein)",
+  "mini-goal-large": "Mini-Tor (groß)",
+  pad: "Pad"
+};
+
+const zoneColorStyles: Record<
+  ZoneColor,
+  { stroke: string; fill: string; hatch: string }
+> = {
+  yellow: {
+    stroke: "#ca8a04",
+    fill: "rgba(250, 204, 21, 0.18)",
+    hatch: "#facc15"
+  },
+  red: {
+    stroke: "#b91c1c",
+    fill: "rgba(248, 113, 113, 0.18)",
+    hatch: "#f87171"
+  },
+  blue: {
+    stroke: "#1d4ed8",
+    fill: "rgba(96, 165, 250, 0.18)",
+    hatch: "#60a5fa"
+  },
+  green: {
+    stroke: "#15803d",
+    fill: "rgba(74, 222, 128, 0.18)",
+    hatch: "#4ade80"
+  }
+};
+
+const zoneColorLabels: Record<ZoneColor, string> = {
+  yellow: "Gelb",
+  red: "Rot",
+  blue: "Blau",
+  green: "Grün"
+};
+
 const HISTORY_LIMIT = 50;
+const ANIMATION_SECONDS_PER_SCENE = 1.6;
 
 const arrowKindLabels: Record<ArrowKind, string> = {
   pass: "Pass",
@@ -271,28 +359,53 @@ function normalizeElements(value: unknown): BoardElement[] {
       return [];
     }
 
-    const candidate = item as Partial<BoardElement>;
+    const candidate = item as Partial<BoardElement> & { type?: string };
     if (
       !candidate.id ||
       !candidate.type ||
-      !validTypes.has(candidate.type) ||
       typeof candidate.x !== "number" ||
       typeof candidate.y !== "number"
     ) {
       return [];
     }
 
+    // Legacy "text" notes are dropped silently on load.
+    const rawType = candidate.type as string;
+    if (rawType === "text") {
+      return [];
+    }
+
+    if (!validTypes.has(rawType as BoardElementType)) {
+      return [];
+    }
+
+    const type = rawType as BoardElementType;
+
     const arrowKind =
       candidate.arrowKind && validArrowKinds.has(candidate.arrowKind)
         ? candidate.arrowKind
-        : candidate.type === "arrow"
+        : type === "arrow"
           ? "run" // legacy arrows default to dashed run paths
+          : undefined;
+
+    const materialKind =
+      candidate.materialKind && validMaterialKinds.has(candidate.materialKind)
+        ? candidate.materialKind
+        : type === "material"
+          ? "ball-orange"
+          : undefined;
+
+    const zoneColor =
+      candidate.zoneColor && validZoneColors.has(candidate.zoneColor)
+        ? candidate.zoneColor
+        : type === "zone"
+          ? "yellow"
           : undefined;
 
     return [
       {
         id: candidate.id,
-        type: candidate.type,
+        type,
         label: candidate.label ?? "",
         name: candidate.name,
         playerId: candidate.playerId,
@@ -301,8 +414,22 @@ function normalizeElements(value: unknown): BoardElement[] {
         y: candidate.y,
         x2: typeof candidate.x2 === "number" ? candidate.x2 : undefined,
         y2: typeof candidate.y2 === "number" ? candidate.y2 : undefined,
+        width:
+          typeof candidate.width === "number"
+            ? candidate.width
+            : type === "zone"
+              ? 24
+              : undefined,
+        height:
+          typeof candidate.height === "number"
+            ? candidate.height
+            : type === "zone"
+              ? 18
+              : undefined,
         color: candidate.color,
-        arrowKind
+        arrowKind,
+        materialKind,
+        zoneColor
       }
     ];
   });
@@ -328,12 +455,12 @@ function normalizeBoardState(value: unknown): BoardState {
     });
 
     if (scenes.length > 0) {
-      return { version: 2, scenes };
+      return { version: 3, scenes };
     }
   }
 
   return {
-    version: 2,
+    version: 3,
     scenes: [
       {
         id: "scene-1",
@@ -357,11 +484,173 @@ function elementClass(type: BoardElementType) {
     return "border-slate-950 bg-white text-slate-950";
   }
 
-  if (type === "cone") {
-    return "border-orange-200 bg-orange-500 text-white";
+  return "border-emerald-200 bg-emerald-50 text-emerald-950";
+}
+
+interface MaterialIconSize {
+  width: number;
+  height: number;
+}
+
+const materialIconSizes: Record<MaterialKind, MaterialIconSize> = {
+  "ball-orange": { width: 18, height: 18 },
+  "ball-white": { width: 18, height: 18 },
+  "ball-blue": { width: 18, height: 18 },
+  pole: { width: 10, height: 32 },
+  hurdle: { width: 28, height: 18 },
+  ring: { width: 22, height: 22 },
+  ladder: { width: 44, height: 18 },
+  mannequin: { width: 16, height: 36 },
+  "mini-goal-small": { width: 32, height: 16 },
+  "mini-goal-large": { width: 48, height: 22 },
+  pad: { width: 26, height: 18 }
+};
+
+function MaterialIcon({
+  kind,
+  size = 1
+}: {
+  kind: MaterialKind;
+  size?: number;
+}) {
+  const dim = materialIconSizes[kind];
+  const w = dim.width * size;
+  const h = dim.height * size;
+
+  if (kind === "ball-orange" || kind === "ball-white" || kind === "ball-blue") {
+    const fill =
+      kind === "ball-orange"
+        ? "#f97316"
+        : kind === "ball-blue"
+          ? "#3b82f6"
+          : "#ffffff";
+    return (
+      <svg height={h} viewBox="0 0 18 18" width={w}>
+        <circle cx="9" cy="9" fill={fill} r="8" stroke="#0f172a" strokeWidth="1" />
+        <path
+          d="M9 1 L11 6 L16 7 L12 11 L13 16 L9 13 L5 16 L6 11 L2 7 L7 6 Z"
+          fill={kind === "ball-white" ? "#0f172a" : "#0f172a"}
+          opacity="0.45"
+          transform="scale(0.55) translate(7 7)"
+        />
+      </svg>
+    );
   }
 
-  return "border-emerald-200 bg-emerald-50 text-emerald-950";
+  if (kind === "pole") {
+    return (
+      <svg height={h} viewBox="0 0 10 32" width={w}>
+        <rect fill="#dc2626" height="28" rx="1" width="3" x="3.5" y="2" />
+        <ellipse cx="5" cy="30" fill="#7f1d1d" rx="4" ry="1.5" />
+      </svg>
+    );
+  }
+
+  if (kind === "hurdle") {
+    return (
+      <svg height={h} viewBox="0 0 28 18" width={w}>
+        <rect fill="#dc2626" height="2" width="24" x="2" y="6" />
+        <rect fill="#7f1d1d" height="10" width="2" x="2" y="6" />
+        <rect fill="#7f1d1d" height="10" width="2" x="24" y="6" />
+        <rect fill="#0f172a" height="2" width="28" y="16" />
+      </svg>
+    );
+  }
+
+  if (kind === "ring") {
+    return (
+      <svg height={h} viewBox="0 0 22 22" width={w}>
+        <circle cx="11" cy="11" fill="none" r="9" stroke="#f59e0b" strokeWidth="3" />
+      </svg>
+    );
+  }
+
+  if (kind === "ladder") {
+    return (
+      <svg height={h} viewBox="0 0 44 18" width={w}>
+        <rect fill="#fbbf24" height="2" width="44" y="2" />
+        <rect fill="#fbbf24" height="2" width="44" y="14" />
+        {[6, 14, 22, 30, 38].map((x) => (
+          <rect fill="#fbbf24" height="10" key={x} width="2" x={x} y="4" />
+        ))}
+      </svg>
+    );
+  }
+
+  if (kind === "mannequin") {
+    return (
+      <svg height={h} viewBox="0 0 16 36" width={w}>
+        <circle cx="8" cy="5" fill="#1e3a8a" r="3.5" />
+        <rect fill="#1e3a8a" height="18" rx="2" width="8" x="4" y="9" />
+        <rect fill="#1e3a8a" height="6" width="3" x="4" y="27" />
+        <rect fill="#1e3a8a" height="6" width="3" x="9" y="27" />
+        <ellipse cx="8" cy="34" fill="#0f172a" rx="6" ry="1.5" />
+      </svg>
+    );
+  }
+
+  if (kind === "mini-goal-small") {
+    return (
+      <svg height={h} viewBox="0 0 32 16" width={w}>
+        <rect fill="rgba(255,255,255,0.4)" height="10" width="28" x="2" y="2" />
+        <path
+          d="M2 2 V12 H30 V2"
+          fill="none"
+          stroke="#f8fafc"
+          strokeWidth="1.5"
+        />
+        <path
+          d="M2 12 L6 14 H26 L30 12"
+          fill="#94a3b8"
+          stroke="#0f172a"
+          strokeWidth="0.5"
+        />
+      </svg>
+    );
+  }
+
+  if (kind === "mini-goal-large") {
+    return (
+      <svg height={h} viewBox="0 0 48 22" width={w}>
+        <rect fill="rgba(255,255,255,0.4)" height="14" width="42" x="3" y="3" />
+        <path
+          d="M3 3 V17 H45 V3"
+          fill="none"
+          stroke="#f8fafc"
+          strokeWidth="1.8"
+        />
+        {[12, 21, 30, 39].map((x) => (
+          <line
+            key={x}
+            stroke="#f8fafc"
+            strokeWidth="0.6"
+            x1={x}
+            x2={x}
+            y1="3"
+            y2="17"
+          />
+        ))}
+        <path
+          d="M3 17 L8 20 H40 L45 17"
+          fill="#94a3b8"
+          stroke="#0f172a"
+          strokeWidth="0.6"
+        />
+      </svg>
+    );
+  }
+
+  if (kind === "pad") {
+    return (
+      <svg height={h} viewBox="0 0 26 18" width={w}>
+        <rect fill="#1e40af" height="14" rx="2" width="22" x="2" y="2" />
+        <rect fill="#3b82f6" height="6" width="22" x="2" y="2" />
+        <line stroke="#0f172a" strokeWidth="0.5" x1="2" x2="24" y1="9" y2="9" />
+      </svg>
+    );
+  }
+
+  return null;
 }
 
 function arrowEnd(item: BoardElement) {
@@ -414,8 +703,14 @@ export function TacticBoardEditor({
   const activeScene =
     boardState.scenes.find((scene) => scene.id === activeSceneId) ??
     boardState.scenes[0];
-  const elements = activeScene?.elements ?? [];
-  const arrowElements = elements.filter((item) => item.type === "arrow");
+  const elements = useMemo(
+    () => activeScene?.elements ?? [],
+    [activeScene]
+  );
+  const arrowElements = useMemo(
+    () => elements.filter((item) => item.type === "arrow"),
+    [elements]
+  );
   const markerIdBase = `arrowhead-${board.id}-${activeSceneId}`;
 
   const pushHistory = useCallback((snapshot: BoardState) => {
@@ -569,13 +864,9 @@ export function TacticBoardEditor({
         ? `${elements.filter((item) => item.type === "player").length + 1}`
         : type === "opponent"
           ? "G"
-          : type === "ball"
-            ? ""
-            : type === "cone"
-              ? ""
-              : type === "arrow"
-                ? arrowKindLabels[arrowKind ?? "run"]
-                : "Notiz";
+          : type === "arrow"
+            ? arrowKindLabels[arrowKind ?? "run"]
+            : "";
 
     setActiveElements((current) => [
       ...current,
@@ -595,6 +886,36 @@ export function TacticBoardEditor({
   function addArrow(kind: ArrowKind) {
     setActiveArrowKind(kind);
     addElement("arrow", kind);
+  }
+
+  function addMaterial(kind: MaterialKind) {
+    setActiveElements((current) => [
+      ...current,
+      {
+        id: crypto.randomUUID(),
+        type: "material",
+        label: "",
+        x: maybeSnap(48),
+        y: maybeSnap(50),
+        materialKind: kind
+      }
+    ]);
+  }
+
+  function addZone(color: ZoneColor) {
+    setActiveElements((current) => [
+      ...current,
+      {
+        id: crypto.randomUUID(),
+        type: "zone",
+        label: "",
+        x: maybeSnap(38),
+        y: maybeSnap(40),
+        width: 24,
+        height: 18,
+        zoneColor: color
+      }
+    ]);
   }
 
   function addRosterPlayer(player: PlayerForBoard) {
@@ -693,6 +1014,12 @@ export function TacticBoardEditor({
           return { ...item, x: snapX(point.x), y: snapY(point.y) };
         }
 
+        if (dragTarget.point === "resize" && item.type === "zone") {
+          const width = Math.max(4, snapX(point.x) - item.x);
+          const height = Math.max(4, snapY(point.y) - item.y);
+          return { ...item, width, height };
+        }
+
         const x = snapX(point.x - (dragTarget.offsetX ?? 0));
         const y = snapY(point.y - (dragTarget.offsetY ?? 0));
 
@@ -707,6 +1034,10 @@ export function TacticBoardEditor({
             x2: clampPosition(end.x + deltaX),
             y2: clampPosition(end.y + deltaY)
           };
+        }
+
+        if (item.type === "zone") {
+          return { ...item, x, y };
         }
 
         return { ...item, x, y };
@@ -740,6 +1071,188 @@ export function TacticBoardEditor({
 
   const canUndo = past.length > 0;
   const canRedo = future.length > 0;
+
+  // ---------- Animation (Stufe 1: Keyframe-Interpolation) ----------
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [playbackTime, setPlaybackTime] = useState(0);
+  const [playbackSpeed, setPlaybackSpeed] = useState(1);
+  const playbackTimeRef = useRef(0);
+  const rafRef = useRef<number | null>(null);
+  const lastTickRef = useRef<number | null>(null);
+
+  const sceneCount = boardState.scenes.length;
+  const segmentCount = Math.max(0, sceneCount - 1);
+  const totalDuration = segmentCount * ANIMATION_SECONDS_PER_SCENE;
+  const canPlay = segmentCount >= 1;
+
+  // Easing — easeInOutQuad
+  const ease = (t: number) =>
+    t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+
+  const isAnimating = (isPlaying || playbackTime > 0) && segmentCount > 0;
+
+  // Compute interpolated elements for the current playbackTime.
+  const animatedElements = useMemo<BoardElement[]>(() => {
+    if (segmentCount === 0) {
+      return elements;
+    }
+
+    const clamped = Math.min(
+      Math.max(playbackTime, 0),
+      totalDuration - 0.0001
+    );
+    const segmentIndex = Math.min(
+      segmentCount - 1,
+      Math.floor(clamped / ANIMATION_SECONDS_PER_SCENE)
+    );
+    const tRaw =
+      (clamped - segmentIndex * ANIMATION_SECONDS_PER_SCENE) /
+      ANIMATION_SECONDS_PER_SCENE;
+    const t = ease(Math.min(1, Math.max(0, tRaw)));
+
+    const sceneA = boardState.scenes[segmentIndex];
+    const sceneB = boardState.scenes[segmentIndex + 1];
+
+    if (!sceneA || !sceneB) {
+      return sceneA?.elements ?? sceneB?.elements ?? [];
+    }
+
+    const matchKey = (el: BoardElement) =>
+      el.playerId ? `pid:${el.playerId}` : `id:${el.id}`;
+
+    const indexB = new Map<string, BoardElement>();
+    for (const el of sceneB.elements) {
+      indexB.set(matchKey(el), el);
+    }
+
+    const usedB = new Set<string>();
+
+    const lerp = (a: number, b: number) => a + (b - a) * t;
+    const lerpOptional = (a?: number, b?: number) => {
+      if (typeof a !== "number" && typeof b !== "number") return undefined;
+      if (typeof a !== "number") return b;
+      if (typeof b !== "number") return a;
+      return lerp(a, b);
+    };
+
+    const blended: BoardElement[] = [];
+
+    for (const el of sceneA.elements) {
+      const match = indexB.get(matchKey(el));
+      if (match) {
+        usedB.add(matchKey(el));
+        blended.push({
+          ...el,
+          x: lerp(el.x, match.x),
+          y: lerp(el.y, match.y),
+          x2: lerpOptional(el.x2, match.x2),
+          y2: lerpOptional(el.y2, match.y2),
+          width: lerpOptional(el.width, match.width),
+          height: lerpOptional(el.height, match.height)
+        });
+      } else {
+        // Element in A only → fade out (kept fully visible, simpler render).
+        blended.push(el);
+      }
+    }
+
+    for (const el of sceneB.elements) {
+      if (!usedB.has(matchKey(el))) {
+        // Element introduced in B — show at its B position once t > 0.5.
+        if (t > 0.5) blended.push(el);
+      }
+    }
+
+    return blended;
+  }, [
+    segmentCount,
+    playbackTime,
+    totalDuration,
+    boardState.scenes,
+    elements
+  ]);
+
+  function stopPlayback() {
+    if (rafRef.current !== null) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
+    lastTickRef.current = null;
+    setIsPlaying(false);
+    setPlaybackTime(0);
+    playbackTimeRef.current = 0;
+  }
+
+  function pausePlayback() {
+    if (rafRef.current !== null) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
+    lastTickRef.current = null;
+    setIsPlaying(false);
+  }
+
+  function startPlayback() {
+    if (!canPlay) return;
+    if (playbackTimeRef.current >= totalDuration) {
+      playbackTimeRef.current = 0;
+      setPlaybackTime(0);
+    }
+    setIsPlaying(true);
+  }
+
+  // RAF loop driven by isPlaying.
+  useEffect(() => {
+    if (!isPlaying) return;
+
+    function tick(now: number) {
+      const last = lastTickRef.current ?? now;
+      const dt = ((now - last) / 1000) * playbackSpeed;
+      lastTickRef.current = now;
+
+      const next = playbackTimeRef.current + dt;
+      if (next >= totalDuration) {
+        playbackTimeRef.current = totalDuration;
+        setPlaybackTime(totalDuration);
+        setIsPlaying(false);
+        rafRef.current = null;
+        lastTickRef.current = null;
+        // Snap view to final scene.
+        const finalScene = boardState.scenes[boardState.scenes.length - 1];
+        if (finalScene) {
+          queueMicrotask(() => setActiveSceneId(finalScene.id));
+        }
+        return;
+      }
+
+      playbackTimeRef.current = next;
+      setPlaybackTime(next);
+      rafRef.current = requestAnimationFrame(tick);
+    }
+
+    rafRef.current = requestAnimationFrame(tick);
+    return () => {
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+      lastTickRef.current = null;
+    };
+  }, [isPlaying, playbackSpeed, totalDuration, boardState.scenes]);
+
+  // Stop playback if user mutates while playing.
+  useEffect(() => {
+    if (dragTarget && isPlaying) {
+      pausePlayback();
+    }
+  }, [dragTarget, isPlaying]);
+
+  const renderElements = isAnimating ? animatedElements : elements;
+  const renderArrows = renderElements.filter((item) => item.type === "arrow");
+  const renderZones = renderElements.filter((item) => item.type === "zone");
+  const renderBodies = renderElements.filter(
+    (item) => item.type !== "arrow" && item.type !== "zone"
+  );
 
   return (
     <div className="space-y-4">
@@ -811,6 +1324,86 @@ export function TacticBoardEditor({
         </span>
       </div>
 
+      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-background/80 px-3 py-2 no-print">
+        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          Animation
+        </span>
+        {!isPlaying ? (
+          <Button
+            disabled={!canPlay}
+            onClick={startPlayback}
+            size="sm"
+            title={
+              canPlay
+                ? "Szenen-Animation abspielen"
+                : "Erstelle mindestens 2 Szenen"
+            }
+            type="button"
+          >
+            <Play aria-hidden="true" className="h-4 w-4" />
+            Abspielen
+          </Button>
+        ) : (
+          <Button onClick={pausePlayback} size="sm" type="button" variant="secondary">
+            <Pause aria-hidden="true" className="h-4 w-4" />
+            Pause
+          </Button>
+        )}
+        <Button
+          disabled={!canPlay && playbackTime === 0}
+          onClick={stopPlayback}
+          size="sm"
+          type="button"
+          variant="outline"
+        >
+          <Square aria-hidden="true" className="h-4 w-4" />
+          Stop
+        </Button>
+
+        <div className="flex items-center gap-1 rounded-md border border-border bg-white p-0.5">
+          {[0.5, 1, 2].map((speed) => (
+            <button
+              className={cn(
+                "h-7 rounded px-2 text-xs font-medium transition",
+                playbackSpeed === speed
+                  ? "bg-slate-950 text-white"
+                  : "text-foreground hover:bg-secondary"
+              )}
+              key={speed}
+              onClick={() => setPlaybackSpeed(speed)}
+              type="button"
+            >
+              {speed}×
+            </button>
+          ))}
+        </div>
+
+        <input
+          aria-label="Animations-Position"
+          className="ml-1 min-w-[140px] flex-1 accent-slate-950"
+          disabled={!canPlay}
+          max={Math.max(0.0001, totalDuration)}
+          min={0}
+          onChange={(event) => {
+            const next = Number(event.target.value);
+            playbackTimeRef.current = next;
+            setPlaybackTime(next);
+            if (!isPlaying) {
+              // Trigger one-frame interpolation by briefly toggling playing flag.
+              // Easiest: directly compute via animatedElements memo —
+              // achieved by marking isPlaying true for a tick is too invasive,
+              // so we simply leave this as scrub-when-paused via state update.
+            }
+          }}
+          step={0.01}
+          type="range"
+          value={Math.min(playbackTime, totalDuration)}
+        />
+        <span className="min-w-[58px] text-right font-mono text-xs text-muted-foreground">
+          {playbackTime.toFixed(1)}s / {totalDuration.toFixed(1)}s
+        </span>
+      </div>
+
       <div className="grid gap-4 xl:grid-cols-[260px_1fr]">
         <aside className="space-y-3 rounded-xl border border-border bg-background/80 p-3 no-print">
           <div>
@@ -874,6 +1467,48 @@ export function TacticBoardEditor({
                 </Button>
               ))}
             </div>
+          </div>
+
+          <div className="space-y-2 border-t border-border pt-3">
+            <p className="text-sm font-semibold">Material</p>
+            <div className="grid grid-cols-3 gap-1.5">
+              {(Object.keys(materialLabels) as MaterialKind[]).map((kind) => (
+                <button
+                  className="flex aspect-square flex-col items-center justify-center gap-0.5 rounded-md border border-border bg-white p-1 transition hover:border-foreground/40"
+                  key={kind}
+                  onClick={() => addMaterial(kind)}
+                  title={materialLabels[kind]}
+                  type="button"
+                >
+                  <MaterialIcon kind={kind} />
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-2 border-t border-border pt-3">
+            <p className="text-sm font-semibold">Zonen</p>
+            <div className="grid grid-cols-4 gap-1.5">
+              {(Object.keys(zoneColorStyles) as ZoneColor[]).map((color) => {
+                const style = zoneColorStyles[color];
+                return (
+                  <button
+                    className="flex h-9 items-center justify-center rounded-md border-2 transition hover:scale-105"
+                    key={color}
+                    onClick={() => addZone(color)}
+                    style={{
+                      borderColor: style.stroke,
+                      background: `repeating-linear-gradient(45deg, ${style.hatch}55 0 4px, transparent 4px 8px)`
+                    }}
+                    title={`Zone ${zoneColorLabels[color]}`}
+                    type="button"
+                  />
+                );
+              })}
+            </div>
+            <p className="text-[11px] leading-4 text-muted-foreground">
+              Zone hinzufügen, dann am rechten unteren Eck-Punkt skalieren.
+            </p>
           </div>
 
           <div className="space-y-2 border-t border-border pt-3">
@@ -971,14 +1606,6 @@ export function TacticBoardEditor({
               variant="outline"
             >
               Hütchen
-            </Button>
-            <Button
-              onClick={() => addElement("text")}
-              size="sm"
-              type="button"
-              variant="outline"
-            >
-              Notiz
             </Button>
             <Button
               onClick={resetBoard}
@@ -1092,6 +1719,63 @@ export function TacticBoardEditor({
               </svg>
             ) : null}
 
+            {renderZones.map((item) => {
+              const color = item.zoneColor ?? "yellow";
+              const style = zoneColorStyles[color];
+              const w = item.width ?? 24;
+              const h = item.height ?? 18;
+              return (
+                <div
+                  className="pointer-events-none absolute rounded-md border-2 [print-color-adjust:exact]"
+                  key={item.id}
+                  style={{
+                    left: `${item.x}%`,
+                    top: `${item.y}%`,
+                    width: `${w}%`,
+                    height: `${h}%`,
+                    borderColor: style.stroke,
+                    background: `repeating-linear-gradient(45deg, ${style.hatch}66 0 6px, transparent 6px 12px)`
+                  }}
+                />
+              );
+            })}
+
+            {!isAnimating &&
+              renderZones.map((item) => {
+                const w = item.width ?? 24;
+                const h = item.height ?? 18;
+                return (
+                  <div className="no-print" key={`${item.id}-zone-handles`}>
+                    <button
+                      aria-label="Zone verschieben"
+                      className="absolute flex h-7 w-7 -translate-x-1/2 -translate-y-1/2 touch-none items-center justify-center rounded-full border border-white bg-slate-950/80 text-white shadow"
+                      onPointerDown={(event) =>
+                        startDrag(event, { id: item.id, point: "body" }, item)
+                      }
+                      onDoubleClick={() => deleteElement(item.id)}
+                      style={{
+                        left: `${item.x + w / 2}%`,
+                        top: `${item.y + h / 2}%`
+                      }}
+                      title="Zone verschieben — Doppelklick löscht"
+                      type="button"
+                    >
+                      <Move aria-hidden="true" className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      aria-label="Zone skalieren"
+                      className="absolute h-5 w-5 -translate-x-1/2 -translate-y-1/2 touch-none rounded-sm border-2 border-slate-950 bg-white shadow"
+                      onPointerDown={(event) =>
+                        startDrag(event, { id: item.id, point: "resize" }, item)
+                      }
+                      style={{ left: `${item.x + w}%`, top: `${item.y + h}%` }}
+                      title="Zone skalieren"
+                      type="button"
+                    />
+                  </div>
+                );
+              })}
+
             <svg className="pointer-events-none absolute inset-0 h-full w-full">
               <defs>
                 {(Object.keys(arrowVisuals) as ArrowKind[]).map((kind) => (
@@ -1111,7 +1795,7 @@ export function TacticBoardEditor({
                   </marker>
                 ))}
               </defs>
-              {arrowElements.map((item) => {
+              {renderArrows.map((item) => {
                 const end = arrowEnd(item);
                 const kind = item.arrowKind ?? "run";
                 const visual = arrowVisuals[kind];
@@ -1132,7 +1816,7 @@ export function TacticBoardEditor({
               })}
             </svg>
 
-            {arrowElements.map((item) => {
+            {!isAnimating && arrowElements.map((item) => {
               const end = arrowEnd(item);
               const middle = {
                 x: (item.x + end.x) / 2,
@@ -1178,32 +1862,95 @@ export function TacticBoardEditor({
               );
             })}
 
-            {elements
-              .filter((item) => item.type !== "arrow")
-              .map((item) => (
+            {renderBodies.map((item) => {
+              if (item.type === "cone") {
+                return (
+                  <button
+                    className="absolute -translate-x-1/2 -translate-y-1/2 touch-none [print-color-adjust:exact]"
+                    key={item.id}
+                    onPointerDown={
+                      isAnimating
+                        ? undefined
+                        : (event) =>
+                            startDrag(
+                              event,
+                              { id: item.id, point: "body" },
+                              item
+                            )
+                    }
+                    onDoubleClick={() =>
+                      isAnimating ? undefined : deleteElement(item.id)
+                    }
+                    style={{ left: `${item.x}%`, top: `${item.y}%` }}
+                    title="Hütchen — Doppelklick löscht"
+                    type="button"
+                  >
+                    <svg height="14" viewBox="0 0 14 14" width="14">
+                      <polygon
+                        fill="#f97316"
+                        points="7,1 13,13 1,13"
+                        stroke="#7c2d12"
+                        strokeLinejoin="round"
+                        strokeWidth="1"
+                      />
+                    </svg>
+                  </button>
+                );
+              }
+
+              if (item.type === "material" && item.materialKind) {
+                return (
+                  <button
+                    className="absolute -translate-x-1/2 -translate-y-1/2 touch-none drop-shadow [print-color-adjust:exact]"
+                    key={item.id}
+                    onPointerDown={
+                      isAnimating
+                        ? undefined
+                        : (event) =>
+                            startDrag(
+                              event,
+                              { id: item.id, point: "body" },
+                              item
+                            )
+                    }
+                    onDoubleClick={() =>
+                      isAnimating ? undefined : deleteElement(item.id)
+                    }
+                    style={{ left: `${item.x}%`, top: `${item.y}%` }}
+                    title={`${materialLabels[item.materialKind]} — Doppelklick löscht`}
+                    type="button"
+                  >
+                    <MaterialIcon kind={item.materialKind} size={1.4} />
+                  </button>
+                );
+              }
+
+              return (
                 <button
                   className={`absolute flex h-11 min-w-11 -translate-x-1/2 -translate-y-1/2 touch-none items-center justify-center rounded-full border px-2 text-xs font-semibold shadow-lg transition hover:scale-105 [print-color-adjust:exact] ${elementClass(item.type)}`}
                   key={item.id}
-                  onPointerDown={(event) =>
-                    startDrag(event, { id: item.id, point: "body" }, item)
+                  onPointerDown={
+                    isAnimating
+                      ? undefined
+                      : (event) =>
+                          startDrag(event, { id: item.id, point: "body" }, item)
                   }
-                  onDoubleClick={() => deleteElement(item.id)}
+                  onDoubleClick={() =>
+                    isAnimating ? undefined : deleteElement(item.id)
+                  }
                   style={{ left: `${item.x}%`, top: `${item.y}%` }}
                   title={`${item.name ?? item.label} — Doppelklick löscht`}
                   type="button"
                 >
-                  {item.type === "ball"
-                    ? "●"
-                    : item.type === "cone"
-                      ? "▲"
-                      : item.label}
+                  {item.type === "ball" ? "●" : item.label}
                   {item.type === "player" && item.name ? (
                     <span className={playerLabelClass(item.y)}>
                       {shortName(item.name)}
                     </span>
                   ) : null}
                 </button>
-              ))}
+              );
+            })}
           </div>
         </div>
       </div>
