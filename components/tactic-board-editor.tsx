@@ -1,13 +1,23 @@
 "use client";
 
-import { useMemo, useState, type PointerEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type PointerEvent
+} from "react";
 import {
   Copy,
+  Grid3x3,
   Move,
   Plus,
+  Redo2,
   RotateCcw,
   Save,
   Trash2,
+  Undo2,
   UsersRound
 } from "lucide-react";
 import { saveTacticBoard } from "@/app/actions";
@@ -17,7 +27,16 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 
-type BoardElementType = "player" | "opponent" | "ball" | "cone" | "text" | "arrow";
+type BoardElementType =
+  | "player"
+  | "opponent"
+  | "ball"
+  | "cone"
+  | "text"
+  | "arrow";
+
+type ArrowKind = "pass" | "run" | "shot" | "dribble";
+
 type DragTarget = {
   id: string;
   offsetX?: number;
@@ -44,6 +63,7 @@ interface BoardElement {
   x2?: number;
   y2?: number;
   color?: string;
+  arrowKind?: ArrowKind;
 }
 
 interface BoardScene {
@@ -98,8 +118,61 @@ const validTypes = new Set<BoardElementType>([
   "arrow"
 ]);
 
+const validArrowKinds = new Set<ArrowKind>([
+  "pass",
+  "run",
+  "shot",
+  "dribble"
+]);
+
+const HISTORY_LIMIT = 50;
+
+const arrowKindLabels: Record<ArrowKind, string> = {
+  pass: "Pass",
+  run: "Lauf",
+  shot: "Schuss",
+  dribble: "Dribbling"
+};
+
+interface ArrowVisual {
+  stroke: string;
+  strokeDasharray?: string;
+  strokeWidth: number;
+  markerFill: string;
+}
+
+const arrowVisuals: Record<ArrowKind, ArrowVisual> = {
+  pass: {
+    stroke: "#ffffff",
+    strokeWidth: 2.5,
+    markerFill: "#ffffff"
+  },
+  run: {
+    stroke: "#ffffff",
+    strokeDasharray: "8 5",
+    strokeWidth: 2.5,
+    markerFill: "#ffffff"
+  },
+  shot: {
+    stroke: "#ef4444",
+    strokeWidth: 3,
+    markerFill: "#ef4444"
+  },
+  dribble: {
+    stroke: "#facc15",
+    strokeDasharray: "2 4",
+    strokeWidth: 2.5,
+    markerFill: "#facc15"
+  }
+};
+
 function clampPosition(value: number) {
   return Math.min(96, Math.max(4, value));
+}
+
+function snapToGrid(value: number, gridSize: number) {
+  const snapped = Math.round(value / gridSize) * gridSize;
+  return clampPosition(snapped);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -155,7 +228,11 @@ function shortName(name?: string) {
   return parts.at(-1) ?? name;
 }
 
-function playerElement(player: PlayerForBoard, index: number, position = rosterPosition(index)): BoardElement {
+function playerElement(
+  player: PlayerForBoard,
+  index: number,
+  position = rosterPosition(index)
+): BoardElement {
   return {
     id: `player-${player.id}`,
     type: "player",
@@ -175,7 +252,10 @@ function createRosterElements(players: PlayerForBoard[]): BoardElement[] {
   return players.map((player, index) => playerElement(player, index));
 }
 
-function createFormationElements(players: PlayerForBoard[], formation: string): BoardElement[] {
+function createFormationElements(
+  players: PlayerForBoard[],
+  formation: string
+): BoardElement[] {
   return players.map((player, index) =>
     playerElement(player, index, formationPosition(formation, index))
   );
@@ -202,6 +282,13 @@ function normalizeElements(value: unknown): BoardElement[] {
       return [];
     }
 
+    const arrowKind =
+      candidate.arrowKind && validArrowKinds.has(candidate.arrowKind)
+        ? candidate.arrowKind
+        : candidate.type === "arrow"
+          ? "run" // legacy arrows default to dashed run paths
+          : undefined;
+
     return [
       {
         id: candidate.id,
@@ -214,7 +301,8 @@ function normalizeElements(value: unknown): BoardElement[] {
         y: candidate.y,
         x2: typeof candidate.x2 === "number" ? candidate.x2 : undefined,
         y2: typeof candidate.y2 === "number" ? candidate.y2 : undefined,
-        color: candidate.color
+        color: candidate.color,
+        arrowKind
       }
     ];
   });
@@ -231,7 +319,9 @@ function normalizeBoardState(value: unknown): BoardState {
         {
           id: typeof scene.id === "string" ? scene.id : `scene-${index + 1}`,
           name:
-            typeof scene.name === "string" ? scene.name : `Szene ${index + 1}`,
+            typeof scene.name === "string"
+              ? scene.name
+              : `Szene ${index + 1}`,
           elements: normalizeElements(scene.elements)
         }
       ];
@@ -288,56 +378,192 @@ function playerLabelClass(y: number) {
   return y > 82 ? `${shared} bottom-full mb-1` : `${shared} top-full mt-1`;
 }
 
-export function TacticBoardEditor({ board, players }: TacticBoardEditorProps) {
+export function TacticBoardEditor({
+  board,
+  players
+}: TacticBoardEditorProps) {
   const initialBoardState = useMemo(
     () => normalizeBoardState(board.elements),
     [board.elements]
   );
-  const rosterElements = useMemo(() => createRosterElements(players), [players]);
-  const [boardState, setBoardState] = useState<BoardState>(initialBoardState);
+  const rosterElements = useMemo(
+    () => createRosterElements(players),
+    [players]
+  );
+
+  const [boardState, setBoardState] =
+    useState<BoardState>(initialBoardState);
   const [activeSceneId, setActiveSceneId] = useState(
     initialBoardState.scenes[0]?.id ?? "scene-1"
   );
+
+  // History stack: snapshots of `boardState` BEFORE each committed mutation.
+  // Pointer-drag intermediates are NOT pushed — only the pre-drag snapshot.
+  const [past, setPast] = useState<BoardState[]>([]);
+  const [future, setFuture] = useState<BoardState[]>([]);
+
   const [dragTarget, setDragTarget] = useState<DragTarget | null>(null);
+  // Holds the boardState at pointerDown so we can push exactly one history
+  // entry per drag gesture once it ends — even if many move events fired.
+  const dragSnapshotRef = useRef<BoardState | null>(null);
+
+  const [snapEnabled, setSnapEnabled] = useState(true);
+  const [snapSize, setSnapSize] = useState(5); // 5% grid by default
+  const [activeArrowKind, setActiveArrowKind] = useState<ArrowKind>("run");
+
   const activeScene =
     boardState.scenes.find((scene) => scene.id === activeSceneId) ??
     boardState.scenes[0];
   const elements = activeScene?.elements ?? [];
   const arrowElements = elements.filter((item) => item.type === "arrow");
-  const markerId = `arrowhead-${board.id}-${activeSceneId}`;
+  const markerIdBase = `arrowhead-${board.id}-${activeSceneId}`;
+
+  const pushHistory = useCallback((snapshot: BoardState) => {
+    setPast((current) => {
+      const next = [...current, snapshot];
+      if (next.length > HISTORY_LIMIT) {
+        next.shift();
+      }
+      return next;
+    });
+    setFuture([]);
+  }, []);
+
+  // Commit a mutation that should be undoable.
+  const commit = useCallback(
+    (updater: (state: BoardState) => BoardState) => {
+      setBoardState((current) => {
+        const next = updater(current);
+        if (next === current) return current;
+        pushHistory(current);
+        return next;
+      });
+    },
+    [pushHistory]
+  );
+
+  const undo = useCallback(() => {
+    setPast((currentPast) => {
+      if (currentPast.length === 0) return currentPast;
+      const previous = currentPast[currentPast.length - 1];
+      const remaining = currentPast.slice(0, -1);
+
+      setBoardState((current) => {
+        setFuture((currentFuture) => [...currentFuture, current]);
+        return previous;
+      });
+
+      return remaining;
+    });
+  }, []);
+
+  const redo = useCallback(() => {
+    setFuture((currentFuture) => {
+      if (currentFuture.length === 0) return currentFuture;
+      const next = currentFuture[currentFuture.length - 1];
+      const remaining = currentFuture.slice(0, -1);
+
+      setBoardState((current) => {
+        setPast((currentPast) => {
+          const nextPast = [...currentPast, current];
+          if (nextPast.length > HISTORY_LIMIT) nextPast.shift();
+          return nextPast;
+        });
+        return next;
+      });
+
+      return remaining;
+    });
+  }, []);
+
+  // Cmd/Ctrl+Z and Cmd/Ctrl+Shift+Z keyboard shortcuts.
+  useEffect(() => {
+    function onKey(event: KeyboardEvent) {
+      const target = event.target;
+      // Don't hijack typing inside form fields (title/description).
+      if (
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        (target instanceof HTMLElement && target.isContentEditable)
+      ) {
+        return;
+      }
+
+      const isUndo =
+        (event.metaKey || event.ctrlKey) &&
+        !event.shiftKey &&
+        event.key.toLowerCase() === "z";
+      const isRedo =
+        (event.metaKey || event.ctrlKey) &&
+        ((event.shiftKey && event.key.toLowerCase() === "z") ||
+          event.key.toLowerCase() === "y");
+
+      if (isUndo) {
+        event.preventDefault();
+        undo();
+      } else if (isRedo) {
+        event.preventDefault();
+        redo();
+      }
+    }
+
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [undo, redo]);
 
   function setActiveElements(
     updater: BoardElement[] | ((current: BoardElement[]) => BoardElement[])
   ) {
-    setBoardState((current) => ({
+    commit((current) => ({
       ...current,
       scenes: current.scenes.map((scene) =>
         scene.id === activeSceneId
           ? {
               ...scene,
               elements:
-                typeof updater === "function" ? updater(scene.elements) : updater
+                typeof updater === "function"
+                  ? updater(scene.elements)
+                  : updater
             }
           : scene
       )
     }));
   }
 
-  function addScene() {
-    const nextScene: BoardScene = {
-      id: crypto.randomUUID(),
-      name: `Szene ${boardState.scenes.length + 1}`,
-      elements: elements.map((item) => ({ ...item }))
-    };
-
+  // Live-only mutation during drag — no history push.
+  function liveUpdateActiveElements(
+    updater: (current: BoardElement[]) => BoardElement[]
+  ) {
     setBoardState((current) => ({
       ...current,
-      scenes: [...current.scenes, nextScene]
+      scenes: current.scenes.map((scene) =>
+        scene.id === activeSceneId
+          ? { ...scene, elements: updater(scene.elements) }
+          : scene
+      )
     }));
-    setActiveSceneId(nextScene.id);
   }
 
-  function addElement(type: BoardElementType) {
+  function addScene() {
+    commit((current) => {
+      const nextScene: BoardScene = {
+        id: crypto.randomUUID(),
+        name: `Szene ${current.scenes.length + 1}`,
+        elements: (current.scenes.find((s) => s.id === activeSceneId)
+          ?.elements ?? []
+        ).map((item) => ({ ...item }))
+      };
+      // Switch view AFTER state commits.
+      queueMicrotask(() => setActiveSceneId(nextScene.id));
+      return { ...current, scenes: [...current.scenes, nextScene] };
+    });
+  }
+
+  function maybeSnap(value: number) {
+    return snapEnabled ? snapToGrid(value, snapSize) : clampPosition(value);
+  }
+
+  function addElement(type: BoardElementType, arrowKind?: ArrowKind) {
     const label =
       type === "player"
         ? `${elements.filter((item) => item.type === "player").length + 1}`
@@ -348,7 +574,7 @@ export function TacticBoardEditor({ board, players }: TacticBoardEditorProps) {
             : type === "cone"
               ? ""
               : type === "arrow"
-                ? "Laufweg"
+                ? arrowKindLabels[arrowKind ?? "run"]
                 : "Notiz";
 
     setActiveElements((current) => [
@@ -357,12 +583,18 @@ export function TacticBoardEditor({ board, players }: TacticBoardEditorProps) {
         id: crypto.randomUUID(),
         type,
         label,
-        x: 48,
-        y: 50,
-        x2: type === "arrow" ? 66 : undefined,
-        y2: type === "arrow" ? 38 : undefined
+        x: maybeSnap(48),
+        y: maybeSnap(50),
+        x2: type === "arrow" ? maybeSnap(66) : undefined,
+        y2: type === "arrow" ? maybeSnap(38) : undefined,
+        arrowKind: type === "arrow" ? (arrowKind ?? activeArrowKind) : undefined
       }
     ]);
+  }
+
+  function addArrow(kind: ArrowKind) {
+    setActiveArrowKind(kind);
+    addElement("arrow", kind);
   }
 
   function addRosterPlayer(player: PlayerForBoard) {
@@ -372,10 +604,14 @@ export function TacticBoardEditor({ board, players }: TacticBoardEditorProps) {
 
     setActiveElements((current) => [
       ...current,
-      playerElement(player, current.filter((item) => item.type === "player").length, {
-        x: 48,
-        y: 50
-      })
+      playerElement(
+        player,
+        current.filter((item) => item.type === "player").length,
+        {
+          x: maybeSnap(48),
+          y: maybeSnap(50)
+        }
+      )
     ]);
   }
 
@@ -422,6 +658,7 @@ export function TacticBoardEditor({ board, players }: TacticBoardEditorProps) {
     event.preventDefault();
     event.currentTarget.setPointerCapture(event.pointerId);
     const point = fieldPoint(event.clientX, event.clientY);
+    dragSnapshotRef.current = boardState;
     setDragTarget({
       ...target,
       offsetX: target.point === "body" && point ? point.x - item.x : 0,
@@ -439,22 +676,25 @@ export function TacticBoardEditor({ board, players }: TacticBoardEditorProps) {
       return;
     }
 
-    setActiveElements((current) =>
+    const snapX = (v: number) => maybeSnap(v);
+    const snapY = (v: number) => maybeSnap(v);
+
+    liveUpdateActiveElements((current) =>
       current.map((item) => {
         if (item.id !== dragTarget.id) {
           return item;
         }
 
         if (dragTarget.point === "end") {
-          return { ...item, x2: point.x, y2: point.y };
+          return { ...item, x2: snapX(point.x), y2: snapY(point.y) };
         }
 
         if (dragTarget.point === "start") {
-          return { ...item, x: point.x, y: point.y };
+          return { ...item, x: snapX(point.x), y: snapY(point.y) };
         }
 
-        const x = clampPosition(point.x - (dragTarget.offsetX ?? 0));
-        const y = clampPosition(point.y - (dragTarget.offsetY ?? 0));
+        const x = snapX(point.x - (dragTarget.offsetX ?? 0));
+        const y = snapY(point.y - (dragTarget.offsetY ?? 0));
 
         if (item.type === "arrow") {
           const end = arrowEnd(item);
@@ -474,16 +714,42 @@ export function TacticBoardEditor({ board, players }: TacticBoardEditorProps) {
     );
   }
 
+  function endDrag() {
+    if (dragTarget && dragSnapshotRef.current) {
+      const snapshot = dragSnapshotRef.current;
+      // Only push to history if the drag actually changed anything.
+      setBoardState((current) => {
+        if (current !== snapshot) {
+          pushHistory(snapshot);
+        }
+        return current;
+      });
+    }
+    dragSnapshotRef.current = null;
+    setDragTarget(null);
+  }
+
+  function deleteElement(id: string) {
+    setActiveElements((current) => current.filter((item) => item.id !== id));
+  }
+
   function resetBoard() {
-    setBoardState(initialBoardState);
+    commit(() => initialBoardState);
     setActiveSceneId(initialBoardState.scenes[0]?.id ?? "scene-1");
   }
+
+  const canUndo = past.length > 0;
+  const canRedo = future.length > 0;
 
   return (
     <div className="space-y-4">
       <form action={saveTacticBoard} className="space-y-4">
         <input name="id" type="hidden" value={board.id} />
-        <input name="elements" type="hidden" value={JSON.stringify(boardState)} />
+        <input
+          name="elements"
+          type="hidden"
+          value={JSON.stringify(boardState)}
+        />
         <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto]">
           <Input defaultValue={board.title} name="title" required />
           <Textarea
@@ -518,6 +784,31 @@ export function TacticBoardEditor({ board, players }: TacticBoardEditorProps) {
           <Copy aria-hidden="true" className="h-4 w-4" />
           Szene duplizieren
         </Button>
+
+        <span className="ml-auto flex items-center gap-2">
+          <Button
+            disabled={!canUndo}
+            onClick={undo}
+            size="sm"
+            title="Rückgängig (Strg/Cmd+Z)"
+            type="button"
+            variant="outline"
+          >
+            <Undo2 aria-hidden="true" className="h-4 w-4" />
+            Rückgängig
+          </Button>
+          <Button
+            disabled={!canRedo}
+            onClick={redo}
+            size="sm"
+            title="Wiederherstellen (Strg/Cmd+Shift+Z)"
+            type="button"
+            variant="outline"
+          >
+            <Redo2 aria-hidden="true" className="h-4 w-4" />
+            Wiederherstellen
+          </Button>
+        </span>
       </div>
 
       <div className="grid gap-4 xl:grid-cols-[260px_1fr]">
@@ -546,7 +837,9 @@ export function TacticBoardEditor({ board, players }: TacticBoardEditorProps) {
                     >
                       <span className="min-w-0">
                         <span className="block truncate font-medium">
-                          {player.jersey_number ? `#${player.jersey_number} ` : ""}
+                          {player.jersey_number
+                            ? `#${player.jersey_number} `
+                            : ""}
                           {player.name}
                         </span>
                         <span className="text-xs text-muted-foreground">
@@ -582,11 +875,61 @@ export function TacticBoardEditor({ board, players }: TacticBoardEditorProps) {
               ))}
             </div>
           </div>
+
+          <div className="space-y-2 border-t border-border pt-3">
+            <p className="text-sm font-semibold">Raster</p>
+            <button
+              aria-pressed={snapEnabled}
+              className={cn(
+                "flex w-full items-center justify-between gap-2 rounded-lg border border-border px-3 py-2 text-sm transition",
+                snapEnabled
+                  ? "border-emerald-600 bg-emerald-50 text-emerald-950"
+                  : "bg-white hover:border-foreground/40"
+              )}
+              onClick={() => setSnapEnabled((current) => !current)}
+              type="button"
+            >
+              <span className="flex items-center gap-2">
+                <Grid3x3 aria-hidden="true" className="h-4 w-4" />
+                Snap-to-Grid
+              </span>
+              <span className="text-xs font-medium uppercase tracking-wide">
+                {snapEnabled ? "An" : "Aus"}
+              </span>
+            </button>
+            <div className="grid grid-cols-3 gap-1.5">
+              {[
+                { size: 2.5, label: "Fein" },
+                { size: 5, label: "Mittel" },
+                { size: 10, label: "Grob" }
+              ].map((preset) => (
+                <button
+                  className={cn(
+                    "h-8 rounded-md border text-xs font-medium transition",
+                    snapSize === preset.size
+                      ? "border-slate-950 bg-slate-950 text-white"
+                      : "border-border bg-white hover:border-foreground/40",
+                    !snapEnabled && "opacity-50"
+                  )}
+                  disabled={!snapEnabled}
+                  key={preset.size}
+                  onClick={() => setSnapSize(preset.size)}
+                  type="button"
+                >
+                  {preset.label}
+                </button>
+              ))}
+            </div>
+          </div>
         </aside>
 
         <div className="space-y-3">
           <div className="flex flex-wrap gap-2 no-print">
-            <Button onClick={() => addElement("player")} size="sm" type="button">
+            <Button
+              onClick={() => addElement("player")}
+              size="sm"
+              type="button"
+            >
               <Plus aria-hidden="true" className="h-4 w-4" />
               Spieler
             </Button>
@@ -605,22 +948,44 @@ export function TacticBoardEditor({ board, players }: TacticBoardEditorProps) {
               <UsersRound aria-hidden="true" className="h-4 w-4" />
               Kader laden
             </Button>
-            <Button onClick={() => addElement("opponent")} size="sm" type="button" variant="secondary">
+            <Button
+              onClick={() => addElement("opponent")}
+              size="sm"
+              type="button"
+              variant="secondary"
+            >
               Gegner
             </Button>
-            <Button onClick={() => addElement("ball")} size="sm" type="button" variant="outline">
+            <Button
+              onClick={() => addElement("ball")}
+              size="sm"
+              type="button"
+              variant="outline"
+            >
               Ball
             </Button>
-            <Button onClick={() => addElement("cone")} size="sm" type="button" variant="outline">
+            <Button
+              onClick={() => addElement("cone")}
+              size="sm"
+              type="button"
+              variant="outline"
+            >
               Hütchen
             </Button>
-            <Button onClick={() => addElement("arrow")} size="sm" type="button" variant="outline">
-              Pfeil
-            </Button>
-            <Button onClick={() => addElement("text")} size="sm" type="button" variant="outline">
+            <Button
+              onClick={() => addElement("text")}
+              size="sm"
+              type="button"
+              variant="outline"
+            >
               Notiz
             </Button>
-            <Button onClick={resetBoard} size="sm" type="button" variant="ghost">
+            <Button
+              onClick={resetBoard}
+              size="sm"
+              type="button"
+              variant="ghost"
+            >
               <RotateCcw aria-hidden="true" className="h-4 w-4" />
               Zurücksetzen
             </Button>
@@ -635,12 +1000,63 @@ export function TacticBoardEditor({ board, players }: TacticBoardEditorProps) {
             </Button>
           </div>
 
+          <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-border bg-background/60 px-3 py-2 no-print">
+            <span className="mr-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Pfeile
+            </span>
+            {(Object.keys(arrowVisuals) as ArrowKind[]).map((kind) => {
+              const visual = arrowVisuals[kind];
+              return (
+                <button
+                  className={cn(
+                    "flex items-center gap-2 rounded-md border px-2.5 py-1.5 text-xs font-medium transition",
+                    activeArrowKind === kind
+                      ? "border-slate-950 bg-slate-950 text-white"
+                      : "border-border bg-white hover:border-foreground/40"
+                  )}
+                  key={kind}
+                  onClick={() => addArrow(kind)}
+                  title={`${arrowKindLabels[kind]} hinzufügen`}
+                  type="button"
+                >
+                  <svg
+                    aria-hidden="true"
+                    className="h-3 w-7"
+                    viewBox="0 0 28 12"
+                  >
+                    <line
+                      stroke={
+                        activeArrowKind === kind ? "#ffffff" : visual.stroke
+                      }
+                      strokeDasharray={visual.strokeDasharray}
+                      strokeLinecap="round"
+                      strokeWidth={visual.strokeWidth}
+                      x1="2"
+                      x2="22"
+                      y1="6"
+                      y2="6"
+                    />
+                    <polygon
+                      fill={
+                        activeArrowKind === kind ? "#ffffff" : visual.markerFill
+                      }
+                      points="22,2 28,6 22,10"
+                    />
+                  </svg>
+                  {arrowKindLabels[kind]}
+                </button>
+              );
+            })}
+          </div>
+
           <div
             className="relative aspect-[1.55] min-h-[420px] overflow-hidden rounded-2xl border-4 border-emerald-950/10 bg-emerald-700 shadow-inner [print-color-adjust:exact]"
             id={`field-${board.id}`}
-            onPointerCancel={() => setDragTarget(null)}
-            onPointerMove={(event) => updatePosition(event.clientX, event.clientY)}
-            onPointerUp={() => setDragTarget(null)}
+            onPointerCancel={endDrag}
+            onPointerMove={(event) =>
+              updatePosition(event.clientX, event.clientY)
+            }
+            onPointerUp={endDrag}
           >
             <div className="absolute inset-4 rounded-2xl border-2 border-white/70" />
             <div className="absolute left-1/2 top-4 h-[calc(100%-2rem)] border-l-2 border-white/60" />
@@ -648,16 +1064,65 @@ export function TacticBoardEditor({ board, players }: TacticBoardEditorProps) {
             <div className="absolute left-4 top-1/2 h-36 w-24 -translate-y-1/2 border-2 border-l-0 border-white/60" />
             <div className="absolute right-4 top-1/2 h-36 w-24 -translate-y-1/2 border-2 border-r-0 border-white/60" />
 
+            {snapEnabled ? (
+              <svg
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-0 h-full w-full opacity-25 no-print"
+              >
+                <defs>
+                  <pattern
+                    height={`${snapSize}%`}
+                    id={`grid-${board.id}`}
+                    patternUnits="userSpaceOnUse"
+                    width={`${snapSize}%`}
+                  >
+                    <path
+                      d={`M ${snapSize} 0 L 0 0 0 ${snapSize}`}
+                      fill="none"
+                      stroke="white"
+                      strokeWidth="0.4"
+                    />
+                  </pattern>
+                </defs>
+                <rect
+                  fill={`url(#grid-${board.id})`}
+                  height="100%"
+                  width="100%"
+                />
+              </svg>
+            ) : null}
+
             <svg className="pointer-events-none absolute inset-0 h-full w-full">
+              <defs>
+                {(Object.keys(arrowVisuals) as ArrowKind[]).map((kind) => (
+                  <marker
+                    id={`${markerIdBase}-${kind}`}
+                    key={kind}
+                    markerHeight="7"
+                    markerWidth="10"
+                    orient="auto"
+                    refX="10"
+                    refY="3.5"
+                  >
+                    <polygon
+                      fill={arrowVisuals[kind].markerFill}
+                      points="0 0, 10 3.5, 0 7"
+                    />
+                  </marker>
+                ))}
+              </defs>
               {arrowElements.map((item) => {
                 const end = arrowEnd(item);
+                const kind = item.arrowKind ?? "run";
+                const visual = arrowVisuals[kind];
                 return (
                   <line
                     key={item.id}
-                    markerEnd={`url(#${markerId})`}
-                    stroke={item.color ?? "white"}
-                    strokeDasharray="7 5"
-                    strokeWidth="3"
+                    markerEnd={`url(#${markerIdBase}-${kind})`}
+                    stroke={item.color ?? visual.stroke}
+                    strokeDasharray={visual.strokeDasharray}
+                    strokeLinecap="round"
+                    strokeWidth={visual.strokeWidth}
                     x1={`${item.x}%`}
                     x2={`${end.x}%`}
                     y1={`${item.y}%`}
@@ -665,18 +1130,6 @@ export function TacticBoardEditor({ board, players }: TacticBoardEditorProps) {
                   />
                 );
               })}
-              <defs>
-                <marker
-                  id={markerId}
-                  markerHeight="7"
-                  markerWidth="10"
-                  orient="auto"
-                  refX="10"
-                  refY="3.5"
-                >
-                  <polygon fill="white" points="0 0, 10 3.5, 0 7" />
-                </marker>
-              </defs>
             </svg>
 
             {arrowElements.map((item) => {
@@ -705,7 +1158,8 @@ export function TacticBoardEditor({ board, players }: TacticBoardEditorProps) {
                       startDrag(event, { id: item.id, point: "body" }, item)
                     }
                     style={{ left: `${middle.x}%`, top: `${middle.y}%` }}
-                    title="Pfeil verschieben"
+                    title={`${arrowKindLabels[item.arrowKind ?? "run"]} verschieben — Doppelklick löscht`}
+                    onDoubleClick={() => deleteElement(item.id)}
                     type="button"
                   >
                     <Move aria-hidden="true" className="h-4 w-4" />
@@ -733,11 +1187,16 @@ export function TacticBoardEditor({ board, players }: TacticBoardEditorProps) {
                   onPointerDown={(event) =>
                     startDrag(event, { id: item.id, point: "body" }, item)
                   }
+                  onDoubleClick={() => deleteElement(item.id)}
                   style={{ left: `${item.x}%`, top: `${item.y}%` }}
-                  title={item.name ?? item.label}
+                  title={`${item.name ?? item.label} — Doppelklick löscht`}
                   type="button"
                 >
-                  {item.type === "ball" ? "●" : item.type === "cone" ? "▲" : item.label}
+                  {item.type === "ball"
+                    ? "●"
+                    : item.type === "cone"
+                      ? "▲"
+                      : item.label}
                   {item.type === "player" && item.name ? (
                     <span className={playerLabelClass(item.y)}>
                       {shortName(item.name)}

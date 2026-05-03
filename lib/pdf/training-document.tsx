@@ -6,6 +6,7 @@ import {
   PdfHeader,
   PdfKeyValueBlock,
   PdfMetaGrid,
+  PdfPhaseImages,
   PdfSection
 } from "./components";
 import { baseStyles, palette } from "./styles";
@@ -57,6 +58,10 @@ export interface TrainingDocumentInput {
   };
   phases: TrainingPhase[];
   players: { id: string; name: string; position: string | null }[];
+  // Pre-fetched, render-safe data URLs per phase id. The route layer is
+  // responsible for downloading the images and converting unsupported formats —
+  // the document just renders whatever made it through.
+  phaseImageData?: Record<string, string[]>;
 }
 
 export function TrainingDocument({
@@ -64,7 +69,8 @@ export function TrainingDocument({
   generatedAt,
   training,
   phases,
-  players
+  players,
+  phaseImageData
 }: TrainingDocumentInput) {
   const phaseMinutes = phases.reduce(
     (sum, phase) => sum + (phase.duration_minutes ?? 0),
@@ -120,8 +126,17 @@ export function TrainingDocument({
 
         <PdfSection title="Ablauf">
           {sortedPhases.length > 0 ? (
-            sortedPhases.map((phase, index) => (
-              <View key={phase.id} style={baseStyles.phaseCard} wrap={false}>
+            sortedPhases.map((phase, index) => {
+              const phaseImages = phaseImageData?.[phase.id] ?? [];
+              const hasImages = phaseImages.length > 0;
+              // wrap={false} only when the card stays small enough to fit on
+              // a single page. With images we let react-pdf paginate naturally.
+              return (
+              <View
+                key={phase.id}
+                style={baseStyles.phaseCard}
+                wrap={hasImages}
+              >
                 <Text style={baseStyles.phaseIndex}>{index + 1}</Text>
                 <View style={baseStyles.phaseBody}>
                   <View style={baseStyles.phaseHeaderRow}>
@@ -184,9 +199,20 @@ export function TrainingDocument({
                     label="Belastungssteuerung"
                     text={phase.load_management}
                   />
+                  {hasImages ? (
+                    <View style={{ marginTop: 6 }}>
+                      <Text style={baseStyles.phaseSubLabel}>
+                        Skizzen / Bilder
+                      </Text>
+                      <PdfPhaseImages
+                        images={phaseImages.map((src) => ({ src }))}
+                      />
+                    </View>
+                  ) : null}
                 </View>
               </View>
-            ))
+              );
+            })
           ) : (
             <Text style={baseStyles.small}>
               Noch keine Phasen erfasst. Die Planung kann live ergänzt werden.

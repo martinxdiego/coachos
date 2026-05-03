@@ -260,6 +260,32 @@ export const baseStyles = StyleSheet.create({
     borderRadius: 2,
     marginRight: 10
   },
+  // Phase image grid
+  phaseImagesWrap: {
+    marginTop: 8,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    marginHorizontal: -3
+  },
+  phaseImageTile: {
+    paddingHorizontal: 3,
+    marginBottom: 6
+  },
+  phaseImage: {
+    width: "100%",
+    height: 150,
+    borderRadius: 4,
+    objectFit: "contain",
+    backgroundColor: palette.paperSoft,
+    borderWidth: 0.5,
+    borderColor: palette.border
+  },
+  phaseImageCaption: {
+    fontSize: 7,
+    color: palette.inkMuted,
+    marginTop: 2,
+    textAlign: "center"
+  },
   // Misc
   paragraph: {
     fontSize: 10,
