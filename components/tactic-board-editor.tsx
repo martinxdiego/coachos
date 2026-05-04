@@ -826,6 +826,9 @@ export function TacticBoardEditor({
   const [activeArrowKind, setActiveArrowKind] = useState<ArrowKind>("run");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [pathDrawingFor, setPathDrawingFor] = useState<string | null>(null);
+  const [fieldVariant, setFieldVariant] = useState<
+    "full" | "half" | "box" | "blank"
+  >("full");
 
   const activeScene =
     boardState.scenes.find((scene) => scene.id === activeSceneId) ??
@@ -1735,6 +1738,34 @@ export function TacticBoardEditor({
           </div>
 
           <div className="space-y-2 border-t border-border pt-3">
+            <p className="text-sm font-semibold">Feldgröße</p>
+            <div className="grid grid-cols-2 gap-1.5">
+              {(
+                [
+                  ["full", "Ganzes Feld"],
+                  ["half", "Halbfeld"],
+                  ["box", "Strafraum"],
+                  ["blank", "Leeres Feld"]
+                ] as const
+              ).map(([value, label]) => (
+                <button
+                  className={cn(
+                    "h-9 rounded-md border text-xs font-medium transition",
+                    fieldVariant === value
+                      ? "border-slate-950 bg-slate-950 text-white"
+                      : "border-border bg-white hover:border-foreground/40"
+                  )}
+                  key={value}
+                  onClick={() => setFieldVariant(value)}
+                  type="button"
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-2 border-t border-border pt-3">
             <p className="text-sm font-semibold">Raster</p>
             <button
               aria-pressed={snapEnabled}
@@ -1994,11 +2025,33 @@ export function TacticBoardEditor({
             }
             onPointerUp={endDrag}
           >
-            <div className="absolute inset-4 rounded-2xl border-2 border-white/70" />
-            <div className="absolute left-1/2 top-4 h-[calc(100%-2rem)] border-l-2 border-white/60" />
-            <div className="absolute left-1/2 top-1/2 h-28 w-28 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white/60" />
-            <div className="absolute left-4 top-1/2 h-36 w-24 -translate-y-1/2 border-2 border-l-0 border-white/60" />
-            <div className="absolute right-4 top-1/2 h-36 w-24 -translate-y-1/2 border-2 border-r-0 border-white/60" />
+            {fieldVariant !== "blank" ? (
+              <div className="absolute inset-4 rounded-2xl border-2 border-white/70" />
+            ) : null}
+            {fieldVariant === "full" ? (
+              <>
+                <div className="absolute left-1/2 top-4 h-[calc(100%-2rem)] border-l-2 border-white/60" />
+                <div className="absolute left-1/2 top-1/2 h-28 w-28 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white/60" />
+                <div className="absolute left-4 top-1/2 h-36 w-24 -translate-y-1/2 border-2 border-l-0 border-white/60" />
+                <div className="absolute right-4 top-1/2 h-36 w-24 -translate-y-1/2 border-2 border-r-0 border-white/60" />
+              </>
+            ) : null}
+            {fieldVariant === "half" ? (
+              <>
+                <div className="absolute left-4 right-4 top-4 border-t-2 border-white/60" />
+                <div className="absolute left-1/2 top-4 h-16 w-16 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white/60" />
+                <div className="absolute left-1/2 bottom-4 h-44 w-72 -translate-x-1/2 border-2 border-b-0 border-white/60" />
+                <div className="absolute left-1/2 bottom-4 h-20 w-32 -translate-x-1/2 border-2 border-b-0 border-white/60" />
+                <div className="absolute left-1/2 bottom-1/3 h-3 w-3 -translate-x-1/2 rounded-full bg-white/70" />
+              </>
+            ) : null}
+            {fieldVariant === "box" ? (
+              <>
+                <div className="absolute left-1/2 top-4 h-[calc(100%-2rem)] w-[80%] -translate-x-1/2 border-2 border-white/60" />
+                <div className="absolute left-1/2 top-1/2 h-32 w-48 -translate-x-1/2 -translate-y-1/2 border-2 border-white/60" />
+                <div className="absolute left-1/2 top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white/70" />
+              </>
+            ) : null}
 
             {snapEnabled ? (
               <svg

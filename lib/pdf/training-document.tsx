@@ -283,6 +283,37 @@ export function TrainingDocument({
                 </View>
               ))}
             </View>
+            <View
+              style={{
+                flexDirection: "row",
+                justifyContent: "space-between",
+                marginTop: 22,
+                paddingTop: 10,
+                borderTopWidth: 0.5,
+                borderTopColor: palette.border
+              }}
+            >
+              <View style={{ width: "45%" }}>
+                <View
+                  style={{
+                    height: 0.6,
+                    backgroundColor: palette.inkMuted,
+                    marginBottom: 4
+                  }}
+                />
+                <Text style={baseStyles.small}>Datum</Text>
+              </View>
+              <View style={{ width: "45%" }}>
+                <View
+                  style={{
+                    height: 0.6,
+                    backgroundColor: palette.inkMuted,
+                    marginBottom: 4
+                  }}
+                />
+                <Text style={baseStyles.small}>Unterschrift Trainer</Text>
+              </View>
+            </View>
           </PdfSection>
         ) : null}
 

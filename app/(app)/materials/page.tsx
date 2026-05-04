@@ -1,8 +1,11 @@
 import { FileText, Save, Trash2 } from "lucide-react";
 import { createMaterial, deleteMaterial, updateMaterial } from "@/app/actions";
+import { ConfirmDeleteForm } from "@/components/confirm-delete-form";
 import { EmptyState } from "@/components/empty-state";
+import { MaterialTypePicker } from "@/components/material-type-picker";
 import { PageHeader } from "@/components/page-header";
 import { PdfDownloadButton } from "@/components/pdf-download-button";
+import { ToastForm } from "@/components/toast-form";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -207,27 +210,14 @@ export default async function MaterialsPage() {
             <CardTitle>Material erstellen</CardTitle>
           </CardHeader>
           <CardContent>
-            <form action={createMaterial} className="space-y-4">
+            <ToastForm
+              action={createMaterial}
+              className="space-y-4"
+              successMessage="Material gespeichert"
+            >
               <div className="space-y-2">
-                <Label htmlFor="type">Typ</Label>
-                <select
-                  className="flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  id="type"
-                  name="type"
-                >
-                  {materialTypes.map((type) => (
-                    <option key={type.value} value={type.value}>
-                      {type.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="grid gap-2">
-                {materialTypes.map((type) => (
-                  <p className="text-xs text-muted-foreground" key={type.value}>
-                    <strong>{type.label}:</strong> {type.hint}
-                  </p>
-                ))}
+                <Label>Vorlage</Label>
+                <MaterialTypePicker />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="title">Titel</Label>
@@ -255,7 +245,7 @@ export default async function MaterialsPage() {
                 <FileText aria-hidden="true" className="h-4 w-4" />
                 Material speichern
               </Button>
-            </form>
+            </ToastForm>
           </CardContent>
         </Card>
 
@@ -325,19 +315,29 @@ export default async function MaterialsPage() {
                     </form>
                   </details>
 
-                  <form action={deleteMaterial} className="no-print">
+                  <ConfirmDeleteForm
+                    action={deleteMaterial}
+                    className="no-print"
+                    confirm={{
+                      title: "Material löschen?",
+                      description: `"${material.title}" wird unwiderruflich entfernt.`
+                    }}
+                    successMessage="Material gelöscht"
+                    errorMessage="Material konnte nicht gelöscht werden."
+                  >
                     <input name="id" type="hidden" value={material.id} />
                     <Button size="sm" type="submit" variant="ghost">
                       <Trash2 aria-hidden="true" className="h-4 w-4" />
                       Löschen
                     </Button>
-                  </form>
+                  </ConfirmDeleteForm>
                 </CardContent>
               </Card>
             ))
           ) : (
             <EmptyState
               body="Erstelle Trainingspläne, Matchpläne, Taktikblätter, Listen und Wochenpläne. Die Inhalte werden je nach Typ automatisch vorbereitet."
+              icon={FileText}
               title="Noch kein Material."
             />
           )}
