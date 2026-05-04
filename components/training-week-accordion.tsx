@@ -6,6 +6,7 @@ import {
   ChevronDown,
   ChevronRight,
   ChevronsUpDown,
+  ClipboardList,
   Copy,
   Pencil,
   Save,
@@ -22,6 +23,7 @@ import {
   updateTraining
 } from "@/app/actions";
 import { useConfirm } from "@/components/confirm-dialog";
+import { EmptyState } from "@/components/empty-state";
 import { PdfDownloadButton } from "@/components/pdf-download-button";
 import { PhaseImageUploader } from "@/components/phase-image-uploader";
 import { ToastForm } from "@/components/toast-form";
@@ -156,6 +158,29 @@ function groupTrainingsByWeek(trainings: TrainingListItem[]): WeekGroup[] {
       )
     }))
     .sort((a, b) => b.start.getTime() - a.start.getTime());
+}
+
+function trainingTimeStatus(dateIso: string): "today" | "upcoming" | "past" {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const trainingDate = parseDate(dateIso);
+  if (trainingDate.getTime() === today.getTime()) return "today";
+  if (trainingDate.getTime() > today.getTime()) return "upcoming";
+  return "past";
+}
+
+function intensityLabel(intensity: TrainingIntensity | null | undefined): string | null {
+  if (!intensity) return null;
+  switch (intensity) {
+    case "low":
+      return "Leicht";
+    case "medium":
+      return "Mittel";
+    case "high":
+      return "Intensiv";
+    default:
+      return intensity;
+  }
 }
 
 function durationLabel(training: TrainingListItem, phases: TrainingPhase[]) {
@@ -371,14 +396,12 @@ export function TrainingWeekAccordion({
   if (visibleTrainings.length === 0) {
     return (
       <Card>
-        <CardContent className="p-6">
-          <p className="text-[15px] font-semibold tracking-tight">
-            Noch keine Trainings geplant.
-          </p>
-          <p className="mt-2 text-[13px] leading-6 text-muted-foreground">
-            Erstelle oben rechts ein Training, eine Vorlage oder einen
-            KI-Entwurf.
-          </p>
+        <CardContent className="p-2">
+          <EmptyState
+            body="Erstelle oben rechts dein erstes Training, eine Vorlage oder einen KI-Entwurf."
+            icon={ClipboardList}
+            title="Noch keine Trainings geplant."
+          />
         </CardContent>
       </Card>
     );
@@ -581,12 +604,45 @@ export function TrainingWeekAccordion({
                               </span>
                             </span>
                           </span>
-                          <span className="flex flex-wrap gap-2">
+                          <span className="flex flex-wrap items-center gap-2">
+                            {(() => {
+                              const status = trainingTimeStatus(training.date);
+                              if (status === "today") {
+                                return (
+                                  <Badge variant="success">Heute</Badge>
+                                );
+                              }
+                              if (status === "upcoming") {
+                                return (
+                                  <Badge
+                                    className="border-sky-200/70 bg-sky-50 text-sky-900"
+                                    variant="secondary"
+                                  >
+                                    Geplant
+                                  </Badge>
+                                );
+                              }
+                              return (
+                                <Badge variant="secondary">Vergangen</Badge>
+                              );
+                            })()}
                             {training.intensity ? (
-                              <Badge variant="secondary">{training.intensity}</Badge>
+                              <Badge
+                                className={
+                                  training.intensity === "high"
+                                    ? "border-red-200/70 bg-red-50 text-red-900"
+                                    : training.intensity === "medium"
+                                    ? "border-amber-200/70 bg-amber-50 text-amber-900"
+                                    : "border-emerald-200/70 bg-emerald-50 text-emerald-900"
+                                }
+                                variant="secondary"
+                              >
+                                {intensityLabel(training.intensity)}
+                              </Badge>
                             ) : null}
                             <Badge variant="secondary">
-                              {trainingPhases.length} Phasen
+                              {trainingPhases.length}{" "}
+                              {trainingPhases.length === 1 ? "Phase" : "Phasen"}
                             </Badge>
                           </span>
                         </button>
@@ -794,7 +850,13 @@ export function TrainingWeekAccordion({
                                 </details>
                               ) : null}
 
-                              <div className="flex flex-col gap-2 no-print sm:flex-row sm:flex-wrap">
+                              <div className="flex flex-col gap-2 no-print sm:flex-row sm:flex-wrap sm:items-center">
+                                <PdfDownloadButton
+                                  className="bg-foreground text-background hover:bg-foreground/90"
+                                  href={`/api/pdf/training/${training.id}`}
+                                  label="Trainingsplan als PDF"
+                                  variant="default"
+                                />
                                 <Button
                                   disabled={isDeleting}
                                   onClick={() => toggleEditing(training.id)}
@@ -805,10 +867,6 @@ export function TrainingWeekAccordion({
                                   <Pencil aria-hidden="true" className="h-4 w-4" />
                                   Bearbeiten
                                 </Button>
-                                <PdfDownloadButton
-                                  href={`/api/pdf/training/${training.id}`}
-                                  label="PDF"
-                                />
                                 <Button
                                   disabled={isPending || isDeleting}
                                   onClick={() => handleDuplicate(training.id)}
@@ -820,7 +878,7 @@ export function TrainingWeekAccordion({
                                   Duplizieren
                                 </Button>
                                 <Button
-                                  className="text-red-700 hover:bg-red-50 hover:text-red-800"
+                                  className="text-red-700 hover:bg-red-50 hover:text-red-800 sm:ml-auto"
                                   disabled={isPending || isDeleting}
                                   onClick={() => handleDelete(training)}
                                   size="sm"

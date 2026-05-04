@@ -7,11 +7,13 @@ import {
   CheckCircle2,
   ClipboardList,
   FileText,
+  HeartPulse,
   Shield,
   Trophy,
   UsersRound
 } from "lucide-react";
 import { toggleTask } from "@/app/actions";
+import { DashboardQuickActions } from "@/components/dashboard-quick-actions";
 import { EmptyState } from "@/components/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -31,6 +33,15 @@ function germanGreeting(): string {
   if (hour < 17) return "Hallo";
   if (hour < 22) return "Guten Abend";
   return "Gute Nacht";
+}
+
+function germanLongDate(iso: string): string {
+  return new Intl.DateTimeFormat("de-CH", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric"
+  }).format(new Date(`${iso}T00:00:00`));
 }
 
 function MetricCard({
@@ -85,6 +96,58 @@ async function HeroFocus({ teamId }: { teamId: string }) {
 
   const training = trainingResult.data;
   const match = matchResult.data;
+
+  const todayTraining = training && training.date === today ? training : null;
+  const todayMatch = match && match.date === today ? match : null;
+
+  if (todayTraining || todayMatch) {
+    return (
+      <div className="mt-6 flex flex-wrap gap-2">
+        {todayTraining ? (
+          <Link
+            className="inline-flex items-center gap-3 rounded-2xl bg-emerald-500/15 px-4 py-3 ring-1 ring-emerald-300/30 backdrop-blur-md transition hover:bg-emerald-500/25"
+            href="/trainings"
+          >
+            <span className="rounded-full bg-emerald-400/30 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-100">
+              Heute Training
+            </span>
+            <span className="leading-tight">
+              <span className="block text-[14px] font-semibold tracking-tight">
+                {todayTraining.focus}
+              </span>
+              {todayTraining.start_time ? (
+                <span className="block text-[12px] text-emerald-100/80">
+                  {todayTraining.start_time.slice(0, 5)} Uhr
+                </span>
+              ) : null}
+            </span>
+            <ArrowRight aria-hidden="true" className="h-4 w-4 text-emerald-100" />
+          </Link>
+        ) : null}
+        {todayMatch ? (
+          <Link
+            className="inline-flex items-center gap-3 rounded-2xl bg-amber-500/15 px-4 py-3 ring-1 ring-amber-300/30 backdrop-blur-md transition hover:bg-amber-500/25"
+            href="/matches"
+          >
+            <span className="rounded-full bg-amber-400/30 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-amber-100">
+              Heute Spiel
+            </span>
+            <span className="leading-tight">
+              <span className="block text-[14px] font-semibold tracking-tight">
+                vs. {todayMatch.opponent}
+              </span>
+              {todayMatch.kickoff_time ? (
+                <span className="block text-[12px] text-amber-100/80">
+                  Anpfiff {todayMatch.kickoff_time.slice(0, 5)} Uhr
+                </span>
+              ) : null}
+            </span>
+            <ArrowRight aria-hidden="true" className="h-4 w-4 text-amber-100" />
+          </Link>
+        ) : null}
+      </div>
+    );
+  }
 
   const focus = training
     ? {
@@ -149,6 +212,7 @@ function HeroFocusSkeleton() {
 }
 
 function Hero({ team }: { team: Team }) {
+  const today = todayIsoDate();
   return (
     <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950 p-7 text-white shadow-elevated sm:p-10">
       <div
@@ -168,37 +232,13 @@ function Hero({ team }: { team: Team }) {
             {team.name}
           </h1>
           <p className="mt-2 text-[14px] text-slate-300">
-            {team.season ?? "Aktuelle Saison"} ·{" "}
-            {team.age_group ?? "Altersklasse offen"}
+            {germanLongDate(today)} · {team.season ?? "Aktuelle Saison"}
+            {team.age_group ? ` · ${team.age_group}` : ""}
           </p>
 
           <Suspense fallback={<HeroFocusSkeleton />}>
             <HeroFocus teamId={team.id} />
           </Suspense>
-        </div>
-
-        <div className="flex flex-wrap gap-2">
-          <Button
-            asChild
-            className="bg-white text-slate-950 hover:bg-slate-100"
-            size="sm"
-          >
-            <Link href="/trainings">Training</Link>
-          </Button>
-          <Button
-            asChild
-            className="bg-white/10 text-white ring-1 ring-white/15 backdrop-blur hover:bg-white/15"
-            size="sm"
-          >
-            <Link href="/matches">Spieltag</Link>
-          </Button>
-          <Button
-            asChild
-            className="bg-white/10 text-white ring-1 ring-white/15 backdrop-blur hover:bg-white/15"
-            size="sm"
-          >
-            <Link href="/tactics">Taktik</Link>
-          </Button>
         </div>
       </div>
     </section>
@@ -208,6 +248,12 @@ function Hero({ team }: { team: Team }) {
 function DashboardSectionsSkeleton() {
   return (
     <div className="space-y-8">
+      <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <Skeleton className="h-[88px] rounded-2xl" key={i} />
+        ))}
+      </div>
+
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {Array.from({ length: 4 }).map((_, i) => (
           <Card key={i}>
@@ -217,26 +263,6 @@ function DashboardSectionsSkeleton() {
                 <Skeleton className="h-7 w-12" />
               </div>
               <Skeleton className="h-10 w-10 rounded-xl" />
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      <div className="space-y-2">
-        <Skeleton className="h-5 w-44" />
-        <Skeleton className="h-3.5 w-64" />
-      </div>
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-        {Array.from({ length: 3 }).map((_, i) => (
-          <Card key={i}>
-            <CardContent className="space-y-3 p-5">
-              <div className="flex items-center justify-between">
-                <Skeleton className="h-5 w-16 rounded-full" />
-                <Skeleton className="h-4 w-4 rounded-full" />
-              </div>
-              <Skeleton className="h-4 w-3/4" />
-              <Skeleton className="h-3 w-full" />
-              <Skeleton className="h-3 w-4/5" />
             </CardContent>
           </Card>
         ))}
@@ -389,9 +415,14 @@ async function DashboardSections({ teamId }: { teamId: string }) {
   const playersWithoutBirthYear = players.filter(
     (player) => !player.birth_year
   ).length;
-  const limitedPlayers = players.filter(
-    (player) => player.status === "injured" || player.status === "limited"
-  ).length;
+  const injuredPlayers = players.filter(
+    (player) => player.status === "injured"
+  );
+  const limitedPlayersList = players.filter(
+    (player) => player.status === "limited"
+  );
+  const availablePlayers = players.length - injuredPlayers.length - limitedPlayersList.length;
+  const limitedPlayers = injuredPlayers.length + limitedPlayersList.length;
   const coachHints = [
     players.length === 0
       ? {
@@ -445,6 +476,9 @@ async function DashboardSections({ teamId }: { teamId: string }) {
 
   return (
     <>
+      {/* Quick Actions */}
+      <DashboardQuickActions />
+
       {/* Metrics */}
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard
@@ -467,6 +501,260 @@ async function DashboardSections({ teamId }: { teamId: string }) {
           value={boards.length}
           icon={<Shield className="h-4.5 w-4.5" />}
         />
+      </section>
+
+      {/* Nächstes Training / Spiel */}
+      <section className="grid gap-4 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle>Nächstes Training</CardTitle>
+              {nextTraining?.intensity ? (
+                <Badge variant="success">{nextTraining.intensity}</Badge>
+              ) : null}
+            </div>
+          </CardHeader>
+          <CardContent>
+            {nextTraining ? (
+              <div className="space-y-4">
+                <div className="rounded-2xl bg-secondary/60 p-4">
+                  <p className="text-[15px] font-semibold tracking-tight">
+                    {nextTraining.focus}
+                  </p>
+                  <p className="mt-1 text-[13px] text-muted-foreground">
+                    {formatDate(nextTraining.date)}
+                    {nextTraining.start_time
+                      ? ` · ${nextTraining.start_time.slice(0, 5)}`
+                      : ""}
+                    {nextTraining.location ? ` · ${nextTraining.location}` : ""}
+                  </p>
+                  <p className="mt-3 text-[13px] leading-6 text-foreground/80">
+                    {nextTraining.goal ?? "Noch kein Trainingsziel hinterlegt."}
+                  </p>
+                </div>
+                <Button asChild size="sm" variant="outline">
+                  <Link href="/trainings">
+                    Trainingsplan öffnen
+                    <ArrowRight aria-hidden="true" className="h-4 w-4" />
+                  </Link>
+                </Button>
+              </div>
+            ) : (
+              <EmptyState
+                action={
+                  <Button asChild size="sm">
+                    <Link href="/trainings">Training erstellen</Link>
+                  </Button>
+                }
+                body="Erstelle einen Plan mit Phasen, Material und Coachingpunkten."
+                icon={ClipboardList}
+                title="Noch kein Training geplant."
+              />
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Nächstes Spiel</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {nextMatch ? (
+              <div className="space-y-4">
+                <div className="relative overflow-hidden rounded-2xl bg-slate-950 p-4 text-white">
+                  <div
+                    aria-hidden="true"
+                    className="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-emerald-500/15 blur-2xl"
+                  />
+                  <div className="relative flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-emerald-300">
+                        Gegner
+                      </p>
+                      <p className="mt-1 text-xl font-semibold tracking-tight">
+                        {nextMatch.opponent}
+                      </p>
+                    </div>
+                    <Trophy
+                      aria-hidden="true"
+                      className="h-5 w-5 text-emerald-300"
+                    />
+                  </div>
+                  <p className="relative mt-3 text-[13px] text-slate-300">
+                    {formatDate(nextMatch.date)}
+                    {nextMatch.kickoff_time
+                      ? ` · ${nextMatch.kickoff_time.slice(0, 5)}`
+                      : ""}
+                    {nextMatch.formation ? ` · ${nextMatch.formation}` : ""}
+                  </p>
+                </div>
+                <Button asChild size="sm" variant="outline">
+                  <Link href="/matches">
+                    Spielplanung öffnen
+                    <ArrowRight aria-hidden="true" className="h-4 w-4" />
+                  </Link>
+                </Button>
+              </div>
+            ) : (
+              <EmptyState
+                action={
+                  <Button asChild size="sm">
+                    <Link href="/matches">Matchday planen</Link>
+                  </Button>
+                }
+                body="Plane Gegner, Treffpunkt, Aufgebot, Formation und Matchziele."
+                icon={Trophy}
+                title="Noch kein Spiel geplant."
+              />
+            )}
+          </CardContent>
+        </Card>
+      </section>
+
+      {/* Spielerstatus & Aufgaben */}
+      <section className="grid gap-4 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle>Spielerstatus</CardTitle>
+              <Link
+                className="text-[12px] font-medium text-primary hover:underline"
+                href="/players"
+              >
+                Kader öffnen
+              </Link>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {players.length > 0 ? (
+              <div className="space-y-3">
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="rounded-2xl border border-emerald-200/60 bg-emerald-50/70 p-3 text-emerald-900">
+                    <p className="text-[11px] font-medium uppercase tracking-[0.14em]">
+                      Verfügbar
+                    </p>
+                    <p className="mt-1 text-2xl font-semibold tracking-tight">
+                      {availablePlayers}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-amber-200/60 bg-amber-50/70 p-3 text-amber-900">
+                    <p className="text-[11px] font-medium uppercase tracking-[0.14em]">
+                      Eingeschränkt
+                    </p>
+                    <p className="mt-1 text-2xl font-semibold tracking-tight">
+                      {limitedPlayersList.length}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-red-200/60 bg-red-50/70 p-3 text-red-900">
+                    <p className="text-[11px] font-medium uppercase tracking-[0.14em]">
+                      Verletzt
+                    </p>
+                    <p className="mt-1 text-2xl font-semibold tracking-tight">
+                      {injuredPlayers.length}
+                    </p>
+                  </div>
+                </div>
+                {injuredPlayers.length + limitedPlayersList.length > 0 ? (
+                  <ul className="space-y-1.5">
+                    {[...injuredPlayers, ...limitedPlayersList]
+                      .slice(0, 4)
+                      .map((player) => (
+                        <li
+                          className="flex items-center justify-between gap-3 rounded-xl border border-border/60 bg-secondary/40 px-3 py-2 text-[13px]"
+                          key={player.id}
+                        >
+                          <span className="flex items-center gap-2 truncate">
+                            <span
+                              aria-hidden="true"
+                              className={
+                                player.status === "injured"
+                                  ? "h-2 w-2 rounded-full bg-red-500"
+                                  : "h-2 w-2 rounded-full bg-amber-500"
+                              }
+                            />
+                            <span className="truncate font-medium">
+                              {player.name}
+                            </span>
+                          </span>
+                          <Badge variant="secondary">
+                            {player.status === "injured"
+                              ? "Verletzt"
+                              : "Eingeschränkt"}
+                          </Badge>
+                        </li>
+                      ))}
+                  </ul>
+                ) : (
+                  <p className="text-[13px] text-muted-foreground">
+                    Alle Spieler aktuell einsatzbereit.
+                  </p>
+                )}
+              </div>
+            ) : (
+              <EmptyState
+                action={
+                  <Button asChild size="sm">
+                    <Link href="/players">Spieler anlegen</Link>
+                  </Button>
+                }
+                body="Erfasse zuerst deinen Kader, damit Status und Belastung sichtbar werden."
+                icon={HeartPulse}
+                title="Noch kein Kader."
+              />
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle>Offene Aufgaben</CardTitle>
+              <Badge variant="secondary">{openTasks.length}</Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {tasks.length > 0 ? (
+              tasks.map((task) => (
+                <form
+                  action={toggleTask}
+                  className="flex items-center justify-between gap-3 rounded-xl border border-border/60 bg-secondary/40 px-3.5 py-3 transition-colors hover:bg-secondary/60"
+                  key={task.id}
+                >
+                  <input name="id" type="hidden" value={task.id} />
+                  <input name="status" type="hidden" value={task.status} />
+                  <div className="min-w-0">
+                    <p
+                      className={`text-[14px] font-medium tracking-tight ${
+                        task.status === "done"
+                          ? "text-muted-foreground line-through"
+                          : "text-foreground"
+                      }`}
+                    >
+                      {task.title}
+                    </p>
+                    <p className="mt-0.5 text-[12px] text-muted-foreground">
+                      {task.due_date ? formatDate(task.due_date) : "Ohne Datum"}
+                    </p>
+                  </div>
+                  <Button
+                    className="shrink-0"
+                    size="sm"
+                    type="submit"
+                    variant={task.status === "done" ? "secondary" : "outline"}
+                  >
+                    {task.status === "done" ? "Erledigt" : "Offen"}
+                  </Button>
+                </form>
+              ))
+            ) : (
+              <EmptyState
+                body="Erstelle Aufgaben über das + unten rechts."
+                icon={ClipboardList}
+                title="Keine offenen Aufgaben."
+              />
+            )}
+          </CardContent>
+        </Card>
       </section>
 
       {/* Trainer-Hinweise */}
@@ -520,154 +808,8 @@ async function DashboardSections({ teamId }: { teamId: string }) {
         )}
       </section>
 
-      {/* Nächstes Training / Spiel */}
-      <section className="grid gap-4 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle>Nächstes Training</CardTitle>
-              {nextTraining?.intensity ? (
-                <Badge variant="success">{nextTraining.intensity}</Badge>
-              ) : null}
-            </div>
-          </CardHeader>
-          <CardContent>
-            {nextTraining ? (
-              <div className="space-y-4">
-                <div className="rounded-2xl bg-secondary/60 p-4">
-                  <p className="text-[15px] font-semibold tracking-tight">
-                    {nextTraining.focus}
-                  </p>
-                  <p className="mt-1 text-[13px] text-muted-foreground">
-                    {formatDate(nextTraining.date)}
-                    {nextTraining.start_time
-                      ? ` · ${nextTraining.start_time.slice(0, 5)}`
-                      : ""}
-                    {nextTraining.location ? ` · ${nextTraining.location}` : ""}
-                  </p>
-                  <p className="mt-3 text-[13px] leading-6 text-foreground/80">
-                    {nextTraining.goal ?? "Noch kein Trainingsziel hinterlegt."}
-                  </p>
-                </div>
-                <Button asChild size="sm" variant="outline">
-                  <Link href="/trainings">
-                    Trainingsplan öffnen
-                    <ArrowRight aria-hidden="true" className="h-4 w-4" />
-                  </Link>
-                </Button>
-              </div>
-            ) : (
-              <EmptyState
-                body="Erstelle einen Plan mit Phasen, Material und Coachingpunkten."
-                title="Noch kein Training geplant."
-              />
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Nächstes Spiel</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {nextMatch ? (
-              <div className="space-y-4">
-                <div className="relative overflow-hidden rounded-2xl bg-slate-950 p-4 text-white">
-                  <div
-                    aria-hidden="true"
-                    className="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-emerald-500/15 blur-2xl"
-                  />
-                  <div className="relative flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-emerald-300">
-                        Gegner
-                      </p>
-                      <p className="mt-1 text-xl font-semibold tracking-tight">
-                        {nextMatch.opponent}
-                      </p>
-                    </div>
-                    <Trophy
-                      aria-hidden="true"
-                      className="h-5 w-5 text-emerald-300"
-                    />
-                  </div>
-                  <p className="relative mt-3 text-[13px] text-slate-300">
-                    {formatDate(nextMatch.date)}
-                    {nextMatch.kickoff_time
-                      ? ` · ${nextMatch.kickoff_time.slice(0, 5)}`
-                      : ""}
-                    {nextMatch.formation ? ` · ${nextMatch.formation}` : ""}
-                  </p>
-                </div>
-                <Button asChild size="sm" variant="outline">
-                  <Link href="/matches">
-                    Spielplanung öffnen
-                    <ArrowRight aria-hidden="true" className="h-4 w-4" />
-                  </Link>
-                </Button>
-              </div>
-            ) : (
-              <EmptyState
-                body="Plane Gegner, Treffpunkt, Aufgebot, Formation und Matchziele."
-                title="Noch kein Spiel geplant."
-              />
-            )}
-          </CardContent>
-        </Card>
-      </section>
-
-      {/* Aufgaben & Aktivität */}
-      <section className="grid gap-4 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle>Offene Aufgaben</CardTitle>
-              <Badge variant="secondary">{openTasks.length}</Badge>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {tasks.length > 0 ? (
-              tasks.map((task) => (
-                <form
-                  action={toggleTask}
-                  className="flex items-center justify-between gap-3 rounded-xl border border-border/60 bg-secondary/40 px-3.5 py-3 transition-colors hover:bg-secondary/60"
-                  key={task.id}
-                >
-                  <input name="id" type="hidden" value={task.id} />
-                  <input name="status" type="hidden" value={task.status} />
-                  <div className="min-w-0">
-                    <p
-                      className={`text-[14px] font-medium tracking-tight ${
-                        task.status === "done"
-                          ? "text-muted-foreground line-through"
-                          : "text-foreground"
-                      }`}
-                    >
-                      {task.title}
-                    </p>
-                    <p className="mt-0.5 text-[12px] text-muted-foreground">
-                      {task.due_date ? formatDate(task.due_date) : "Ohne Datum"}
-                    </p>
-                  </div>
-                  <Button
-                    className="shrink-0"
-                    size="sm"
-                    type="submit"
-                    variant={task.status === "done" ? "secondary" : "outline"}
-                  >
-                    {task.status === "done" ? "Erledigt" : "Offen"}
-                  </Button>
-                </form>
-              ))
-            ) : (
-              <EmptyState
-                body="Erstelle Aufgaben über das + unten rechts."
-                title="Keine offenen Aufgaben."
-              />
-            )}
-          </CardContent>
-        </Card>
-
+      {/* Letzte Aktivitäten */}
+      <section>
         <Card>
           <CardHeader>
             <CardTitle>Letzte Aktivitäten</CardTitle>

@@ -180,13 +180,13 @@ export default async function TrainingsPage({ searchParams }: TrainingsPageProps
             Coachingpunkten.
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <TrainingAiDraftDrawer
+        <div className="flex flex-wrap gap-2 sm:flex-row-reverse sm:items-center">
+          <CreateTrainingDrawer
             ageGroup={team.age_group}
             initialDate={initialDate}
           />
           <TrainingPresetDrawer initialDate={initialDate} />
-          <CreateTrainingDrawer
+          <TrainingAiDraftDrawer
             ageGroup={team.age_group}
             initialDate={initialDate}
           />
