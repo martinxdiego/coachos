@@ -12,8 +12,6 @@ import {
 } from "@/components/nav-config";
 import { cn } from "@/lib/utils";
 
-const HOVER_CLOSE_DELAY_MS = 140;
-
 export function AppNav() {
   const pathname = usePathname();
   const [openClusterId, setOpenClusterId] = useState<string | null>(null);
@@ -55,8 +53,9 @@ export function AppNav() {
         if (cluster.href) {
           return (
             <Link
+              aria-current={isActive ? "page" : undefined}
               className={cn(
-                "inline-flex h-9 shrink-0 items-center gap-2 rounded-full px-3.5 text-[13px] font-medium tracking-tight text-slate-300 transition-colors duration-200 ease-spring hover:text-white",
+                "relative inline-flex h-9 shrink-0 items-center gap-2 rounded-full px-3.5 text-[13px] font-medium tracking-tight text-slate-300 transition-colors duration-200 ease-spring hover:text-white",
                 isActive &&
                   "bg-white text-slate-950 shadow-soft hover:text-slate-950"
               )}
@@ -108,48 +107,18 @@ function ClusterButton({
 }) {
   const Icon = cluster.icon;
   const items = cluster.items ?? [];
-  const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const cancelClose = () => {
-    if (closeTimeoutRef.current) {
-      clearTimeout(closeTimeoutRef.current);
-      closeTimeoutRef.current = null;
-    }
-  };
-
-  const scheduleClose = () => {
-    cancelClose();
-    closeTimeoutRef.current = setTimeout(() => {
-      onClose();
-      closeTimeoutRef.current = null;
-    }, HOVER_CLOSE_DELAY_MS);
-  };
-
-  useEffect(() => {
-    return () => {
-      cancelClose();
-    };
-  }, []);
 
   return (
-    <div
-      className="relative"
-      onMouseEnter={() => {
-        cancelClose();
-        if (!isOpen) onOpen();
-      }}
-      onMouseLeave={scheduleClose}
-    >
+    <div className="relative">
       <button
         aria-expanded={isOpen}
         aria-haspopup="menu"
         className={cn(
-          "inline-flex h-9 shrink-0 items-center gap-2 rounded-full px-3.5 text-[13px] font-medium tracking-tight text-slate-300 transition-colors duration-200 ease-spring hover:text-white",
+          "relative inline-flex h-9 shrink-0 items-center gap-2 rounded-full px-3.5 text-[13px] font-medium tracking-tight text-slate-300 transition-colors duration-200 ease-spring hover:text-white",
           isActive &&
             "bg-white text-slate-950 shadow-soft hover:text-slate-950"
         )}
         onClick={() => (isOpen ? onClose() : onOpen())}
-        onFocus={cancelClose}
         type="button"
       >
         <Icon aria-hidden="true" className="h-4 w-4" />
@@ -161,6 +130,12 @@ function ClusterButton({
             isOpen && "rotate-180"
           )}
         />
+        {isActive && !isOpen ? (
+          <span
+            aria-hidden="true"
+            className="absolute -bottom-1 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-primary"
+          />
+        ) : null}
       </button>
 
       <div
@@ -173,8 +148,6 @@ function ClusterButton({
             ? "pointer-events-auto opacity-100 scale-y-100 translate-y-0"
             : "pointer-events-none opacity-0 scale-y-90 -translate-y-1"
         )}
-        onMouseEnter={cancelClose}
-        onMouseLeave={scheduleClose}
         role="menu"
       >
         <div className="overflow-hidden rounded-2xl border border-border/60 bg-card text-foreground shadow-elevated">
@@ -185,6 +158,7 @@ function ClusterButton({
               return (
                 <li key={item.href}>
                   <Link
+                    aria-current={itemActive ? "page" : undefined}
                     className={cn(
                       "flex items-center gap-3 rounded-xl px-2.5 py-2 transition-colors duration-150",
                       itemActive

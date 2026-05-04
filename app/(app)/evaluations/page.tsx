@@ -12,6 +12,7 @@ import {
   savePlayerEvaluation,
   updatePlayerEvaluation
 } from "@/app/actions";
+import { ConfirmDeleteForm } from "@/components/confirm-delete-form";
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
@@ -481,7 +482,16 @@ export default async function EvaluationsPage() {
                           Bewertung speichern
                         </Button>
                       </form>
-                      <form action={deletePlayerEvaluation}>
+                      <ConfirmDeleteForm
+                        action={deletePlayerEvaluation}
+                        confirm={{
+                          title: "Bewertung löschen?",
+                          description:
+                            "Diese Bewertung wird unwiderruflich entfernt."
+                        }}
+                        successMessage="Bewertung gelöscht"
+                        errorMessage="Bewertung konnte nicht gelöscht werden."
+                      >
                         <input name="id" type="hidden" value={evaluation.id} />
                         <input
                           name="player_id"
@@ -496,7 +506,7 @@ export default async function EvaluationsPage() {
                           <Trash2 aria-hidden="true" className="h-4 w-4" />
                           Löschen
                         </Button>
-                      </form>
+                      </ConfirmDeleteForm>
                     </div>
                   </details>
                 );

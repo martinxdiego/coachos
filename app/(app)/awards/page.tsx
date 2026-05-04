@@ -5,6 +5,7 @@ import {
   deletePlayerAward,
   updatePlayerAward
 } from "@/app/actions";
+import { ConfirmDeleteForm } from "@/components/confirm-delete-form";
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
@@ -287,7 +288,16 @@ export default async function AwardsPage() {
                             Auszeichnung speichern
                           </Button>
                         </form>
-                        <form action={deletePlayerAward}>
+                        <ConfirmDeleteForm
+                          action={deletePlayerAward}
+                          confirm={{
+                            title: "Auszeichnung entfernen?",
+                            description:
+                              "Die Auszeichnung wird unwiderruflich entfernt."
+                          }}
+                          successMessage="Auszeichnung entfernt"
+                          errorMessage="Auszeichnung konnte nicht entfernt werden."
+                        >
                           <input name="id" type="hidden" value={award.id} />
                           <input
                             name="player_id"
@@ -302,7 +312,7 @@ export default async function AwardsPage() {
                             <Trash2 aria-hidden="true" className="h-4 w-4" />
                             Löschen
                           </Button>
-                        </form>
+                        </ConfirmDeleteForm>
                       </div>
                     </details>
                   );

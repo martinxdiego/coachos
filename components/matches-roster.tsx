@@ -17,6 +17,7 @@ import {
   savePlayerEvaluation,
   updateMatch
 } from "@/app/actions";
+import { ConfirmDeleteForm } from "@/components/confirm-delete-form";
 import { EmptyState } from "@/components/empty-state";
 import { PdfDownloadButton } from "@/components/pdf-download-button";
 import { ToastForm } from "@/components/toast-form";
@@ -531,8 +532,12 @@ function MatchCard({
               href={`/api/pdf/match/${match.id}`}
               label="Spielplan PDF"
             />
-            <ToastForm
+            <ConfirmDeleteForm
               action={deleteMatch}
+              confirm={{
+                title: "Spiel wirklich löschen?",
+                description: `Das Spiel gegen ${match.opponent} am ${formatDate(match.date)} wird unwiderruflich entfernt.`
+              }}
               successMessage="Spiel gelöscht"
               errorMessage="Spiel konnte nicht gelöscht werden."
             >
@@ -546,7 +551,7 @@ function MatchCard({
                 <Trash2 aria-hidden="true" className="h-4 w-4" />
                 Spiel löschen
               </Button>
-            </ToastForm>
+            </ConfirmDeleteForm>
           </div>
         </div>
       </CardContent>

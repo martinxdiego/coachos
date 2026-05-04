@@ -28,8 +28,9 @@ export function MobileBottomNav({ enabled }: { enabled: boolean }) {
           if (cluster.href) {
             return (
               <Link
+                aria-current={isActive ? "page" : undefined}
                 className={cn(
-                  "flex h-12 flex-col items-center justify-center gap-0.5 rounded-xl text-[10.5px] font-medium tracking-tight transition-colors duration-200 ease-spring active:scale-95",
+                  "relative flex h-12 flex-col items-center justify-center gap-0.5 rounded-xl text-[10.5px] font-medium tracking-tight transition-colors duration-200 ease-spring active:scale-95",
                   isActive
                     ? "bg-foreground text-background"
                     : "text-muted-foreground hover:text-foreground"
@@ -46,8 +47,9 @@ export function MobileBottomNav({ enabled }: { enabled: boolean }) {
           return (
             <button
               aria-label={`${cluster.label} öffnen`}
+              aria-current={isActive ? "page" : undefined}
               className={cn(
-                "flex h-12 flex-col items-center justify-center gap-0.5 rounded-xl text-[10.5px] font-medium tracking-tight transition-colors duration-200 ease-spring active:scale-95",
+                "relative flex h-12 flex-col items-center justify-center gap-0.5 rounded-xl text-[10.5px] font-medium tracking-tight transition-colors duration-200 ease-spring active:scale-95",
                 isActive
                   ? "bg-foreground text-background"
                   : "text-muted-foreground hover:text-foreground"
@@ -58,6 +60,12 @@ export function MobileBottomNav({ enabled }: { enabled: boolean }) {
             >
               <Icon aria-hidden="true" className="h-[18px] w-[18px]" />
               {cluster.label}
+              {isActive ? (
+                <span
+                  aria-hidden="true"
+                  className="absolute top-1 right-2 h-1.5 w-1.5 rounded-full bg-primary"
+                />
+              ) : null}
             </button>
           );
         })}

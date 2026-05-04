@@ -4,6 +4,7 @@ import { LogOut, Plus } from "lucide-react";
 import { signOut } from "@/app/actions";
 import { AppNav } from "@/components/app-nav";
 import { AppToaster } from "@/components/app-toaster";
+import { ConfirmProvider } from "@/components/confirm-dialog";
 import { MobileBottomNav } from "@/components/mobile-bottom-nav";
 import { MoreNavProvider } from "@/components/more-nav-provider";
 import { PageTransition } from "@/components/page-transition";
@@ -31,6 +32,7 @@ export function AppShell({
   teamOptions
 }: AppShellProps) {
   return (
+    <ConfirmProvider>
     <MoreNavProvider>
       <div className="min-h-screen bg-background">
         <header className="sticky top-0 z-30 border-b border-white/5 bg-slate-950/85 text-white shadow-[0_12px_40px_rgba(15,23,42,0.18)] backdrop-blur-xl">
@@ -103,5 +105,6 @@ export function AppShell({
         <AppToaster />
       </div>
     </MoreNavProvider>
+    </ConfirmProvider>
   );
 }

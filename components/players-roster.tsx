@@ -13,6 +13,7 @@ import {
   X
 } from "lucide-react";
 import { createPlayer, deletePlayer, importPlayers } from "@/app/actions";
+import { ConfirmDeleteForm } from "@/components/confirm-delete-form";
 import { EmptyState } from "@/components/empty-state";
 import { SideDrawer } from "@/components/side-drawer";
 import { ToastForm } from "@/components/toast-form";
@@ -495,8 +496,12 @@ function PlayerCard({ player }: { player: PlayerRow }) {
         <Button asChild size="sm" variant="outline">
           <Link href={`/player-mode?player=${player.id}`}>Spieler-Modus</Link>
         </Button>
-        <ToastForm
+        <ConfirmDeleteForm
           action={deletePlayer}
+          confirm={{
+            title: "Spieler entfernen?",
+            description: `${player.name} wird aus dem Kader entfernt. Bewertungen, Anwesenheiten und verknüpfte Daten gehen verloren.`
+          }}
           successMessage="Spieler entfernt"
           errorMessage="Spieler konnte nicht entfernt werden."
         >
@@ -510,7 +515,7 @@ function PlayerCard({ player }: { player: PlayerRow }) {
           >
             <Trash2 aria-hidden="true" className="h-4 w-4" />
           </Button>
-        </ToastForm>
+        </ConfirmDeleteForm>
       </div>
     </div>
   );

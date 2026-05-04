@@ -21,6 +21,7 @@ import {
   savePlayerEvaluation,
   updateTraining
 } from "@/app/actions";
+import { useConfirm } from "@/components/confirm-dialog";
 import { PdfDownloadButton } from "@/components/pdf-download-button";
 import { PhaseImageUploader } from "@/components/phase-image-uploader";
 import { ToastForm } from "@/components/toast-form";
@@ -186,6 +187,7 @@ export function TrainingWeekAccordion({
   trainings: TrainingListItem[];
 }) {
   const router = useRouter();
+  const confirm = useConfirm();
   const [visibleTrainings, setVisibleTrainings] = useState(trainings);
   const [openWeeks, setOpenWeeks] = useState<Set<string>>(new Set());
   const [openTrainings, setOpenTrainings] = useState<Set<string>>(new Set());
@@ -295,14 +297,18 @@ export function TrainingWeekAccordion({
     });
   }
 
-  function handleDelete(training: TrainingListItem) {
+  async function handleDelete(training: TrainingListItem) {
     if (deletingIds.has(training.id)) {
       return;
     }
 
-    const confirmed = window.confirm(
-      `Training "${training.focus}" am ${formatDate(training.date)} wirklich löschen?`
-    );
+    const confirmed = await confirm({
+      title: "Training wirklich löschen?",
+      description: `"${training.focus}" am ${formatDate(training.date)} wird unwiderruflich entfernt.`,
+      confirmLabel: "Löschen",
+      cancelLabel: "Abbrechen",
+      destructive: true
+    });
 
     if (!confirmed) {
       return;
