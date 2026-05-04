@@ -46,6 +46,11 @@ type MaterialKind =
   | "ball-orange"
   | "ball-white"
   | "ball-blue"
+  | "marker-cone-red"
+  | "marker-cone-yellow"
+  | "marker-cone-blue"
+  | "marker-cone-black"
+  | "marker-cone-white"
   | "pole"
   | "hurdle"
   | "ring"
@@ -161,6 +166,11 @@ const validMaterialKinds = new Set<MaterialKind>([
   "ball-orange",
   "ball-white",
   "ball-blue",
+  "marker-cone-red",
+  "marker-cone-yellow",
+  "marker-cone-blue",
+  "marker-cone-black",
+  "marker-cone-white",
   "pole",
   "hurdle",
   "ring",
@@ -177,6 +187,11 @@ const materialLabels: Record<MaterialKind, string> = {
   "ball-orange": "Ball (orange)",
   "ball-white": "Ball (weiß)",
   "ball-blue": "Ball (blau)",
+  "marker-cone-red": "Markierungshütchen (rot)",
+  "marker-cone-yellow": "Markierungshütchen (gelb)",
+  "marker-cone-blue": "Markierungshütchen (blau)",
+  "marker-cone-black": "Markierungshütchen (schwarz)",
+  "marker-cone-white": "Markierungshütchen (weiß)",
   pole: "Pylon",
   hurdle: "Hürde",
   ring: "Reifen",
@@ -562,6 +577,11 @@ const materialIconSizes: Record<MaterialKind, MaterialIconSize> = {
   "ball-orange": { width: 18, height: 18 },
   "ball-white": { width: 18, height: 18 },
   "ball-blue": { width: 18, height: 18 },
+  "marker-cone-red": { width: 16, height: 16 },
+  "marker-cone-yellow": { width: 16, height: 16 },
+  "marker-cone-blue": { width: 16, height: 16 },
+  "marker-cone-black": { width: 16, height: 16 },
+  "marker-cone-white": { width: 16, height: 16 },
   pole: { width: 10, height: 32 },
   hurdle: { width: 28, height: 18 },
   ring: { width: 22, height: 22 },
@@ -599,6 +619,45 @@ function MaterialIcon({
           opacity="0.45"
           transform="scale(0.55) translate(7 7)"
         />
+      </svg>
+    );
+  }
+
+  if (
+    kind === "marker-cone-red" ||
+    kind === "marker-cone-yellow" ||
+    kind === "marker-cone-blue" ||
+    kind === "marker-cone-black" ||
+    kind === "marker-cone-white"
+  ) {
+    const palette: Record<string, { fill: string; rim: string }> = {
+      "marker-cone-red": { fill: "#ef4444", rim: "#7f1d1d" },
+      "marker-cone-yellow": { fill: "#facc15", rim: "#854d0e" },
+      "marker-cone-blue": { fill: "#3b82f6", rim: "#1e3a8a" },
+      "marker-cone-black": { fill: "#1f2937", rim: "#f8fafc" },
+      "marker-cone-white": { fill: "#ffffff", rim: "#475569" }
+    };
+    const { fill, rim } = palette[kind];
+    return (
+      <svg height={h} viewBox="0 0 16 16" width={w}>
+        <circle
+          cx="8"
+          cy="8"
+          fill={fill}
+          r="7"
+          stroke={rim}
+          strokeWidth="0.9"
+        />
+        <circle
+          cx="8"
+          cy="8"
+          fill="none"
+          opacity="0.55"
+          r="4"
+          stroke={rim}
+          strokeWidth="0.7"
+        />
+        <circle cx="8" cy="8" fill={rim} opacity="0.7" r="1.4" />
       </svg>
     );
   }
