@@ -347,19 +347,10 @@ export function PlayersRoster({ players }: PlayersRosterProps) {
               />
             </div>
           </div>
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="cp-position">Position</Label>
               <Input id="cp-position" name="position" placeholder="ZM" />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="cp-birth-year">Jahrgang</Label>
-              <Input
-                id="cp-birth-year"
-                name="birth_year"
-                placeholder="2010"
-                type="number"
-              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="cp-jersey">Rückennummer</Label>
@@ -371,6 +362,66 @@ export function PlayersRoster({ players }: PlayersRosterProps) {
               />
             </div>
           </div>
+          <div className="space-y-2">
+            <Label>Status</Label>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {(
+                [
+                  ["available", "Fit", "border-emerald-200 bg-emerald-50 text-emerald-900 has-[:checked]:border-emerald-400 has-[:checked]:bg-emerald-100"],
+                  ["limited", "Aufbau", "border-amber-200 bg-amber-50 text-amber-900 has-[:checked]:border-amber-400 has-[:checked]:bg-amber-100"],
+                  ["injured", "Verletzt", "border-red-200 bg-red-50 text-red-900 has-[:checked]:border-red-400 has-[:checked]:bg-red-100"],
+                  ["absent", "Abwesend", "border-border bg-secondary text-foreground has-[:checked]:border-foreground has-[:checked]:bg-foreground/10"]
+                ] as const
+              ).map(([value, label, classes], idx) => (
+                <label
+                  className={cn(
+                    "flex cursor-pointer items-center justify-center gap-2 rounded-xl border px-3 py-2.5 text-[13px] font-medium tracking-tight transition-colors",
+                    classes
+                  )}
+                  key={value}
+                >
+                  <input
+                    className="sr-only"
+                    defaultChecked={idx === 0}
+                    name="status"
+                    type="radio"
+                    value={value}
+                  />
+                  {label}
+                </label>
+              ))}
+            </div>
+          </div>
+          <details className="rounded-xl border border-border/70 bg-secondary/30 p-3 text-[13px]">
+            <summary className="cursor-pointer font-medium tracking-tight">
+              Optionale Felder
+            </summary>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="cp-birth-year">Jahrgang</Label>
+                <Input
+                  id="cp-birth-year"
+                  name="birth_year"
+                  placeholder="2010"
+                  type="number"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="cp-strong-foot">Bevorzugter Fuss</Label>
+                <select
+                  className="flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  defaultValue=""
+                  id="cp-strong-foot"
+                  name="strong_foot"
+                >
+                  <option value="">Offen</option>
+                  <option value="left">Links</option>
+                  <option value="right">Rechts</option>
+                  <option value="both">Beidfüssig</option>
+                </select>
+              </div>
+            </div>
+          </details>
           <Button className="w-full" type="submit">
             Spieler speichern
           </Button>
