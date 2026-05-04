@@ -1,13 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export interface ProfileTab {
   id: string;
   label: string;
-  icon?: LucideIcon;
+  icon?: React.ReactNode;
   content: React.ReactNode;
   badge?: string | number;
 }
@@ -32,7 +31,6 @@ export function ProfileTabs({
         role="tablist"
       >
         {tabs.map((tab) => {
-          const Icon = tab.icon;
           const isActive = tab.id === active;
           return (
             <button
@@ -50,7 +48,7 @@ export function ProfileTabs({
               role="tab"
               type="button"
             >
-              {Icon ? <Icon aria-hidden="true" className="h-4 w-4" /> : null}
+              {tab.icon ?? null}
               {tab.label}
               {tab.badge !== undefined && tab.badge !== null && tab.badge !== "" ? (
                 <span

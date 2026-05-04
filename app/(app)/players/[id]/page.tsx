@@ -926,40 +926,46 @@ export default async function PlayerProfilePage({
     </div>
   );
 
+  const tabIconClass = "h-4 w-4";
   const tabs: ProfileTab[] = [
-    { id: "overview", label: "Übersicht", icon: Info, content: overviewTab },
+    {
+      id: "overview",
+      label: "Übersicht",
+      icon: <Info aria-hidden="true" className={tabIconClass} />,
+      content: overviewTab
+    },
     {
       id: "development",
       label: "Entwicklung",
-      icon: Target,
+      icon: <Target aria-hidden="true" className={tabIconClass} />,
       content: developmentTab,
       badge: points.length > 0 ? points.length : undefined
     },
     {
       id: "health",
       label: "Gesundheit",
-      icon: HeartPulse,
+      icon: <HeartPulse aria-hidden="true" className={tabIconClass} />,
       content: healthTab,
       badge: health.length > 0 ? health.length : undefined
     },
     {
       id: "evaluations",
       label: "Bewertungen",
-      icon: Star,
+      icon: <Star aria-hidden="true" className={tabIconClass} />,
       content: evaluationsTab,
       badge: evaluations.length > 0 ? evaluations.length : undefined
     },
     {
       id: "notes",
       label: "Notizen",
-      icon: StickyNote,
+      icon: <StickyNote aria-hidden="true" className={tabIconClass} />,
       content: notesTab,
       badge: feedback.length > 0 ? feedback.length : undefined
     },
     {
       id: "contacts",
       label: "Kontakte",
-      icon: Phone,
+      icon: <Phone aria-hidden="true" className={tabIconClass} />,
       content: contactsTab,
       badge: links.length > 0 ? links.length : undefined
     }
