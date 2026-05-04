@@ -12,12 +12,13 @@ import {
 } from "@/components/nav-config";
 import { cn } from "@/lib/utils";
 
+const HOVER_CLOSE_DELAY_MS = 140;
+
 export function AppNav() {
   const pathname = usePathname();
   const [openClusterId, setOpenClusterId] = useState<string | null>(null);
   const navRef = useRef<HTMLElement | null>(null);
 
-  // Close on outside click
   useEffect(() => {
     if (!openClusterId) return;
     const onClick = (event: MouseEvent) => {
@@ -37,7 +38,6 @@ export function AppNav() {
     };
   }, [openClusterId]);
 
-  // Close dropdown when route changes
   useEffect(() => {
     setOpenClusterId(null);
   }, [pathname]);
@@ -77,11 +77,12 @@ export function AppNav() {
             isActive={isActive}
             isOpen={isOpen}
             key={cluster.id}
-            onToggle={() =>
+            onClose={() =>
               setOpenClusterId((current) =>
-                current === cluster.id ? null : cluster.id
+                current === cluster.id ? null : current
               )
             }
+            onOpen={() => setOpenClusterId(cluster.id)}
             pathname={pathname}
           />
         );
@@ -94,20 +95,51 @@ function ClusterButton({
   cluster,
   isActive,
   isOpen,
-  onToggle,
+  onOpen,
+  onClose,
   pathname
 }: {
   cluster: NavCluster;
   isActive: boolean;
   isOpen: boolean;
-  onToggle: () => void;
+  onOpen: () => void;
+  onClose: () => void;
   pathname: string;
 }) {
   const Icon = cluster.icon;
   const items = cluster.items ?? [];
+  const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const cancelClose = () => {
+    if (closeTimeoutRef.current) {
+      clearTimeout(closeTimeoutRef.current);
+      closeTimeoutRef.current = null;
+    }
+  };
+
+  const scheduleClose = () => {
+    cancelClose();
+    closeTimeoutRef.current = setTimeout(() => {
+      onClose();
+      closeTimeoutRef.current = null;
+    }, HOVER_CLOSE_DELAY_MS);
+  };
+
+  useEffect(() => {
+    return () => {
+      cancelClose();
+    };
+  }, []);
 
   return (
-    <div className="relative">
+    <div
+      className="relative"
+      onMouseEnter={() => {
+        cancelClose();
+        if (!isOpen) onOpen();
+      }}
+      onMouseLeave={scheduleClose}
+    >
       <button
         aria-expanded={isOpen}
         aria-haspopup="menu"
@@ -116,7 +148,8 @@ function ClusterButton({
           isActive &&
             "bg-white text-slate-950 shadow-soft hover:text-slate-950"
         )}
-        onClick={onToggle}
+        onClick={() => (isOpen ? onClose() : onOpen())}
+        onFocus={cancelClose}
         type="button"
       >
         <Icon aria-hidden="true" className="h-4 w-4" />
@@ -124,17 +157,27 @@ function ClusterButton({
         <ChevronDown
           aria-hidden="true"
           className={cn(
-            "h-3.5 w-3.5 transition-transform duration-150",
+            "h-3.5 w-3.5 transition-transform duration-200 ease-out",
             isOpen && "rotate-180"
           )}
         />
       </button>
 
-      {isOpen ? (
-        <div
-          className="absolute left-1/2 top-full z-50 mt-2 w-64 -translate-x-1/2 overflow-hidden rounded-2xl border border-border/60 bg-card text-foreground shadow-elevated animate-slide-up"
-          role="menu"
-        >
+      <div
+        aria-hidden={!isOpen}
+        className={cn(
+          "absolute left-1/2 top-full z-50 w-64 -translate-x-1/2 pt-2 origin-top",
+          "transition-[opacity,transform] duration-200 ease-out",
+          "motion-reduce:transition-none",
+          isOpen
+            ? "pointer-events-auto opacity-100 scale-y-100 translate-y-0"
+            : "pointer-events-none opacity-0 scale-y-90 -translate-y-1"
+        )}
+        onMouseEnter={cancelClose}
+        onMouseLeave={scheduleClose}
+        role="menu"
+      >
+        <div className="overflow-hidden rounded-2xl border border-border/60 bg-card text-foreground shadow-elevated">
           <ul className="p-1.5">
             {items.map((item) => {
               const ItemIcon = item.icon;
@@ -149,7 +192,9 @@ function ClusterButton({
                         : "text-foreground/90 hover:bg-secondary/70"
                     )}
                     href={item.href}
+                    onClick={onClose}
                     role="menuitem"
+                    tabIndex={isOpen ? 0 : -1}
                   >
                     <span
                       className={cn(
@@ -177,7 +222,7 @@ function ClusterButton({
             })}
           </ul>
         </div>
-      ) : null}
+      </div>
     </div>
   );
 }
