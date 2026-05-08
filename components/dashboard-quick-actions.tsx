@@ -6,6 +6,7 @@ import {
   UserPlus,
   type LucideIcon
 } from "lucide-react";
+import { DashboardCheckinButton } from "@/components/dashboard-checkin-button";
 import { cn } from "@/lib/utils";
 
 interface QuickAction {
@@ -47,10 +48,15 @@ const actions: QuickAction[] = [
   }
 ];
 
-export function DashboardQuickActions() {
+export function DashboardQuickActions({
+  players
+}: {
+  players: { id: string; name: string }[];
+}) {
   return (
     <section aria-label="Schnellaktionen">
-      <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-3 grid-cols-2 lg:grid-cols-5">
+        <DashboardCheckinButton players={players} />
         {actions.map((action) => {
           const Icon = action.icon;
           return (

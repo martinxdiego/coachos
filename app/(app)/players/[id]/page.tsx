@@ -22,6 +22,7 @@ import {
   savePlayerEvaluation,
   updatePlayer
 } from "@/app/actions";
+import { BodyPainPicker } from "@/components/body-pain-picker";
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
 import { PlayerPhotoUpload } from "@/components/player-photo-upload";
@@ -520,6 +521,18 @@ export default async function PlayerProfilePage({
 
   const healthTab = (
     <div className="grid gap-4 lg:grid-cols-2">
+      <Card className="lg:col-span-2">
+        <CardHeader>
+          <CardTitle>Schmerz-Lokalisation</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <BodyPainPicker
+            initialInjuries={player.injuries ?? null}
+            playerId={player.id}
+          />
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader>
           <CardTitle>Gesundheitsverlauf</CardTitle>
@@ -579,14 +592,6 @@ export default async function PlayerProfilePage({
                 defaultValue={player.allergies ?? ""}
                 id="allergies"
                 name="allergies"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="injuries">Aktuelle Verletzungen</Label>
-              <Textarea
-                defaultValue={player.injuries ?? ""}
-                id="injuries"
-                name="injuries"
               />
             </div>
             <div className="space-y-2">

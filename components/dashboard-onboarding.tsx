@@ -1,0 +1,211 @@
+"use client";
+
+import Link from "next/link";
+import { useEffect, useState } from "react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  CalendarPlus,
+  Compass,
+  HeartPulse,
+  Sparkles,
+  Trophy,
+  X,
+  type LucideIcon
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+
+const STORAGE_KEY = "coachos.onboarding.dismissed.v1";
+
+interface Step {
+  icon: LucideIcon;
+  eyebrow: string;
+  title: string;
+  body: string;
+  ctaLabel: string;
+  ctaHref: string;
+  accent: string;
+}
+
+const steps: Step[] = [
+  {
+    icon: Compass,
+    eyebrow: "Schritt 1 · Überblick",
+    title: "Willkommen im Trainer-Cockpit",
+    body: "Heute, nächste Termine, offene Aufgaben und Belastungssignale auf einen Blick. Du siehst sofort, wo du als Erstes hin musst.",
+    ctaLabel: "Cockpit verstehen",
+    ctaHref: "/",
+    accent: "from-emerald-500/15 to-emerald-500/0 text-emerald-700"
+  },
+  {
+    icon: CalendarPlus,
+    eyebrow: "Schritt 2 · Training",
+    title: "Training in 30 Sekunden planen",
+    body: "Vorlagen mit Filter (U11, U13, Taktik, Fitness), Phasen, Material und Coachingpunkte sind bereits vorausgefüllt.",
+    ctaLabel: "Training planen",
+    ctaHref: "/trainings",
+    accent: "from-sky-500/15 to-sky-500/0 text-sky-700"
+  },
+  {
+    icon: HeartPulse,
+    eyebrow: "Schritt 3 · Wellness",
+    title: "Belastung im Blick behalten",
+    body: "Wellness-Check pro Spieler in unter 30 Sekunden. Kritische Werte erscheinen automatisch oben im Dashboard.",
+    ctaLabel: "Check-in starten",
+    ctaHref: "/health",
+    accent: "from-red-500/15 to-red-500/0 text-red-700"
+  },
+  {
+    icon: Trophy,
+    eyebrow: "Schritt 4 · Spieltag",
+    title: "Matchday vorbereiten",
+    body: "Aufstellung, Formation, Materialliste und Matchziele bündig an einem Ort. Kein Zettelchaos mehr am Spieltag.",
+    ctaLabel: "Matchday öffnen",
+    ctaHref: "/matches",
+    accent: "from-amber-500/15 to-amber-500/0 text-amber-700"
+  }
+];
+
+export function DashboardOnboarding() {
+  const [visible, setVisible] = useState(false);
+  const [step, setStep] = useState(0);
+
+  useEffect(() => {
+    try {
+      const dismissed = window.localStorage.getItem(STORAGE_KEY);
+      if (!dismissed) setVisible(true);
+    } catch {
+      setVisible(true);
+    }
+  }, []);
+
+  function dismiss() {
+    setVisible(false);
+    try {
+      window.localStorage.setItem(STORAGE_KEY, new Date().toISOString());
+    } catch {
+      // ignore quota issues — best-effort persistence
+    }
+  }
+
+  function reopen() {
+    setStep(0);
+    setVisible(true);
+  }
+
+  if (!visible) {
+    return (
+      <div className="flex justify-end">
+        <button
+          className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1 text-[12px] font-medium text-muted-foreground transition hover:border-foreground/30 hover:text-foreground"
+          onClick={reopen}
+          type="button"
+        >
+          <Sparkles aria-hidden="true" className="h-3.5 w-3.5" />
+          Tour öffnen
+        </button>
+      </div>
+    );
+  }
+
+  const current = steps[step];
+  const Icon = current.icon;
+  const isLast = step === steps.length - 1;
+
+  return (
+    <section
+      aria-label="Erste Schritte"
+      className="relative overflow-hidden rounded-2xl border border-border/70 bg-card p-5 shadow-soft"
+    >
+      <span
+        aria-hidden="true"
+        className={cn(
+          "absolute inset-0 -z-0 bg-gradient-to-br opacity-50",
+          current.accent
+        )}
+      />
+      <div className="relative">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <span
+              aria-hidden="true"
+              className="flex h-10 w-10 items-center justify-center rounded-xl bg-card/80 text-foreground shadow-sm ring-1 ring-border/60"
+            >
+              <Icon className="h-5 w-5" />
+            </span>
+            <div className="min-w-0">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-foreground/70">
+                {current.eyebrow}
+              </p>
+              <h2 className="mt-1 text-[18px] font-semibold tracking-tight">
+                {current.title}
+              </h2>
+              <p className="mt-1.5 max-w-xl text-[13px] leading-6 text-muted-foreground">
+                {current.body}
+              </p>
+            </div>
+          </div>
+          <button
+            aria-label="Tour schliessen"
+            className="rounded-full p-1.5 text-muted-foreground transition hover:bg-secondary hover:text-foreground"
+            onClick={dismiss}
+            type="button"
+          >
+            <X aria-hidden="true" className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+          <div aria-label="Fortschritt" className="flex gap-1.5">
+            {steps.map((stepItem, index) => {
+              const reached = index <= step;
+              return (
+                <button
+                  aria-label={`Schritt ${index + 1}: ${stepItem.title}`}
+                  className={cn(
+                    "h-1.5 w-8 rounded-full transition",
+                    reached ? "bg-foreground" : "bg-secondary"
+                  )}
+                  key={stepItem.title}
+                  onClick={() => setStep(index)}
+                  type="button"
+                />
+              );
+            })}
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {step > 0 ? (
+              <Button
+                onClick={() => setStep((value) => Math.max(0, value - 1))}
+                size="sm"
+                type="button"
+                variant="ghost"
+              >
+                <ArrowLeft aria-hidden="true" className="h-4 w-4" />
+                Zurück
+              </Button>
+            ) : null}
+            <Button asChild size="sm" variant="outline">
+              <Link href={current.ctaHref}>{current.ctaLabel}</Link>
+            </Button>
+            {isLast ? (
+              <Button onClick={dismiss} size="sm" type="button">
+                Tour beenden
+              </Button>
+            ) : (
+              <Button
+                onClick={() => setStep((value) => Math.min(steps.length - 1, value + 1))}
+                size="sm"
+                type="button"
+              >
+                Weiter
+                <ArrowRight aria-hidden="true" className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}

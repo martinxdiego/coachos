@@ -3,6 +3,7 @@ import { Suspense, type ReactNode } from "react";
 import {
   ArrowRight,
   AlertCircle,
+  AlertTriangle,
   CalendarCheck,
   CheckCircle2,
   ClipboardList,
@@ -13,12 +14,14 @@ import {
   UsersRound
 } from "lucide-react";
 import { toggleTask } from "@/app/actions";
+import { DashboardOnboarding } from "@/components/dashboard-onboarding";
 import { DashboardQuickActions } from "@/components/dashboard-quick-actions";
 import { EmptyState } from "@/components/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { healthRisk } from "@/lib/coach-metrics";
 import { requireActiveTeam } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import type { Team } from "@/lib/types";
@@ -297,7 +300,8 @@ async function DashboardSections({ teamId }: { teamId: string }) {
     matchesResult,
     materialsResult,
     boardsResult,
-    tasksResult
+    tasksResult,
+    healthResult
   ] = await Promise.all([
     supabase
       .from("players")
@@ -350,7 +354,13 @@ async function DashboardSections({ teamId }: { teamId: string }) {
       .eq("team_id", teamId)
       .order("status", { ascending: false })
       .order("due_date", { ascending: true, nullsFirst: false })
-      .limit(6)
+      .limit(6),
+    supabase
+      .from("health_checkins")
+      .select("player_id,checkin_date,fatigue,sleep_quality,soreness,pain,stress,motivation,energy,injury_feeling,wellbeing")
+      .eq("team_id", teamId)
+      .order("checkin_date", { ascending: false })
+      .limit(200)
   ]);
 
   for (const result of [
@@ -361,7 +371,8 @@ async function DashboardSections({ teamId }: { teamId: string }) {
     matchesResult,
     materialsResult,
     boardsResult,
-    tasksResult
+    tasksResult,
+    healthResult
   ]) {
     if (result.error) {
       throw new Error(result.error.message);
@@ -374,6 +385,27 @@ async function DashboardSections({ teamId }: { teamId: string }) {
   const materials = materialsResult.data ?? [];
   const boards = boardsResult.data ?? [];
   const tasks = tasksResult.data ?? [];
+  const healthCheckins = healthResult.data ?? [];
+
+  const latestCheckinsByPlayer = new Map<string, (typeof healthCheckins)[number]>();
+  for (const checkin of healthCheckins) {
+    if (!latestCheckinsByPlayer.has(checkin.player_id)) {
+      latestCheckinsByPlayer.set(checkin.player_id, checkin);
+    }
+  }
+  const wellnessAlerts = players
+    .map((player) => {
+      const latest = latestCheckinsByPlayer.get(player.id);
+      if (!latest) return null;
+      const risk = healthRisk(latest);
+      if (risk !== "red") return null;
+      return { player, checkin: latest, risk };
+    })
+    .filter((row): row is NonNullable<typeof row> => row !== null);
+  const checkinPlayers = players.map((player) => ({
+    id: player.id,
+    name: player.name
+  }));
   const recentActivity = [
     ...trainings.map((item) => ({
       id: `training-${item.id}`,
@@ -476,8 +508,68 @@ async function DashboardSections({ teamId }: { teamId: string }) {
 
   return (
     <>
+      {/* Onboarding-Tour (einmalig) */}
+      <DashboardOnboarding />
+
+      {/* Wellness-Alert Banner */}
+      {wellnessAlerts.length > 0 ? (
+        <section
+          aria-label="Wellness-Warnung"
+          className="rounded-2xl border border-red-300 bg-gradient-to-br from-red-50 via-red-50/70 to-red-50 p-5 shadow-soft"
+        >
+          <div className="flex flex-wrap items-start gap-3">
+            <span
+              aria-hidden="true"
+              className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-600 text-white shadow-sm"
+            >
+              <AlertTriangle className="h-5 w-5" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-red-700">
+                Belastung kritisch
+              </p>
+              <p className="mt-0.5 text-[16px] font-semibold tracking-tight text-red-950">
+                {wellnessAlerts.length === 1
+                  ? "1 Spieler braucht Aufmerksamkeit vor dem Training"
+                  : `${wellnessAlerts.length} Spieler brauchen Aufmerksamkeit vor dem Training`}
+              </p>
+              <ul className="mt-3 flex flex-wrap gap-2">
+                {wellnessAlerts.slice(0, 6).map(({ player, checkin }) => (
+                  <li key={player.id}>
+                    <Link
+                      className="inline-flex items-center gap-2 rounded-full border border-red-300 bg-white/80 px-3 py-1 text-[12px] font-medium text-red-900 ring-1 ring-red-200 transition hover:bg-white"
+                      href={`/players/${player.id}`}
+                    >
+                      <span
+                        aria-hidden="true"
+                        className="h-1.5 w-1.5 rounded-full bg-red-600"
+                      />
+                      {player.name}
+                      <span className="text-red-600">
+                        S {checkin.pain}/5 · E {checkin.energy}/5
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+                {wellnessAlerts.length > 6 ? (
+                  <li className="inline-flex items-center px-2 text-[12px] text-red-700">
+                    +{wellnessAlerts.length - 6} weitere
+                  </li>
+                ) : null}
+              </ul>
+            </div>
+            <Button asChild size="sm" variant="outline">
+              <Link href="/health">
+                Belastung öffnen
+                <ArrowRight aria-hidden="true" className="h-4 w-4" />
+              </Link>
+            </Button>
+          </div>
+        </section>
+      ) : null}
+
       {/* Quick Actions */}
-      <DashboardQuickActions />
+      <DashboardQuickActions players={checkinPlayers} />
 
       {/* Metrics */}
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
