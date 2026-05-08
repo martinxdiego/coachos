@@ -49,6 +49,11 @@ export type EvaluationContextType =
   | "monday_training";
 export type HealthContextType = "training" | "match" | "free";
 export type MondayAttendanceStatus = "present" | "absent" | "injured";
+export type CoachMessageCategory =
+  | "training_goal"
+  | "match_goal"
+  | "note"
+  | "praise";
 
 export interface Database {
   public: {
@@ -62,6 +67,7 @@ export interface Database {
           created_by: string;
           created_at: string;
           updated_at: string;
+          player_signup_token: string;
         };
         Insert: {
           id?: string;
@@ -71,6 +77,7 @@ export interface Database {
           created_by: string;
           created_at?: string;
           updated_at?: string;
+          player_signup_token?: string;
         };
         Update: Partial<Database["public"]["Tables"]["teams"]["Insert"]>;
         Relationships: [];
@@ -160,6 +167,8 @@ export interface Database {
           notes: string | null;
           status: PlayerStatus;
           rating: number | null;
+          access_token: string;
+          self_registered_at: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -203,6 +212,8 @@ export interface Database {
           notes?: string | null;
           status?: PlayerStatus;
           rating?: number | null;
+          access_token?: string;
+          self_registered_at?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -783,6 +794,36 @@ export interface Database {
         >;
         Relationships: [];
       };
+      coach_messages: {
+        Row: {
+          id: string;
+          team_id: string;
+          player_id: string;
+          created_by: string | null;
+          category: CoachMessageCategory;
+          title: string | null;
+          body: string;
+          read_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          team_id: string;
+          player_id: string;
+          created_by?: string | null;
+          category?: CoachMessageCategory;
+          title?: string | null;
+          body: string;
+          read_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["coach_messages"]["Insert"]
+        >;
+        Relationships: [];
+      };
       player_awards: {
         Row: {
           id: string;
@@ -878,3 +919,5 @@ export type MondayAttendance =
   Database["public"]["Tables"]["monday_attendance"]["Row"];
 export type PlayerAward =
   Database["public"]["Tables"]["player_awards"]["Row"];
+export type CoachMessage =
+  Database["public"]["Tables"]["coach_messages"]["Row"];

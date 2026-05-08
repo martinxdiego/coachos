@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Check, Copy, ExternalLink, UserCircle2 } from "lucide-react";
+import { Check, Copy, ExternalLink, QrCode as QrIcon, UserCircle2 } from "lucide-react";
 import { toast } from "sonner";
+import { QrCode } from "@/components/qr-code";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -15,17 +16,23 @@ import {
 interface PlayerModeShareProps {
   playerId: string;
   playerName: string;
+  accessToken: string;
 }
 
-export function PlayerModeShare({ playerId, playerName }: PlayerModeShareProps) {
+export function PlayerModeShare({
+  playerId: _playerId,
+  playerName,
+  accessToken
+}: PlayerModeShareProps) {
   const [copied, setCopied] = useState(false);
   const [origin, setOrigin] = useState<string>("");
+  const [showQr, setShowQr] = useState(false);
 
   useEffect(() => {
     setOrigin(window.location.origin);
   }, []);
 
-  const path = `/player-mode?player=${playerId}`;
+  const path = `/spieler/${accessToken}`;
   const fullUrl = origin ? `${origin}${path}` : path;
 
   async function copy() {
@@ -44,17 +51,20 @@ export function PlayerModeShare({ playerId, playerName }: PlayerModeShareProps) 
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <UserCircle2 aria-hidden="true" className="h-4.5 w-4.5 text-primary" />
-          Spieler-Modus
+          Persönlicher Spieler-Bereich
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         <p className="text-[13px] leading-6 text-muted-foreground">
-          Persönliche App-Sicht für {playerName}: Heute-Check-in, Termine,
-          Feedback und Saisonblatt.
+          Eigener Link für {playerName} — kein Login nötig. Wellness-Check-in,
+          Saisonblatt, Notiz an Trainer und dein Postfach mit Mitteilungen.
         </p>
+        <div className="rounded-xl border border-border bg-secondary/30 p-3 text-[12px] break-all text-muted-foreground">
+          {fullUrl}
+        </div>
         <div className="flex flex-wrap gap-2">
           <Button asChild size="sm">
-            <Link href={path}>
+            <Link href={path} rel="noreferrer" target="_blank">
               <ExternalLink aria-hidden="true" className="h-4 w-4" />
               Vorschau öffnen
             </Link>
@@ -67,18 +77,23 @@ export function PlayerModeShare({ playerId, playerName }: PlayerModeShareProps) 
             )}
             {copied ? "Kopiert" : "Link kopieren"}
           </Button>
+          <Button
+            onClick={() => setShowQr((value) => !value)}
+            size="sm"
+            variant="outline"
+          >
+            <QrIcon aria-hidden="true" className="h-4 w-4" />
+            {showQr ? "QR ausblenden" : "QR-Code zeigen"}
+          </Button>
         </div>
-        <details className="rounded-xl border border-dashed border-border bg-secondary/30 p-3 text-[12px] text-muted-foreground">
-          <summary className="cursor-pointer font-medium">
-            Wie kommt der Spieler an seinen Bereich?
-          </summary>
-          <p className="mt-2 leading-6">
-            Aktuell brauchen Spieler ein Login mit derselben E-Mail, die unter
-            Kontakte → „Spieler-Login E-Mail&ldquo; hinterlegt ist. Sobald der
-            Spieler eingeloggt ist, landet er direkt auf seinem Bereich. Du als
-            Trainer kannst die Vorschau jederzeit über den Link oben öffnen.
-          </p>
-        </details>
+        {showQr ? (
+          <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-border bg-secondary/30 p-5">
+            <QrCode size={220} value={fullUrl} />
+            <p className="text-center text-[12px] text-muted-foreground">
+              Spieler scannt mit Handy-Kamera → landet direkt im eigenen Bereich.
+            </p>
+          </div>
+        ) : null}
       </CardContent>
     </Card>
   );

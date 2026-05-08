@@ -40,7 +40,10 @@ export async function middleware(request: NextRequest) {
 
   const pathname = request.nextUrl.pathname;
   const isPublicRoute =
-    pathname === "/login" || pathname.startsWith("/auth/callback");
+    pathname === "/login" ||
+    pathname.startsWith("/auth/callback") ||
+    pathname.startsWith("/beitreten") ||
+    pathname.startsWith("/spieler");
 
   if (!user && !isPublicRoute) {
     const redirectUrl = request.nextUrl.clone();

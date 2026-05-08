@@ -23,6 +23,7 @@ import {
   updatePlayer
 } from "@/app/actions";
 import { BodyPainPicker } from "@/components/body-pain-picker";
+import { CoachMessagesCard } from "@/components/coach-messages-card";
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
 import { PlayerModeShare } from "@/components/player-mode-share";
@@ -92,7 +93,8 @@ export default async function PlayerProfilePage({
     evaluationsResult,
     healthResult,
     linksResult,
-    awardsResult
+    awardsResult,
+    coachMessagesResult
   ] = await Promise.all([
     supabase
       .from("players")
@@ -144,7 +146,14 @@ export default async function PlayerProfilePage({
       .select("*")
       .eq("player_id", id)
       .eq("team_id", team.id)
-      .order("award_date", { ascending: false })
+      .order("award_date", { ascending: false }),
+    supabase
+      .from("coach_messages")
+      .select("*")
+      .eq("player_id", id)
+      .eq("team_id", team.id)
+      .order("created_at", { ascending: false })
+      .limit(50)
   ]);
 
   if (playerResult.error) {
@@ -158,7 +167,8 @@ export default async function PlayerProfilePage({
     evaluationsResult,
     healthResult,
     linksResult,
-    awardsResult
+    awardsResult,
+    coachMessagesResult
   ]) {
     if (result.error) {
       throw new Error(result.error.message);
@@ -173,6 +183,7 @@ export default async function PlayerProfilePage({
   const health = healthResult.data ?? [];
   const links = linksResult.data ?? [];
   const awards = awardsResult.data ?? [];
+  const coachMessages = coachMessagesResult.data ?? [];
   const presentCount = attendance.filter((item) => item.status === "present").length;
   const attendanceRate =
     attendance.length > 0
@@ -723,10 +734,16 @@ export default async function PlayerProfilePage({
 
   const notesTab = (
     <div className="grid gap-4 lg:grid-cols-[1fr_420px]">
-      <Card>
-        <CardHeader>
-          <CardTitle>Trainernotizen</CardTitle>
-        </CardHeader>
+      <div className="space-y-4">
+        <CoachMessagesCard
+          messages={coachMessages}
+          playerId={player.id}
+          playerName={player.name}
+        />
+        <Card>
+          <CardHeader>
+            <CardTitle>Trainernotizen</CardTitle>
+          </CardHeader>
         <CardContent>
           <form action={updatePlayer} className="space-y-4">
             <input name="id" type="hidden" value={player.id} />
@@ -769,6 +786,7 @@ export default async function PlayerProfilePage({
           </form>
         </CardContent>
       </Card>
+      </div>
 
       <div className="space-y-4">
         <Card>
@@ -881,7 +899,11 @@ export default async function PlayerProfilePage({
       </Card>
 
       <div className="space-y-4">
-        <PlayerModeShare playerId={player.id} playerName={player.name} />
+        <PlayerModeShare
+          accessToken={player.access_token}
+          playerId={player.id}
+          playerName={player.name}
+        />
 
         <Card>
           <CardHeader>

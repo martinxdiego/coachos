@@ -9,6 +9,7 @@ import { getSiteUrl } from "@/lib/env";
 import { createClient } from "@/lib/supabase/server";
 import type {
   AttendanceStatus,
+  CoachMessageCategory,
   EvaluationContextType,
   ExternalLinkType,
   HealthContextType,
@@ -2384,6 +2385,56 @@ export async function deleteHealthCheckin(formData: FormData) {
   if (playerId) {
     revalidatePath(`/players/${playerId}`);
   }
+}
+
+export async function createCoachMessage(formData: FormData) {
+  const { supabase, user, team } = await requireActiveTeam();
+  const playerId = requiredString(formData, "player_id", "Player");
+  const body = requiredString(formData, "body", "Body");
+  const title = optionalString(formData, "title");
+  const category = (enumValue(formData, "category", [
+    "training_goal",
+    "match_goal",
+    "note",
+    "praise"
+  ] as const) ?? "note") as CoachMessageCategory;
+
+  const { error } = await supabase.from("coach_messages").insert({
+    team_id: team.id,
+    player_id: playerId,
+    created_by: user.id,
+    category,
+    title,
+    body
+  });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  revalidatePath(`/players/${playerId}`);
+  revalidatePath("/");
+}
+
+export async function deleteCoachMessage(formData: FormData) {
+  const { supabase, team } = await requireActiveTeam();
+  const id = requiredString(formData, "id", "Message");
+  const playerId = optionalString(formData, "player_id");
+
+  const { error } = await supabase
+    .from("coach_messages")
+    .delete()
+    .eq("id", id)
+    .eq("team_id", team.id);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  if (playerId) {
+    revalidatePath(`/players/${playerId}`);
+  }
+  revalidatePath("/");
 }
 
 export async function saveMatchAnalysis(formData: FormData) {

@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { PlayersRoster, type PlayerRow } from "@/components/players-roster";
+import { TeamSignupShare } from "@/components/team-signup-share";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { requireActiveTeam } from "@/lib/auth";
@@ -67,8 +68,14 @@ export default async function PlayersPage() {
   const { team } = await requireActiveTeam();
 
   return (
-    <Suspense fallback={<PlayersRosterSkeleton />}>
-      <PlayersData teamId={team.id} />
-    </Suspense>
+    <div className="space-y-6">
+      <TeamSignupShare
+        teamName={team.name}
+        teamSignupToken={team.player_signup_token}
+      />
+      <Suspense fallback={<PlayersRosterSkeleton />}>
+        <PlayersData teamId={team.id} />
+      </Suspense>
+    </div>
   );
 }
