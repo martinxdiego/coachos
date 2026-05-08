@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Check, Copy, Download, ExternalLink, QrCode as QrIcon, UsersRound } from "lucide-react";
 import { toast } from "sonner";
-import { QrCode } from "@/components/qr-code";
+import { QrCode, qrCodeUrl } from "@/components/qr-code";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -44,7 +44,7 @@ export function TeamSignupShare({
   }
 
   function printQr() {
-    const qrSrc = `https://chart.googleapis.com/chart?cht=qr&chs=600x600&chld=M|2&chl=${encodeURIComponent(fullUrl)}`;
+    const qrSrc = qrCodeUrl(fullUrl, 600);
     const printWindow = window.open("", "_blank");
     if (!printWindow) {
       toast.error("Bitte Pop-up zulassen");
