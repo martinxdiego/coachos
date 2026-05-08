@@ -25,6 +25,7 @@ import {
 import { BodyPainPicker } from "@/components/body-pain-picker";
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
+import { PlayerModeShare } from "@/components/player-mode-share";
 import { PlayerPhotoUpload } from "@/components/player-photo-upload";
 import { ProfileTabs, type ProfileTab } from "@/components/profile-tabs";
 import { Badge } from "@/components/ui/badge";
@@ -880,6 +881,8 @@ export default async function PlayerProfilePage({
       </Card>
 
       <div className="space-y-4">
+        <PlayerModeShare playerId={player.id} playerName={player.name} />
+
         <Card>
           <CardHeader>
             <CardTitle>Quali-Link hinzufügen</CardTitle>

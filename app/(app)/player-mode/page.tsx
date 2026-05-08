@@ -1,8 +1,19 @@
 import Link from "next/link";
-import { Award, CalendarDays, Medal, TrendingUp } from "lucide-react";
-import { saveHealthCheckin, submitPlayerSeasonForm } from "@/app/actions";
+import {
+  Award,
+  CalendarDays,
+  ChevronRight,
+  Flame,
+  Medal,
+  Star,
+  TrendingUp,
+  Trophy,
+  UserRound
+} from "lucide-react";
+import { submitPlayerSeasonForm } from "@/app/actions";
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
+import { PlayerModeCheckin } from "@/components/player-mode-checkin";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,7 +23,6 @@ import {
   CardTitle
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { evaluationAverage, healthRisk, winnerPointTotal } from "@/lib/coach-metrics";
 import { requireActiveTeam } from "@/lib/auth";
@@ -26,17 +36,25 @@ interface PlayerModePageProps {
   }>;
 }
 
-const healthChecks = [
-  ["fatigue", "Müdigkeit"],
-  ["sleep_quality", "Schlaf"],
-  ["soreness", "Muskelkater"],
-  ["pain", "Schmerzen"],
-  ["stress", "Stress"],
-  ["motivation", "Motivation"],
-  ["energy", "Energie"],
-  ["injury_feeling", "Verletzungsgefühl"],
-  ["wellbeing", "Wohlbefinden"]
-] as const;
+function streakLength(checkinDates: string[]): number {
+  if (checkinDates.length === 0) return 0;
+  const seen = new Set(checkinDates);
+  let streak = 0;
+  const cursor = new Date();
+  cursor.setHours(0, 0, 0, 0);
+  // Allow today to be missing — count back from yesterday if today isn't done.
+  const todayIso = cursor.toISOString().slice(0, 10);
+  if (!seen.has(todayIso)) {
+    cursor.setDate(cursor.getDate() - 1);
+  }
+  while (true) {
+    const iso = cursor.toISOString().slice(0, 10);
+    if (!seen.has(iso)) break;
+    streak += 1;
+    cursor.setDate(cursor.getDate() - 1);
+  }
+  return streak;
+}
 
 export default async function PlayerModePage({
   searchParams
@@ -52,14 +70,14 @@ export default async function PlayerModePage({
       .order("last_name", { ascending: true }),
     supabase
       .from("training_sessions")
-      .select("id,date,start_time,focus,goal")
+      .select("id,date,start_time,focus,goal,location")
       .eq("team_id", team.id)
       .gte("date", today)
       .order("date", { ascending: true })
       .limit(6),
     supabase
       .from("matches")
-      .select("id,date,kickoff_time,opponent,match_goals")
+      .select("id,date,kickoff_time,opponent,match_goals,location")
       .eq("team_id", team.id)
       .gte("date", today)
       .order("date", { ascending: true })
@@ -90,7 +108,8 @@ export default async function PlayerModePage({
     pointsResult,
     evaluationsResult,
     checkinsResult,
-    awardsResult
+    awardsResult,
+    feedbackResult
   ] = selectedOption
     ? await Promise.all([
         supabase
@@ -119,17 +138,25 @@ export default async function PlayerModePage({
           .eq("team_id", team.id)
           .eq("player_id", selectedOption.id)
           .order("checkin_date", { ascending: false })
-          .limit(10),
+          .limit(60),
         supabase
           .from("player_awards")
           .select("*")
           .eq("team_id", team.id)
           .eq("player_id", selectedOption.id)
           .order("award_date", { ascending: false })
-          .limit(20)
+          .limit(20),
+        supabase
+          .from("player_feedback")
+          .select("*")
+          .eq("team_id", team.id)
+          .eq("player_id", selectedOption.id)
+          .order("created_at", { ascending: false })
+          .limit(5)
       ])
     : [
         { data: null, error: null },
+        { data: [], error: null },
         { data: [], error: null },
         { data: [], error: null },
         { data: [], error: null },
@@ -141,7 +168,8 @@ export default async function PlayerModePage({
     pointsResult,
     evaluationsResult,
     checkinsResult,
-    awardsResult
+    awardsResult,
+    feedbackResult
   ]) {
     if (result.error) {
       throw new Error(result.error.message);
@@ -153,6 +181,7 @@ export default async function PlayerModePage({
   const evaluations = evaluationsResult.data ?? [];
   const checkins = checkinsResult.data ?? [];
   const awards = awardsResult.data ?? [];
+  const feedback = feedbackResult.data ?? [];
   const evaluationValues = evaluations
     .map(evaluationAverage)
     .filter((value): value is number => value !== null);
@@ -162,104 +191,335 @@ export default async function PlayerModePage({
         evaluationValues.length
       : null;
   const latestHealth = checkins[0] ?? null;
-  const todayHealth =
+  const todayCheckin =
     checkins.find((checkin) => checkin.checkin_date === today) ?? null;
   const risk = latestHealth ? healthRisk(latestHealth) : null;
   const trainings = trainingsResult.data ?? [];
   const matches = matchesResult.data ?? [];
+  const checkinDates = Array.from(new Set(checkins.map((row) => row.checkin_date)));
+  const streak = streakLength(checkinDates);
+  const checkinsThisMonth = checkins.filter((row) => {
+    const ageDays =
+      (new Date(today).getTime() - new Date(row.checkin_date).getTime()) /
+      86_400_000;
+    return ageDays <= 30;
+  }).length;
 
   return (
     <div className="space-y-6">
       <PageHeader
-        description="Vereinfachte, motivierende Spieleransicht ohne sensible Daten anderer Spieler."
+        description="Persönlicher Bereich für Spieler. Heute fühlen, Termine sehen, Feedback empfangen."
         title="Spieler-Modus"
       />
 
       {isStaffPreview ? (
-      <Card className="border-emerald-200 bg-emerald-50/70">
-        <CardContent className="p-5">
-          <form className="flex flex-col gap-3 sm:flex-row sm:items-end" method="get">
-            <div className="flex-1 space-y-2">
-              <label className="text-sm font-medium" htmlFor="player">
-                Spieler auswählen
-              </label>
-              <select
-                className="flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                defaultValue={selectedPlayerId ?? ""}
-                id="player"
-                name="player"
-              >
-                <option value="">Bitte auswählen</option>
-                {players.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <Button type="submit">Öffnen</Button>
-          </form>
-        </CardContent>
-      </Card>
+        <Card className="border-dashed border-emerald-300 bg-emerald-50/40">
+          <CardContent className="p-4 sm:p-5">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-700">
+              Trainer-Vorschau
+            </p>
+            <form
+              className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-end"
+              method="get"
+            >
+              <div className="flex-1 space-y-2">
+                <label className="text-[13px] font-medium" htmlFor="player">
+                  Spieler auswählen
+                </label>
+                <select
+                  className="flex h-11 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  defaultValue={selectedPlayerId ?? ""}
+                  id="player"
+                  name="player"
+                >
+                  <option value="">Bitte auswählen</option>
+                  {players.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <Button className="h-11" type="submit">
+                Öffnen
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
       ) : null}
 
       {player ? (
         <>
-          <section className="overflow-hidden rounded-2xl bg-slate-950 p-6 text-white">
-            <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
-              <div>
-                <p className="text-sm font-medium text-emerald-300">
-                  Mein CoachOS
-                </p>
-                <h2 className="mt-3 text-4xl font-semibold">{player.name}</h2>
-                <p className="mt-2 text-sm text-slate-300">
-                  {player.position ?? "Position offen"}
-                  {player.team_category ? ` · ${player.team_category}` : ""}
-                </p>
-              </div>
-              <div className="grid grid-cols-3 gap-2">
-                <div className="rounded-xl bg-white/10 p-4 text-center">
-                  <Medal
-                    aria-hidden="true"
-                    className="mx-auto h-5 w-5 text-emerald-300"
-                  />
-                  <p className="mt-2 text-2xl font-semibold">
-                    {winnerPointTotal(points)}
-                  </p>
-                  <p className="text-xs text-slate-300">Winner</p>
+          {/* App-style Hero */}
+          <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950 p-6 text-white shadow-elevated sm:p-8">
+            <div
+              aria-hidden="true"
+              className="absolute -right-16 -top-20 h-64 w-64 rounded-full bg-emerald-500/20 blur-3xl"
+            />
+            <div
+              aria-hidden="true"
+              className="absolute -bottom-16 -left-16 h-56 w-56 rounded-full bg-indigo-500/15 blur-3xl"
+            />
+            <div className="relative flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+              <div className="flex items-center gap-4">
+                <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-white/10 ring-1 ring-white/20">
+                  {player.photo_url ? (
+                    <div
+                      aria-label={`Portrait von ${player.name}`}
+                      className="h-full w-full bg-cover bg-center"
+                      role="img"
+                      style={{ backgroundImage: `url(${player.photo_url})` }}
+                    />
+                  ) : (
+                    <UserRound aria-hidden="true" className="h-8 w-8 text-white/80" />
+                  )}
                 </div>
-                <div className="rounded-xl bg-white/10 p-4 text-center">
-                  <TrendingUp
-                    aria-hidden="true"
-                    className="mx-auto h-5 w-5 text-emerald-300"
-                  />
-                  <p className="mt-2 text-2xl font-semibold">
-                    {avgEvaluation !== null ? avgEvaluation.toFixed(1) : "-"}
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-300">
+                    Hallo
                   </p>
-                  <p className="text-xs text-slate-300">Entwicklung</p>
-                </div>
-                <div className="rounded-xl bg-white/10 p-4 text-center">
-                  <Award
-                    aria-hidden="true"
-                    className="mx-auto h-5 w-5 text-emerald-300"
-                  />
-                  <p className="mt-2 text-2xl font-semibold">
-                    {awards.length}
+                  <h1 className="mt-1 text-3xl font-semibold tracking-tight sm:text-4xl">
+                    {player.first_name ?? player.name}
+                  </h1>
+                  <p className="mt-1 text-[13px] text-slate-300">
+                    {player.position ?? "Position offen"}
+                    {player.team_category ? ` · ${player.team_category}` : ""}
+                    {player.jersey_number ? ` · #${player.jersey_number}` : ""}
                   </p>
-                  <p className="text-xs text-slate-300">Awards</p>
                 </div>
               </div>
+              {risk ? (
+                <div className="flex flex-col items-start gap-1 rounded-2xl bg-white/10 px-4 py-3 ring-1 ring-white/20 backdrop-blur-md md:items-end">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-300">
+                    Letzter Check
+                  </p>
+                  <p className="text-[14px] font-semibold tracking-tight">
+                    {risk === "red"
+                      ? "🔴 Belastung prüfen"
+                      : risk === "yellow"
+                        ? "🟡 Aufmerksam"
+                        : "🟢 Alles ok"}
+                  </p>
+                  <p className="text-[12px] text-slate-300">
+                    {formatDate(latestHealth!.checkin_date)}
+                  </p>
+                </div>
+              ) : null}
             </div>
           </section>
 
-          <section className="grid gap-4 md:grid-cols-3">
+          {/* Today Check-in (zentrales Element) */}
+          <PlayerModeCheckin
+            alreadyDone={todayCheckin !== null}
+            playerId={player.id}
+            todayCheckin={todayCheckin}
+          />
+
+          {/* Streak / Stats */}
+          <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <Card className="border-orange-200 bg-gradient-to-br from-orange-50 to-orange-50/0">
+              <CardContent className="p-4">
+                <Flame
+                  aria-hidden="true"
+                  className="h-5 w-5 text-orange-600"
+                />
+                <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-orange-700">
+                  Check-in Streak
+                </p>
+                <p className="mt-1 text-3xl font-semibold tracking-tight text-orange-950">
+                  {streak}
+                </p>
+                <p className="text-[12px] text-orange-700/80">
+                  {streak === 1 ? "Tag in Folge" : "Tage in Folge"}
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4">
+                <Medal aria-hidden="true" className="h-5 w-5 text-amber-600" />
+                <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                  Winnerpunkte
+                </p>
+                <p className="mt-1 text-3xl font-semibold tracking-tight">
+                  {winnerPointTotal(points)}
+                </p>
+                <p className="text-[12px] text-muted-foreground">
+                  {points.length} Eintr{points.length === 1 ? "ag" : "äge"}
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4">
+                <TrendingUp
+                  aria-hidden="true"
+                  className="h-5 w-5 text-emerald-600"
+                />
+                <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                  Ø Bewertung
+                </p>
+                <p className="mt-1 text-3xl font-semibold tracking-tight">
+                  {avgEvaluation !== null ? avgEvaluation.toFixed(1) : "–"}
+                </p>
+                <p className="text-[12px] text-muted-foreground">
+                  von 5
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4">
+                <Award aria-hidden="true" className="h-5 w-5 text-violet-600" />
+                <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                  Auszeichnungen
+                </p>
+                <p className="mt-1 text-3xl font-semibold tracking-tight">
+                  {awards.length}
+                </p>
+                <p className="text-[12px] text-muted-foreground">
+                  {checkinsThisMonth} Check-ins / 30T
+                </p>
+              </CardContent>
+            </Card>
+          </section>
+
+          {/* Mein Spielplan + Feedback */}
+          <section className="grid gap-4 lg:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <CalendarDays
+                    aria-hidden="true"
+                    className="h-4.5 w-4.5 text-primary"
+                  />
+                  Mein Spielplan
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2.5">
+                {[...trainings, ...matches]
+                  .map((item) =>
+                    "focus" in item
+                      ? {
+                          id: `training-${item.id}`,
+                          date: item.date,
+                          time: item.start_time,
+                          title: item.focus,
+                          location: item.location,
+                          label: "Training",
+                          tone:
+                            "border-emerald-200 bg-emerald-50/60 text-emerald-900",
+                          icon: <CalendarDays className="h-4 w-4" />
+                        }
+                      : {
+                          id: `match-${item.id}`,
+                          date: item.date,
+                          time: item.kickoff_time,
+                          title: `vs. ${item.opponent}`,
+                          location: item.location,
+                          label: "Spiel",
+                          tone:
+                            "border-amber-200 bg-amber-50/60 text-amber-900",
+                          icon: <Trophy className="h-4 w-4" />
+                        }
+                  )
+                  .sort((a, b) => a.date.localeCompare(b.date))
+                  .slice(0, 6)
+                  .map((event) => (
+                    <div
+                      className={`flex items-center gap-3 rounded-2xl border p-3.5 ${event.tone}`}
+                      key={event.id}
+                    >
+                      <span
+                        aria-hidden="true"
+                        className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/80 shadow-sm"
+                      >
+                        {event.icon}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[12px] font-semibold uppercase tracking-[0.12em] opacity-70">
+                          {event.label}
+                        </p>
+                        <p className="text-[15px] font-semibold tracking-tight">
+                          {event.title}
+                        </p>
+                        <p className="text-[12px] opacity-80">
+                          {formatDate(event.date)}
+                          {event.time ? ` · ${event.time.slice(0, 5)}` : ""}
+                          {event.location ? ` · ${event.location}` : ""}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                {trainings.length === 0 && matches.length === 0 ? (
+                  <EmptyState title="Aktuell keine Termine geplant." />
+                ) : null}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Star
+                    aria-hidden="true"
+                    className="h-4.5 w-4.5 text-primary"
+                  />
+                  Mein Feedback
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2.5">
+                {evaluations.length === 0 && feedback.length === 0 ? (
+                  <EmptyState title="Noch kein Feedback." />
+                ) : (
+                  <>
+                    {evaluations.slice(0, 3).map((evaluation) => (
+                      <div
+                        className="rounded-2xl border border-border bg-secondary/40 p-3.5"
+                        key={`eval-${evaluation.id}`}
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <Badge variant="success">
+                            {evaluationAverage(evaluation)?.toFixed(1) ?? "-"}/5
+                          </Badge>
+                          <span className="text-[11px] text-muted-foreground">
+                            {formatDate(evaluation.evaluation_date)}
+                          </span>
+                        </div>
+                        {evaluation.notes ? (
+                          <p className="mt-2 whitespace-pre-wrap text-[13px] leading-6 text-foreground/80">
+                            {evaluation.notes}
+                          </p>
+                        ) : null}
+                      </div>
+                    ))}
+                    {feedback.slice(0, 2).map((item) => (
+                      <div
+                        className="rounded-2xl border border-border bg-secondary/40 p-3.5"
+                        key={`fb-${item.id}`}
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <Badge variant="secondary">{item.rating}/10</Badge>
+                          <span className="text-[11px] text-muted-foreground">
+                            {formatDate(item.created_at.slice(0, 10))}
+                          </span>
+                        </div>
+                        <p className="mt-2 whitespace-pre-wrap text-[13px] leading-6 text-foreground/80">
+                          {item.notes}
+                        </p>
+                      </div>
+                    ))}
+                  </>
+                )}
+              </CardContent>
+            </Card>
+          </section>
+
+          {/* Stärken / Ziele */}
+          <section className="grid gap-3 sm:grid-cols-2">
             <Card>
               <CardHeader>
                 <CardTitle>Meine Stärken</CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="whitespace-pre-wrap text-sm leading-6 text-muted-foreground">
-                  {player.strengths ?? "Noch offen."}
+                <p className="whitespace-pre-wrap text-[14px] leading-6 text-muted-foreground">
+                  {player.strengths ?? "Noch offen — fülle dein Saisonblatt aus."}
                 </p>
               </CardContent>
             </Card>
@@ -268,111 +528,43 @@ export default async function PlayerModePage({
                 <CardTitle>Meine Ziele</CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="whitespace-pre-wrap text-sm leading-6 text-muted-foreground">
+                <p className="whitespace-pre-wrap text-[14px] leading-6 text-muted-foreground">
                   {player.football_goals ??
                     player.development_goals ??
-                    "Noch offen."}
+                    "Noch offen — fülle dein Saisonblatt aus."}
                 </p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader>
-                <CardTitle>Check-in</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {latestHealth ? (
-                  <div>
-                    <Badge
-                      variant={
-                        risk === "red"
-                          ? "destructive"
-                          : risk === "yellow"
-                            ? "secondary"
-                            : "success"
-                      }
-                    >
-                      {risk === "red"
-                        ? "Belastung prüfen"
-                        : risk === "yellow"
-                          ? "Aufmerksam"
-                          : "Alles ok"}
-                    </Badge>
-                    <p className="mt-3 text-sm text-muted-foreground">
-                      {formatDate(latestHealth.checkin_date)} · Energie{" "}
-                      {latestHealth.energy}/5 · Motivation{" "}
-                      {latestHealth.motivation}/5
-                    </p>
-                  </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground">
-                    Noch kein Check-in vorhanden.
-                  </p>
-                )}
-                <form action={saveHealthCheckin} className="space-y-3">
-                  <input name="player_id" type="hidden" value={player.id} />
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label htmlFor="player-health-date">Datum</Label>
-                      <Input
-                        defaultValue={today}
-                        id="player-health-date"
-                        name="checkin_date"
-                        type="date"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="player-health-context">Kontext</Label>
-                      <select
-                        className="flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                        defaultValue={todayHealth?.context_type ?? "training"}
-                        id="player-health-context"
-                        name="context_type"
-                      >
-                        <option value="training">Training</option>
-                        <option value="match">Spiel</option>
-                        <option value="free">Freier Check</option>
-                      </select>
-                    </div>
-                  </div>
-                  <div className="grid gap-2 sm:grid-cols-3">
-                    {healthChecks.map(([name, label]) => (
-                      <div className="space-y-1" key={name}>
-                        <Label>{label}</Label>
-                        <select
-                          className="flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                          defaultValue={String(todayHealth?.[name] ?? 3)}
-                          name={name}
-                        >
-                          {[1, 2, 3, 4, 5].map((value) => (
-                            <option key={value} value={value}>
-                              {value}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    ))}
-                  </div>
-                  <Textarea
-                    defaultValue={todayHealth?.notes ?? ""}
-                    name="notes"
-                    placeholder="Kurzer Hinweis an den Trainer"
-                  />
-                  <Button className="w-full" type="submit">
-                    Check-in speichern
-                  </Button>
-                </form>
               </CardContent>
             </Card>
           </section>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Saisonblatt</CardTitle>
-            </CardHeader>
-            <CardContent>
+          {/* Saisonblatt collapsible */}
+          <details className="group rounded-2xl border border-border bg-card shadow-soft">
+            <summary className="flex cursor-pointer items-center justify-between gap-3 p-4">
+              <div className="flex items-center gap-3">
+                <span
+                  aria-hidden="true"
+                  className="flex h-10 w-10 items-center justify-center rounded-xl bg-secondary text-foreground"
+                >
+                  <UserRound className="h-5 w-5" />
+                </span>
+                <div>
+                  <p className="text-[15px] font-semibold tracking-tight">
+                    Saisonblatt
+                  </p>
+                  <p className="text-[12px] text-muted-foreground">
+                    Kontaktdaten, Lieblingsteam, Ziele, Medizinisches
+                  </p>
+                </div>
+              </div>
+              <ChevronRight
+                aria-hidden="true"
+                className="h-5 w-5 text-muted-foreground transition-transform group-open:rotate-90"
+              />
+            </summary>
+            <div className="border-t border-border p-4 sm:p-5">
               <form action={submitPlayerSeasonForm} className="space-y-4">
                 <input name="player_id" type="hidden" value={player.id} />
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="grid gap-3 sm:grid-cols-2">
                   <Input
                     defaultValue={player.contact ?? ""}
                     name="contact"
@@ -408,147 +600,58 @@ export default async function PlayerModePage({
                     name="favorite_player"
                     placeholder="Lieblingsspieler"
                   />
-                  <Textarea
-                    className="lg:col-span-2"
-                    defaultValue={player.football_goals ?? ""}
-                    name="football_goals"
-                    placeholder="Meine Fussballziele"
-                  />
-                  <Textarea
-                    className="lg:col-span-2"
-                    defaultValue={player.strengths ?? ""}
-                    name="strengths"
-                    placeholder="Meine Stärken"
-                  />
-                  <Textarea
-                    className="lg:col-span-2"
-                    defaultValue={player.weaknesses ?? ""}
-                    name="weaknesses"
-                    placeholder="Woran ich arbeiten will"
-                  />
-                  <Textarea
-                    className="lg:col-span-2"
-                    defaultValue={player.motivation ?? ""}
-                    name="motivation"
-                    placeholder="Was motiviert mich?"
-                  />
-                  <Textarea
-                    className="lg:col-span-2"
-                    defaultValue={player.allergies ?? ""}
-                    name="allergies"
-                    placeholder="Allergien"
-                  />
-                  <Textarea
-                    className="lg:col-span-2"
-                    defaultValue={player.injuries ?? ""}
-                    name="injuries"
-                    placeholder="Verletzungen"
-                  />
-                  <Textarea
-                    className="lg:col-span-2"
-                    defaultValue={player.limitations ?? ""}
-                    name="limitations"
-                    placeholder="Einschränkungen"
-                  />
-                  <Textarea
-                    className="lg:col-span-2"
-                    defaultValue={player.medications ?? ""}
-                    name="medications"
-                    placeholder="Medikamente"
-                  />
                 </div>
-                <Button type="submit">Saisonblatt speichern</Button>
+                <Textarea
+                  defaultValue={player.football_goals ?? ""}
+                  name="football_goals"
+                  placeholder="Meine Fussballziele"
+                />
+                <Textarea
+                  defaultValue={player.strengths ?? ""}
+                  name="strengths"
+                  placeholder="Meine Stärken"
+                />
+                <Textarea
+                  defaultValue={player.weaknesses ?? ""}
+                  name="weaknesses"
+                  placeholder="Woran ich arbeiten will"
+                />
+                <Textarea
+                  defaultValue={player.motivation ?? ""}
+                  name="motivation"
+                  placeholder="Was motiviert mich?"
+                />
+                <Textarea
+                  defaultValue={player.allergies ?? ""}
+                  name="allergies"
+                  placeholder="Allergien"
+                />
+                <Textarea
+                  defaultValue={player.injuries ?? ""}
+                  name="injuries"
+                  placeholder="Verletzungen"
+                />
+                <Textarea
+                  defaultValue={player.limitations ?? ""}
+                  name="limitations"
+                  placeholder="Einschränkungen"
+                />
+                <Textarea
+                  defaultValue={player.medications ?? ""}
+                  name="medications"
+                  placeholder="Medikamente"
+                />
+                <Button className="h-11 w-full" type="submit">
+                  Saisonblatt speichern
+                </Button>
               </form>
-            </CardContent>
-          </Card>
-
-          <section className="grid gap-4 lg:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <CardTitle>Kalender</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {[...trainings, ...matches]
-                  .map((item) =>
-                    "focus" in item
-                      ? {
-                          id: `training-${item.id}`,
-                          date: item.date,
-                          time: item.start_time,
-                          title: item.focus,
-                          label: "Training",
-                          body: item.goal
-                        }
-                      : {
-                          id: `match-${item.id}`,
-                          date: item.date,
-                          time: item.kickoff_time,
-                          title: item.opponent,
-                          label: "Spiel",
-                          body: item.match_goals
-                        }
-                  )
-                  .sort((a, b) => a.date.localeCompare(b.date))
-                  .slice(0, 8)
-                  .map((event) => (
-                    <div
-                      className="rounded-xl border border-border bg-background/70 p-4"
-                      key={event.id}
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <Badge variant="secondary">{event.label}</Badge>
-                          <p className="mt-2 font-semibold">{event.title}</p>
-                          <p className="mt-1 text-sm text-muted-foreground">
-                            {formatDate(event.date)}
-                            {event.time ? ` · ${event.time.slice(0, 5)}` : ""}
-                          </p>
-                        </div>
-                        <CalendarDays
-                          aria-hidden="true"
-                          className="h-5 w-5 text-primary"
-                        />
-                      </div>
-                    </div>
-                  ))}
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Feedback & Entwicklung</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {evaluations.length > 0 ? (
-                  evaluations.slice(0, 5).map((evaluation) => (
-                    <div
-                      className="rounded-xl border border-border bg-background/70 p-4"
-                      key={evaluation.id}
-                    >
-                      <div className="flex items-center justify-between gap-3">
-                        <Badge variant="success">
-                          {evaluationAverage(evaluation)?.toFixed(1) ?? "-"}/5
-                        </Badge>
-                        <span className="text-xs text-muted-foreground">
-                          {formatDate(evaluation.evaluation_date)}
-                        </span>
-                      </div>
-                      <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-muted-foreground">
-                        {evaluation.notes ?? "Keine Notiz."}
-                      </p>
-                    </div>
-                  ))
-                ) : (
-                  <EmptyState title="Noch kein Feedback vorhanden." />
-                )}
-              </CardContent>
-            </Card>
-          </section>
+            </div>
+          </details>
 
           {isStaffPreview ? (
             <div className="flex justify-end">
               <Button asChild variant="outline">
-                <Link href={`/players/${player.id}`}>Trainer-Portfolio</Link>
+                <Link href={`/players/${player.id}`}>Trainer-Portfolio öffnen</Link>
               </Button>
             </div>
           ) : null}

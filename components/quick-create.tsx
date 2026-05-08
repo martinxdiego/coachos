@@ -19,6 +19,7 @@ import {
   createTraining,
   saveHealthCheckin
 } from "@/app/actions";
+import { ScoreScale } from "@/components/score-scale";
 import { ToastForm } from "@/components/toast-form";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -321,32 +322,26 @@ export function QuickCreate({
                       <option value="match">Vor Spiel</option>
                       <option value="free">Freier Check</option>
                     </select>
-                    <div className="grid grid-cols-3 gap-2">
-                      {[
-                        ["fatigue", "Müdigkeit"],
-                        ["sleep_quality", "Schlaf"],
-                        ["soreness", "Muskel"],
-                        ["pain", "Schmerz"],
-                        ["stress", "Stress"],
-                        ["motivation", "Motivation"],
-                        ["energy", "Energie"],
-                        ["injury_feeling", "Verletzung"],
-                        ["wellbeing", "Wohlbefinden"]
-                      ].map(([name, label]) => (
-                        <label className="space-y-1 text-xs" key={name}>
-                          <span>{label}</span>
-                          <select
-                            className="flex h-9 w-full rounded-lg border border-input bg-background px-2 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                            defaultValue="3"
-                            name={name}
-                          >
-                            {[1, 2, 3, 4, 5].map((value) => (
-                              <option key={value} value={value}>
-                                {value}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {([
+                        ["wellbeing", "Wohlbefinden", "high-good"],
+                        ["fatigue", "Müdigkeit", "low-good"],
+                        ["sleep_quality", "Schlaf", "high-good"],
+                        ["energy", "Energie", "high-good"],
+                        ["pain", "Schmerz", "low-good"],
+                        ["soreness", "Muskelkater", "low-good"],
+                        ["stress", "Stress", "low-good"],
+                        ["motivation", "Motivation", "high-good"],
+                        ["injury_feeling", "Verletzungsgefühl", "low-good"]
+                      ] as const).map(([name, label, direction]) => (
+                        <ScoreScale
+                          defaultValue={3}
+                          direction={direction}
+                          key={name}
+                          label={label}
+                          name={name}
+                          size="sm"
+                        />
                       ))}
                     </div>
                     <Textarea name="notes" placeholder="Hinweis optional" />
