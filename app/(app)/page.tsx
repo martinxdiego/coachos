@@ -393,6 +393,12 @@ async function DashboardSections({ teamId }: { teamId: string }) {
       latestCheckinsByPlayer.set(checkin.player_id, checkin);
     }
   }
+
+  const todayCheckinIds = new Set(
+    healthCheckins.filter((c) => c.checkin_date === today).map((c) => c.player_id)
+  );
+  const checkedInToday = players.filter((p) => todayCheckinIds.has(p.id)).length;
+  const notCheckedInToday = players.length - checkedInToday;
   const wellnessAlerts = players
     .map((player) => {
       const latest = latestCheckinsByPlayer.get(player.id);
@@ -506,10 +512,145 @@ async function DashboardSections({ teamId }: { teamId: string }) {
       : null
   ].filter((hint): hint is NonNullable<typeof hint> => hint !== null);
 
+  const checkinPct = players.length > 0 ? Math.round((checkedInToday / players.length) * 100) : 0;
+
+  const todayTraining = nextTraining?.date === today ? nextTraining : null;
+  const todayMatch = nextMatch?.date === today ? nextMatch : null;
+  const nextEventLabel = todayTraining
+    ? `Training${todayTraining.start_time ? ` · ${todayTraining.start_time.slice(0, 5)}` : ""}`
+    : todayMatch
+    ? `Spiel vs. ${todayMatch.opponent}${todayMatch.kickoff_time ? ` · ${todayMatch.kickoff_time.slice(0, 5)}` : ""}`
+    : nextTraining
+    ? `Nächstes Training · ${formatDate(nextTraining.date)}`
+    : nextMatch
+    ? `Nächstes Spiel · ${formatDate(nextMatch.date)}`
+    : null;
+
   return (
     <>
       {/* Onboarding-Tour (einmalig) */}
       <DashboardOnboarding />
+
+      {/* Tageskurzblick */}
+      {players.length > 0 ? (
+        <section className="rounded-2xl border border-border/70 bg-card p-5 shadow-soft">
+          <div className="mb-4 flex items-center justify-between gap-2">
+            <h2 className="text-[15px] font-semibold tracking-tight">
+              Tageskurzblick
+            </h2>
+            <span className="text-[12px] text-muted-foreground">
+              {germanLongDate(today)}
+            </span>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {/* Check-in heute */}
+            <div className="rounded-xl bg-secondary/50 p-3">
+              <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
+                Check-in Heute
+              </p>
+              <p className="mt-1 text-[22px] font-semibold tracking-tight">
+                {checkedInToday}
+                <span className="text-[14px] font-normal text-muted-foreground">
+                  /{players.length}
+                </span>
+              </p>
+              <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-border">
+                <div
+                  className="h-full rounded-full bg-primary transition-[width] duration-500"
+                  style={{ width: `${checkinPct}%` }}
+                />
+              </div>
+              <p className="mt-1.5 text-[11px] text-muted-foreground">
+                {notCheckedInToday > 0
+                  ? `${notCheckedInToday} noch ausstehend`
+                  : "Alle eingecheckt ✓"}
+              </p>
+            </div>
+
+            {/* Kader Status */}
+            <div className="rounded-xl bg-secondary/50 p-3">
+              <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
+                Kader
+              </p>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[12px] font-medium text-emerald-800">
+                  <span
+                    aria-hidden="true"
+                    className="h-1.5 w-1.5 rounded-full bg-emerald-500"
+                  />
+                  {availablePlayers} Fit
+                </span>
+                {limitedPlayersList.length > 0 ? (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[12px] font-medium text-amber-800">
+                    <span
+                      aria-hidden="true"
+                      className="h-1.5 w-1.5 rounded-full bg-amber-500"
+                    />
+                    {limitedPlayersList.length} Aufbau
+                  </span>
+                ) : null}
+                {injuredPlayers.length > 0 ? (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-[12px] font-medium text-red-800">
+                    <span
+                      aria-hidden="true"
+                      className="h-1.5 w-1.5 rounded-full bg-red-500"
+                    />
+                    {injuredPlayers.length} Verletzt
+                  </span>
+                ) : null}
+              </div>
+              <p className="mt-2 text-[11px] text-muted-foreground">
+                {players.length} Spieler gesamt
+              </p>
+            </div>
+
+            {/* Nächstes Event */}
+            <div className="rounded-xl bg-secondary/50 p-3">
+              <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
+                {todayTraining || todayMatch ? "Heute" : "Nächster Termin"}
+              </p>
+              {nextEventLabel ? (
+                <>
+                  <p className="mt-1 text-[13px] font-semibold tracking-tight leading-snug">
+                    {nextEventLabel}
+                  </p>
+                  <Link
+                    className="mt-2 inline-flex items-center gap-1 text-[11px] text-primary hover:underline"
+                    href={todayTraining || nextTraining ? "/trainings" : "/matches"}
+                  >
+                    Öffnen
+                    <ArrowRight aria-hidden="true" className="h-3 w-3" />
+                  </Link>
+                </>
+              ) : (
+                <p className="mt-1 text-[13px] text-muted-foreground">
+                  Keine Termine geplant
+                </p>
+              )}
+            </div>
+
+            {/* Offene Aufgaben */}
+            <div className="rounded-xl bg-secondary/50 p-3">
+              <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
+                Offene Aufgaben
+              </p>
+              <p className="mt-1 text-[22px] font-semibold tracking-tight">
+                {openTasks.length}
+              </p>
+              {openTasks.length > 0 ? (
+                <p className="mt-1.5 text-[11px] text-muted-foreground line-clamp-2">
+                  {openTasks[0].title}
+                  {openTasks.length > 1 ? ` +${openTasks.length - 1} weitere` : ""}
+                </p>
+              ) : (
+                <p className="mt-1.5 text-[11px] text-muted-foreground">
+                  Alles erledigt ✓
+                </p>
+              )}
+            </div>
+          </div>
+        </section>
+      ) : null}
 
       {/* Wellness-Alert Banner */}
       {wellnessAlerts.length > 0 ? (

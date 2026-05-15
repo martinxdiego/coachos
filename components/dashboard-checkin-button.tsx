@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { triggerConfetti } from "@/lib/confetti";
 import { todayIsoDate } from "@/lib/utils";
 
 type CheckPlayer = {
@@ -79,7 +80,7 @@ export function DashboardCheckinButton({
           <ToastForm
             action={saveHealthCheckin}
             className="space-y-4"
-            onComplete={() => setIsOpen(false)}
+            onComplete={() => { setIsOpen(false); triggerConfetti({ x: 0.5, y: 0.4 }); }}
             successMessage="Check-in gespeichert"
           >
             <div className="grid gap-3 sm:grid-cols-2">

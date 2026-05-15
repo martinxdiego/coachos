@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/empty-state";
 import { Input } from "@/components/ui/input";
 import { cn, formatDate } from "@/lib/utils";
 
@@ -233,8 +234,32 @@ export function HealthRoster({ rows }: { rows: HealthRow[] }) {
           <tbody>
             {sorted.length === 0 ? (
               <tr>
-                <td className="px-3 py-6 text-center text-muted-foreground" colSpan={6}>
-                  Keine Spieler in dieser Auswahl.
+                <td colSpan={6}>
+                  <div className="px-4 py-8">
+                    <EmptyState
+                      title={
+                        rows.length === 0
+                          ? "Noch keine Check-ins vorhanden."
+                          : "Keine Spieler in dieser Auswahl."
+                      }
+                      body={
+                        rows.length === 0
+                          ? "Sobald Spieler ihren täglichen Check-in ausfüllen, erscheinen sie hier."
+                          : "Filter anpassen oder auf 'Alle' klicken."
+                      }
+                      action={
+                        filter !== "all" ? (
+                          <Button
+                            onClick={() => setFilter("all")}
+                            type="button"
+                            variant="outline"
+                          >
+                            Filter zurücksetzen
+                          </Button>
+                        ) : undefined
+                      }
+                    />
+                  </div>
                 </td>
               </tr>
             ) : (

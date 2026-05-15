@@ -100,6 +100,17 @@ h1, h2, h3, h4 {
   }
 }
 
+@keyframes score-pop {
+  0%   { transform: scale(1); }
+  35%  { transform: scale(1.22); }
+  65%  { transform: scale(0.93); }
+  100% { transform: scale(1); }
+}
+
+.animate-score-pop {
+  animation: score-pop 280ms var(--ease-spring) forwards;
+}
+
 /* Glass surface used by sticky bars / sheets */
 .glass {
   background: hsl(0 0% 100% / 0.72);
