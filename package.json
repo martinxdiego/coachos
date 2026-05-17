@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.96.0",
     "@radix-ui/react-slot": "1.1.1",
     "@react-pdf/renderer": "^4.5.1",
     "@supabase/ssr": "0.10.2",

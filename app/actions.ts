@@ -1,9 +1,11 @@
 "use server";
 
+import Anthropic from "@anthropic-ai/sdk";
 import { randomUUID } from "crypto";
 import { cookies, headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { healthRisk } from "@/lib/coach-metrics";
 import { ACTIVE_TEAM_COOKIE, requireActiveTeam, requireUser } from "@/lib/auth";
 import { getSiteUrl } from "@/lib/env";
 import { createClient } from "@/lib/supabase/server";
@@ -1162,10 +1164,178 @@ export async function deleteTraining(formData: FormData) {
 
 export async function createAiTrainingDraft(formData: FormData) {
   const { supabase, user, team } = await requireActiveTeam();
-  const focus = requiredString(formData, "focus", "Training focus");
+  const focus = requiredString(formData, "focus", "Schwerpunkt");
   const duration = optionalNumber(formData, "duration_minutes") ?? 90;
   const ageGroup = optionalString(formData, "age_group") ?? team.age_group;
-  const date = requiredString(formData, "date", "Training date");
+  const date = requiredString(formData, "date", "Datum");
+  const additionalContext = optionalString(formData, "context") ?? "";
+
+  if (!process.env.ANTHROPIC_API_KEY) {
+    throw new Error("ANTHROPIC_API_KEY ist nicht konfiguriert. Bitte in .env.local setzen.");
+  }
+
+  const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
+
+  const [playersResult, checkinsResult, recentTrainingsResult, nextMatchResult] = await Promise.all([
+    supabase.from("players").select("id,name,status").eq("team_id", team.id).order("name"),
+    supabase
+      .from("health_checkins")
+      .select("player_id,checkin_date,fatigue,sleep_quality,soreness,pain,stress,motivation,energy,injury_feeling,wellbeing")
+      .eq("team_id", team.id)
+      .gte("checkin_date", sevenDaysAgo)
+      .order("checkin_date", { ascending: false }),
+    supabase
+      .from("training_sessions")
+      .select("date,focus,intensity")
+      .eq("team_id", team.id)
+      .lt("date", date)
+      .order("date", { ascending: false })
+      .limit(4),
+    supabase
+      .from("matches")
+      .select("date,opponent,kickoff_time")
+      .eq("team_id", team.id)
+      .gte("date", date)
+      .order("date", { ascending: true })
+      .limit(1)
+      .maybeSingle()
+  ]);
+
+  const players = playersResult.data ?? [];
+  const checkins = checkinsResult.data ?? [];
+  const recentTrainings = recentTrainingsResult.data ?? [];
+  const nextMatch = nextMatchResult.data;
+
+  const latestByPlayer = new Map<string, (typeof checkins)[number]>();
+  for (const c of checkins) {
+    if (!latestByPlayer.has(c.player_id)) latestByPlayer.set(c.player_id, c);
+  }
+
+  const available = players.filter((p) => p.status === "available" || !p.status);
+  const limited = players.filter((p) => p.status === "limited");
+  const injured = players.filter((p) => p.status === "injured");
+
+  const wellnessLines = players
+    .map((player) => {
+      const c = latestByPlayer.get(player.id);
+      if (!c) return `- ${player.name}: Kein aktueller Check-in`;
+      const risk = healthRisk(c);
+      const label =
+        risk === "red"
+          ? "🔴 ROT – unbedingt schonen!"
+          : risk === "yellow"
+            ? "🟡 GELB – beobachten"
+            : "✅ GUT";
+      return `- ${player.name}: Müdigkeit ${c.fatigue}/5, Schmerzen ${c.pain}/5, Energie ${c.energy}/5, Stress ${c.stress}/5, Schlaf ${c.sleep_quality}/5 → ${label}`;
+    })
+    .join("\n");
+
+  const recentLines =
+    recentTrainings.length > 0
+      ? recentTrainings.map((t) => `- ${t.date}: ${t.focus} (${t.intensity ?? "?"} Intensität)`).join("\n")
+      : "- Noch keine Trainings erfasst";
+
+  const daysToMatch = nextMatch
+    ? Math.round((new Date(`${nextMatch.date}T00:00`).getTime() - new Date(`${date}T00:00`).getTime()) / 86400000)
+    : null;
+  const matchLine = nextMatch
+    ? `${nextMatch.date} gegen ${nextMatch.opponent}${nextMatch.kickoff_time ? ` · Anpfiff ${nextMatch.kickoff_time.slice(0, 5)} Uhr` : ""} — ${daysToMatch} Tag(e) bis zum Spiel`
+    : "Kein Spiel in den nächsten 14 Tagen geplant";
+
+  const prompt = `Du bist ein professioneller Fußballtrainer-Assistent mit tiefer Expertise in modernem Fußball-Training, Trainingslehre und Belastungssteuerung.
+
+Erstelle einen vollständigen, praxisorientierten Trainingsplan für folgendes Team.
+
+## TEAM
+Name: ${team.name}
+Altersstufe: ${ageGroup ?? "nicht angegeben"}
+Kader: ${players.length} Spieler (${available.length} fit, ${limited.length} eingeschränkt, ${injured.length} verletzt)
+Trainingsdatum: ${date}
+Geplante Dauer: ${duration} Minuten
+
+## TRAINER-VORGABE
+Schwerpunkt: "${focus}"${additionalContext ? `\nZusätzliche Anweisungen: "${additionalContext}"` : ""}
+
+## WELLNESS-STATUS ALLER SPIELER (letzte 7 Tage)
+${wellnessLines || "Keine Check-in-Daten vorhanden — Standardbelastung ansetzen"}
+
+## LETZTE TRAININGS
+${recentLines}
+
+## NÄCHSTES SPIEL
+${matchLine}
+
+## AUFGABE
+Erstelle einen detaillierten Trainingsplan als JSON-Objekt. Antworte AUSSCHLIESSLICH mit gültigem JSON — kein Markdown, kein Fließtext:
+
+{
+  "focus": "Präziser, eingängiger Trainingstitel (max 60 Zeichen)",
+  "goal": "Konkretes, messbares Trainingsziel — WAS wird trainiert und WARUM heute (2-3 präzise Sätze)",
+  "intensity": "low" | "medium" | "high",
+  "notes": "Trainer-Notizen: Welche Spieler heute namentlich schonen? Welche Belastungsanpassungen? Worauf besonders achten? (3-5 Sätze, sehr konkret)",
+  "phases": [
+    {
+      "phase_type": "warmup" | "activation" | "technique" | "tactics" | "game_form" | "finish" | "cooldown",
+      "title": "Phasentitel (3-5 Wörter)",
+      "duration_minutes": Zahl,
+      "description": "Detaillierte Übungsbeschreibung: Aufbau, Ablauf, Spielerpositionierung (3-6 Sätze)",
+      "coaching_points": "3-5 konkrete Coachingpunkte die der Trainer aktiv einfordert — eine Zeile je Punkt",
+      "organization": "Feldgröße, Gruppenaufteilung, Wechselregeln",
+      "material": "Konkretes Material z.B. '6 Bälle, 8 Hütchen, 4 Leibchen, 2 Kleintore'",
+      "variations": "Leichtere Variante / Schwierigere Variante (je eine Zeile)",
+      "load_management": "Wie absolvieren eingeschränkte Spieler diese Phase konkret?"
+    }
+  ]
+}
+
+QUALITÄTSREGELN:
+- 4-6 Phasen die zusammen exakt ${duration} Minuten ergeben
+- Intensität: Viele 🔴/🟡 Spieler → "low", gemischtes Team → "medium", frisches Team → "high"
+- Coachingpunkte sind KONKRET (nicht 'Kommunikation' sondern 'Spieler ruft den Namen vor dem Pass')
+- 🔴-Spieler werden namentlich in notes UND load_management erwähnt
+- Übungen sind altersgruppengerecht für ${ageGroup ?? "die Altersgruppe"}
+- Das Trainingsziel passt exakt zum Schwerpunkt`;
+
+  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  const message = await client.messages.create({
+    model: "claude-opus-4-7",
+    max_tokens: 4096,
+    messages: [{ role: "user", content: prompt }],
+  });
+
+  const rawText = message.content[0].type === "text" ? message.content[0].text : "";
+  const jsonText = rawText.replace(/^```(?:json)?\n?/m, "").replace(/\n?```$/m, "").trim();
+
+  type AiPhase = {
+    phase_type: string;
+    title: string;
+    duration_minutes: number;
+    description: string;
+    coaching_points: string;
+    organization: string;
+    material: string;
+    variations: string;
+    load_management: string;
+  };
+  type AiPlan = {
+    focus: string;
+    goal: string;
+    intensity: string;
+    notes: string;
+    phases: AiPhase[];
+  };
+
+  let plan: AiPlan;
+  try {
+    plan = JSON.parse(jsonText);
+  } catch {
+    throw new Error("Die KI hat ein ungültiges Format zurückgegeben. Bitte erneut versuchen.");
+  }
+
+  const validIntensities: TrainingIntensity[] = ["low", "medium", "high"];
+  const intensity: TrainingIntensity = validIntensities.includes(plan.intensity as TrainingIntensity)
+    ? (plan.intensity as TrainingIntensity)
+    : "medium";
 
   const { data: training, error } = await supabase
     .from("training_sessions")
@@ -1174,50 +1344,34 @@ export async function createAiTrainingDraft(formData: FormData) {
       user_id: user.id,
       date,
       duration_minutes: duration,
-      focus,
-      goal: `AI draft: improve ${focus.toLowerCase()} with a logical load progression.`,
+      focus: plan.focus || focus,
+      goal: plan.goal,
       age_group: ageGroup,
-      intensity: "medium",
-      notes:
-        "AI mock draft. Ready for future model integration: adjust phases, coaching points, variants, and material before using on pitch."
+      intensity,
+      notes: plan.notes,
     })
     .select("id")
     .single();
 
-  if (error) {
-    throw new Error(error.message);
-  }
+  if (error) throw new Error(error.message);
 
-  const base = Math.max(10, Math.floor(duration / 6));
-  const rows = [
-    ["warmup", "Activation rondo", base, "Mobilize, ball contacts, scanning."],
-    ["technique", `${focus} technique`, base + 5, "High repetition, clean execution."],
-    ["tactics", `${focus} tactical picture`, base + 5, "Freeze moments and correct distances."],
-    ["game_form", "Directional game", base + 10, "Transfer principle into realistic pressure."],
-    ["finish", "Competitive finish", base, "Score-driven final block."],
-    ["cooldown", "Review and cooldown", 8, "Regenerate and collect player feedback."]
-  ].map(([phaseType, title, minutes, description], index) => ({
+  const phaseRows = (plan.phases ?? []).map((phase, index) => ({
     team_id: team.id,
     training_id: training.id,
-    phase_type: phaseType as TrainingPhaseType,
-    title: String(title),
-    duration_minutes: Number(minutes),
-    description: String(description),
-    coaching_points:
-      "Observe body shape, timing, communication, and decision quality.",
-    organization: "Use clear zones, short coaching stops, and fast restarts.",
-    material: "Balls, bibs, cones, small goals",
-    player_count: "12-18",
-    field_size: "Adapt to squad size",
-    variations: "Reduce touches for harder; increase space for easier.",
-    load_management: "Medium load with short breaks between blocks.",
-    sort_order: index
+    phase_type: (phase.phase_type ?? "technique") as TrainingPhaseType,
+    title: phase.title ?? "",
+    duration_minutes: phase.duration_minutes ?? null,
+    description: phase.description ?? null,
+    coaching_points: phase.coaching_points ?? null,
+    organization: phase.organization ?? null,
+    material: phase.material ?? null,
+    variations: phase.variations ?? null,
+    load_management: phase.load_management ?? null,
+    sort_order: index,
   }));
 
-  const { error: phaseError } = await supabase.from("training_phases").insert(rows);
-  if (phaseError) {
-    throw new Error(phaseError.message);
-  }
+  const { error: phaseError } = await supabase.from("training_phases").insert(phaseRows);
+  if (phaseError) throw new Error(phaseError.message);
 
   revalidatePath("/");
   revalidatePath("/calendar");
