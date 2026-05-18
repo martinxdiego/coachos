@@ -80,7 +80,7 @@ export function DashboardCheckinButton({
           <ToastForm
             action={saveHealthCheckin}
             className="space-y-4"
-            onComplete={() => { setIsOpen(false); triggerConfetti({ x: 0.5, y: 0.4 }); }}
+            onComplete={() => { triggerConfetti({ x: 0.5, y: 0.4 }); setTimeout(() => setIsOpen(false), 80); }}
             successMessage="Check-in gespeichert"
           >
             <div className="grid gap-3 sm:grid-cols-2">
