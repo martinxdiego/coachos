@@ -47,25 +47,12 @@ export function TrainingAiDraftDrawer({
       </Button>
 
       <SideDrawer
-        description="Claude analysiert die aktuellen Wellness-Daten deines Teams, die letzten Trainings und das nächste Spiel — und generiert daraus einen vollständigen, belastungsoptimierten Trainingsplan."
         eyebrow="KI · Claude Opus"
         isOpen={isOpen}
         onClose={() => setIsOpen(false)}
         title="KI-Trainingsplan"
       >
         <form className="space-y-5" onSubmit={handleSubmit}>
-          <div className="space-y-2">
-            <Label htmlFor="ai-focus">Schwerpunkt</Label>
-            <Input
-              id="ai-focus"
-              name="focus"
-              placeholder="z.B. Spielaufbau gegen Pressing"
-            />
-            <p className="text-[12px] leading-5 text-muted-foreground">
-              Je präziser der Schwerpunkt, desto fokussierter das Ergebnis.
-            </p>
-          </div>
-
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="ai-date">Datum</Label>
@@ -101,6 +88,21 @@ export function TrainingAiDraftDrawer({
           </div>
 
           <div className="space-y-2">
+            <Label htmlFor="ai-focus" className="text-base font-semibold">
+              Schwerpunkt <span className="text-destructive">*</span>
+            </Label>
+            <Input
+              id="ai-focus"
+              name="focus"
+              placeholder="z.B. Spielaufbau gegen Pressing"
+              className="h-11 text-base"
+            />
+            <p className="text-[12px] leading-5 text-muted-foreground">
+              Je präziser der Schwerpunkt, desto fokussierter das Ergebnis.
+            </p>
+          </div>
+
+          <div className="space-y-2">
             <Label htmlFor="ai-context">Zusätzliche Anweisungen (optional)</Label>
             <Textarea
               id="ai-context"
@@ -108,9 +110,6 @@ export function TrainingAiDraftDrawer({
               placeholder="z.B. Wir haben Mittwoch ein wichtiges Spiel, heute nur leichte Belastung. Oder: Fokus auf Standardsituationen einbauen."
               rows={3}
             />
-            <p className="text-[12px] leading-5 text-muted-foreground">
-              Hinweise zum Spielplan, besonderen Spielern oder taktischen Wünschen.
-            </p>
           </div>
 
           {/* Was die KI analysiert */}
