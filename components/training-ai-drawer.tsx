@@ -23,6 +23,11 @@ export function TrainingAiDraftDrawer({
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
+    const focus = (formData.get("focus") as string | null)?.trim();
+    if (!focus) {
+      toast.error("Bitte einen Schwerpunkt eingeben.");
+      return;
+    }
     startTransition(async () => {
       try {
         await createAiTrainingDraft(formData);
@@ -52,11 +57,9 @@ export function TrainingAiDraftDrawer({
           <div className="space-y-2">
             <Label htmlFor="ai-focus">Schwerpunkt</Label>
             <Input
-              autoFocus
               id="ai-focus"
               name="focus"
               placeholder="z.B. Spielaufbau gegen Pressing"
-              required
             />
             <p className="text-[12px] leading-5 text-muted-foreground">
               Je präziser der Schwerpunkt, desto fokussierter das Ergebnis.
