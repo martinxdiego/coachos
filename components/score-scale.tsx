@@ -39,6 +39,7 @@ export function ScoreScale({
   size = "md"
 }: ScoreScaleProps) {
   const [value, setValue] = useState<number>(defaultValue);
+  const [popped, setPopped] = useState<number | null>(null);
   const active = colorFor(value, direction);
   const heightClass = size === "sm" ? "h-9 text-[13px]" : "h-11 text-[14px]";
 
@@ -74,11 +75,15 @@ export function ScoreScale({
                 "flex items-center justify-center rounded-lg border font-semibold tracking-tight transition-all duration-150 active:scale-[0.97]",
                 heightClass,
                 isActive
-                  ? cn(optColor.bg, optColor.text, "border-transparent shadow-sm")
+                  ? cn(optColor.bg, optColor.text, "border-transparent shadow-sm", popped === option && "animate-score-pop")
                   : "border-border bg-card text-muted-foreground hover:border-foreground/30 hover:text-foreground"
               )}
               key={option}
-              onClick={() => setValue(option)}
+              onClick={() => {
+                setValue(option);
+                setPopped(option);
+                setTimeout(() => setPopped(null), 300);
+              }}
               role="radio"
               tabIndex={isActive ? 0 : -1}
               type="button"

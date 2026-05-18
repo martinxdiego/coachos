@@ -10,6 +10,7 @@ import {
 } from "react";
 import {
   Copy,
+  Download,
   Grid3x3,
   Move,
   Pause,
@@ -24,6 +25,7 @@ import {
   Undo2,
   UsersRound
 } from "lucide-react";
+import { toast } from "sonner";
 import { saveTacticBoard } from "@/app/actions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -276,6 +278,237 @@ const arrowVisuals: Record<ArrowKind, ArrowVisual> = {
     markerFill: "#facc15"
   }
 };
+
+// ─── Canvas video export helpers ──────────────────────────────────────────────
+
+function computeInterpolated(
+  time: number,
+  scenes: BoardScene[],
+  segmentCount: number,
+  totalDuration: number,
+  fallbackElements: BoardElement[]
+): BoardElement[] {
+  if (segmentCount === 0) return fallbackElements;
+
+  const easeIO = (t: number) =>
+    t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+
+  const clamped = Math.min(Math.max(time, 0), totalDuration - 0.0001);
+  const segIdx = Math.min(segmentCount - 1, Math.floor(clamped / ANIMATION_SECONDS_PER_SCENE));
+  const tRaw = (clamped - segIdx * ANIMATION_SECONDS_PER_SCENE) / ANIMATION_SECONDS_PER_SCENE;
+  const t = easeIO(Math.min(1, Math.max(0, tRaw)));
+
+  const sceneA = scenes[segIdx];
+  const sceneB = scenes[segIdx + 1];
+  if (!sceneA || !sceneB) return sceneA?.elements ?? sceneB?.elements ?? [];
+
+  const key = (el: BoardElement) => el.playerId ? `pid:${el.playerId}` : `id:${el.id}`;
+  const indexB = new Map<string, BoardElement>(sceneB.elements.map((el) => [key(el), el]));
+  const usedB = new Set<string>();
+  const lerp = (a: number, b: number) => a + (b - a) * t;
+  const lerpOpt = (a?: number, b?: number) => {
+    if (typeof a !== "number" && typeof b !== "number") return undefined;
+    if (typeof a !== "number") return b;
+    if (typeof b !== "number") return a;
+    return lerp(a, b);
+  };
+
+  const blended: BoardElement[] = [];
+  for (const el of sceneA.elements) {
+    const match = indexB.get(key(el));
+    if (match) {
+      usedB.add(key(el));
+      if (el.path && el.path.length > 0) {
+        const polyline: PathPoint[] = [{ x: el.x, y: el.y }, ...el.path, { x: match.x, y: match.y }];
+        const s = samplePolyline(polyline, t);
+        blended.push({ ...el, x: s.x, y: s.y, x2: lerpOpt(el.x2, match.x2), y2: lerpOpt(el.y2, match.y2), width: lerpOpt(el.width, match.width), height: lerpOpt(el.height, match.height), path: undefined });
+      } else {
+        blended.push({ ...el, x: lerp(el.x, match.x), y: lerp(el.y, match.y), x2: lerpOpt(el.x2, match.x2), y2: lerpOpt(el.y2, match.y2), width: lerpOpt(el.width, match.width), height: lerpOpt(el.height, match.height) });
+      }
+    } else {
+      blended.push(el);
+    }
+  }
+  for (const el of sceneB.elements) {
+    if (!usedB.has(key(el)) && t > 0.5) blended.push(el);
+  }
+  return blended;
+}
+
+function renderFrameToCanvas(
+  ctx: CanvasRenderingContext2D,
+  W: number,
+  H: number,
+  elements: BoardElement[],
+  fieldVariant: "full" | "half" | "box" | "blank"
+) {
+  const s = W / 640;
+  const toX = (pct: number) => (pct / 100) * W;
+  const toY = (pct: number) => (pct / 100) * H;
+  const m = 16 * s;
+
+  // Field background
+  ctx.fillStyle = "#15803d";
+  ctx.beginPath();
+  ctx.roundRect(0, 0, W, H, 16 * s);
+  ctx.fill();
+
+  // Field lines
+  ctx.strokeStyle = "rgba(255,255,255,0.65)";
+  ctx.lineWidth = 2 * s;
+  ctx.setLineDash([]);
+
+  if (fieldVariant !== "blank") {
+    ctx.beginPath();
+    ctx.roundRect(m, m, W - 2 * m, H - 2 * m, 8 * s);
+    ctx.stroke();
+  }
+  if (fieldVariant === "full") {
+    ctx.beginPath(); ctx.moveTo(W / 2, m); ctx.lineTo(W / 2, H - m); ctx.stroke();
+    ctx.beginPath(); ctx.arc(W / 2, H / 2, 56 * s, 0, Math.PI * 2); ctx.stroke();
+    const paH = 144 * s; const paW = 96 * s;
+    ctx.strokeRect(m, H / 2 - paH / 2, paW, paH);
+    ctx.strokeRect(W - m - paW, H / 2 - paH / 2, paW, paH);
+  }
+  if (fieldVariant === "half") {
+    ctx.beginPath(); ctx.moveTo(m, m); ctx.lineTo(W - m, m); ctx.stroke();
+    ctx.beginPath(); ctx.arc(W / 2, m, 32 * s, 0, Math.PI * 2); ctx.stroke();
+    const pbW = 288 * s; const pbH = 176 * s;
+    ctx.strokeRect(W / 2 - pbW / 2, H - m - pbH, pbW, pbH);
+    const gaW = 128 * s; const gaH = 80 * s;
+    ctx.strokeRect(W / 2 - gaW / 2, H - m - gaH, gaW, gaH);
+    ctx.beginPath(); ctx.arc(W / 2, H - m - H / 3, 5 * s, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(255,255,255,0.7)"; ctx.fill();
+  }
+  if (fieldVariant === "box") {
+    const bW = W * 0.8; const bH = H - 2 * m;
+    ctx.strokeRect(W / 2 - bW / 2, m, bW, bH);
+    const inW = bW * 0.6; const inH = bH * 0.5;
+    ctx.strokeRect(W / 2 - inW / 2, m + (bH - inH) / 2, inW, inH);
+    ctx.beginPath(); ctx.arc(W / 2, H / 2, 5 * s, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(255,255,255,0.7)"; ctx.fill();
+  }
+
+  // Zones
+  for (const zone of elements.filter((el) => el.type === "zone")) {
+    const zx = toX(zone.x); const zy = toY(zone.y);
+    const zw = toX(zone.width ?? 24); const zh = toY(zone.height ?? 18);
+    const zs = zoneColorStyles[zone.zoneColor ?? "yellow"];
+    ctx.save();
+    ctx.beginPath(); ctx.rect(zx, zy, zw, zh); ctx.clip();
+    ctx.strokeStyle = zs.hatch + "99"; ctx.lineWidth = 1.5 * s;
+    for (let i = -zh; i < zw + zh; i += 12 * s) {
+      ctx.beginPath(); ctx.moveTo(zx + i, zy); ctx.lineTo(zx + i + zh, zy + zh); ctx.stroke();
+    }
+    ctx.restore();
+    ctx.fillStyle = zs.fill; ctx.fillRect(zx, zy, zw, zh);
+    ctx.strokeStyle = zs.stroke; ctx.lineWidth = 2 * s; ctx.setLineDash([]);
+    ctx.strokeRect(zx, zy, zw, zh);
+  }
+
+  // Arrows
+  for (const arrow of elements.filter((el) => el.type === "arrow")) {
+    const ax1 = toX(arrow.x); const ay1 = toY(arrow.y);
+    const ax2 = toX(arrow.x2 ?? arrow.x + 14); const ay2 = toY(arrow.y2 ?? arrow.y - 12);
+    const kind = arrow.arrowKind ?? "run";
+    const av = arrowVisuals[kind];
+    const color = arrow.color ?? av.stroke;
+    ctx.beginPath(); ctx.moveTo(ax1, ay1); ctx.lineTo(ax2, ay2);
+    ctx.strokeStyle = color; ctx.lineWidth = av.strokeWidth * s; ctx.lineCap = "round";
+    ctx.setLineDash(av.strokeDasharray ? av.strokeDasharray.split(" ").map((n) => Number(n) * s) : []);
+    ctx.stroke(); ctx.setLineDash([]);
+    // Arrowhead
+    const angle = Math.atan2(ay2 - ay1, ax2 - ax1);
+    const hl = 14 * s;
+    ctx.beginPath();
+    ctx.moveTo(ax2, ay2);
+    ctx.lineTo(ax2 - hl * Math.cos(angle - 0.45), ay2 - hl * Math.sin(angle - 0.45));
+    ctx.lineTo(ax2 - hl * Math.cos(angle + 0.45), ay2 - hl * Math.sin(angle + 0.45));
+    ctx.closePath(); ctx.fillStyle = color; ctx.fill();
+  }
+
+  // Body elements
+  const circleR = 22 * s;
+  const font = (size: number) => `${Math.round(size * s)}px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif`;
+
+  for (const el of elements.filter((el) => el.type !== "zone" && el.type !== "arrow")) {
+    const ex = toX(el.x); const ey = toY(el.y);
+
+    if (el.type === "cone") {
+      const sz = 7 * s;
+      ctx.beginPath(); ctx.moveTo(ex, ey - sz); ctx.lineTo(ex + sz, ey + sz); ctx.lineTo(ex - sz, ey + sz); ctx.closePath();
+      ctx.fillStyle = "#f97316"; ctx.fill();
+      ctx.strokeStyle = "#7c2d12"; ctx.lineWidth = 1 * s; ctx.stroke();
+      continue;
+    }
+
+    if (el.type === "material" && el.materialKind) {
+      const mk = el.materialKind;
+      if (mk.startsWith("ball")) {
+        const fill = mk === "ball-orange" ? "#f97316" : mk === "ball-blue" ? "#3b82f6" : "#ffffff";
+        ctx.beginPath(); ctx.arc(ex, ey, 9 * s, 0, Math.PI * 2);
+        ctx.fillStyle = fill; ctx.fill(); ctx.strokeStyle = "#0f172a"; ctx.lineWidth = 1 * s; ctx.stroke();
+      } else if (mk.startsWith("marker-cone")) {
+        const fills: Record<string, string> = { "marker-cone-red": "#ef4444", "marker-cone-yellow": "#facc15", "marker-cone-blue": "#3b82f6", "marker-cone-black": "#1f2937", "marker-cone-white": "#ffffff" };
+        ctx.beginPath(); ctx.arc(ex, ey, 6 * s, 0, Math.PI * 2);
+        ctx.fillStyle = fills[mk] ?? "#94a3b8"; ctx.fill();
+        ctx.strokeStyle = "#475569"; ctx.lineWidth = 1 * s; ctx.stroke();
+      } else if (mk === "pole") {
+        ctx.fillStyle = "#dc2626"; ctx.fillRect(ex - 2 * s, ey - 14 * s, 4 * s, 16 * s);
+      } else if (mk === "hurdle") {
+        ctx.fillStyle = "#dc2626"; ctx.fillRect(ex - 12 * s, ey - 2 * s, 24 * s, 3 * s);
+        ctx.fillStyle = "#7f1d1d"; ctx.fillRect(ex - 12 * s, ey - 2 * s, 3 * s, 8 * s); ctx.fillRect(ex + 9 * s, ey - 2 * s, 3 * s, 8 * s);
+      } else if (mk === "ring") {
+        ctx.beginPath(); ctx.arc(ex, ey, 11 * s, 0, Math.PI * 2);
+        ctx.strokeStyle = "#f59e0b"; ctx.lineWidth = 3 * s; ctx.stroke();
+      } else if (mk === "ladder") {
+        ctx.strokeStyle = "#fbbf24"; ctx.lineWidth = 2 * s; ctx.strokeRect(ex - 18 * s, ey - 5 * s, 36 * s, 10 * s);
+        for (let i = -12; i <= 12; i += 8) { ctx.beginPath(); ctx.moveTo(ex + i * s, ey - 5 * s); ctx.lineTo(ex + i * s, ey + 5 * s); ctx.stroke(); }
+      } else if (mk === "mannequin") {
+        ctx.fillStyle = "#1e3a8a"; ctx.beginPath(); ctx.arc(ex, ey - 16 * s, 4 * s, 0, Math.PI * 2); ctx.fill();
+        ctx.fillRect(ex - 4 * s, ey - 12 * s, 8 * s, 14 * s);
+      } else if (mk === "mini-goal-small" || mk === "mini-goal-large") {
+        const gw = (mk === "mini-goal-large" ? 24 : 16) * s; const gh = 10 * s;
+        ctx.fillStyle = "rgba(255,255,255,0.15)"; ctx.fillRect(ex - gw / 2, ey - gh / 2, gw, gh);
+        ctx.strokeStyle = "#f8fafc"; ctx.lineWidth = 2 * s; ctx.strokeRect(ex - gw / 2, ey - gh / 2, gw, gh);
+      } else if (mk === "pad") {
+        ctx.fillStyle = "#1e40af"; ctx.fillRect(ex - 10 * s, ey - 6 * s, 20 * s, 12 * s);
+        ctx.fillStyle = "#3b82f6"; ctx.fillRect(ex - 10 * s, ey - 6 * s, 20 * s, 5 * s);
+      } else {
+        ctx.fillStyle = "#94a3b8"; ctx.beginPath(); ctx.arc(ex, ey, 7 * s, 0, Math.PI * 2); ctx.fill();
+      }
+      continue;
+    }
+
+    // Player / opponent / ball circle
+    ctx.beginPath(); ctx.arc(ex, ey, circleR, 0, Math.PI * 2);
+    if (el.type === "player") { ctx.fillStyle = "#0f172a"; ctx.strokeStyle = "#ffffff"; }
+    else if (el.type === "opponent") { ctx.fillStyle = "#dc2626"; ctx.strokeStyle = "#ffffff"; }
+    else { ctx.fillStyle = "#ffffff"; ctx.strokeStyle = "#0f172a"; }
+    ctx.fill(); ctx.lineWidth = 2 * s; ctx.stroke();
+
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillStyle = el.type === "ball" ? "#0f172a" : "#ffffff";
+    ctx.font = `bold ${font(12)}`;
+    ctx.fillText(el.type === "ball" ? "●" : el.label, ex, ey);
+
+    if (el.type === "player" && el.name) {
+      const lastName = el.name.split(" ").filter(Boolean).at(-1) ?? el.name;
+      const labelY = el.y > 82 ? ey - circleR - 10 * s : ey + circleR + 10 * s;
+      ctx.font = font(10);
+      const tw = ctx.measureText(lastName).width;
+      const px2 = 6 * s; const py2 = 3 * s;
+      ctx.fillStyle = "rgba(15,23,42,0.85)";
+      ctx.beginPath();
+      ctx.roundRect(ex - tw / 2 - px2, labelY - 7 * s, tw + 2 * px2, 14 * s, 3 * s);
+      ctx.fill();
+      ctx.fillStyle = "#ffffff"; ctx.textBaseline = "middle";
+      ctx.fillText(lastName, ex, labelY);
+    }
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
 
 function clampPosition(value: number) {
   return Math.min(96, Math.max(4, value));
@@ -1279,6 +1512,8 @@ export function TacticBoardEditor({
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackTime, setPlaybackTime] = useState(0);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportProgress, setExportProgress] = useState(0);
   const playbackTimeRef = useRef(0);
   const rafRef = useRef<number | null>(null);
   const lastTickRef = useRef<number | null>(null);
@@ -1407,6 +1642,80 @@ export function TacticBoardEditor({
     setIsPlaying(false);
     setPlaybackTime(0);
     playbackTimeRef.current = 0;
+  }
+
+  async function exportVideo() {
+    if (isExporting) return;
+    const fieldEl = document.getElementById(`field-${board.id}`);
+    if (!fieldEl) return;
+
+    setIsExporting(true);
+    setExportProgress(0);
+    if (isPlaying) pausePlayback();
+
+    try {
+      const rect = fieldEl.getBoundingClientRect();
+      const dpr = Math.min(window.devicePixelRatio ?? 1, 2);
+      const W = Math.round(rect.width * dpr);
+      const H = Math.round(rect.height * dpr);
+
+      const canvas = document.createElement("canvas");
+      canvas.width = W;
+      canvas.height = H;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) throw new Error("Canvas context nicht verfügbar");
+
+      const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9")
+        ? "video/webm;codecs=vp9"
+        : MediaRecorder.isTypeSupported("video/webm;codecs=vp8")
+          ? "video/webm;codecs=vp8"
+          : "video/webm";
+
+      const stream = canvas.captureStream(30);
+      const recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 5_000_000 });
+      const chunks: Blob[] = [];
+      recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
+
+      const stopPromise = new Promise<void>((resolve) => {
+        recorder.onstop = () => {
+          const blob = new Blob(chunks, { type: "video/webm" });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = `${(board.title || "taktiktafel").replace(/[^\w-]/g, "_")}.webm`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          setTimeout(() => URL.revokeObjectURL(url), 2000);
+          resolve();
+        };
+      });
+
+      recorder.start(100);
+      const FPS = 30;
+      const frameDt = 1000 / FPS;
+      const exportDuration = segmentCount > 0 ? totalDuration + 0.4 : 3;
+      const totalFrames = Math.ceil(exportDuration * FPS);
+
+      for (let frame = 0; frame <= totalFrames; frame++) {
+        const t = segmentCount > 0
+          ? Math.min((frame / FPS), totalDuration)
+          : 0;
+        const frameEls = computeInterpolated(t, boardState.scenes, segmentCount, totalDuration, elements);
+        renderFrameToCanvas(ctx, W, H, frameEls, fieldVariant);
+        setExportProgress(Math.round((frame / totalFrames) * 100));
+        await new Promise<void>((r) => setTimeout(r, frameDt));
+      }
+
+      recorder.stop();
+      await stopPromise;
+      toast.success("Video exportiert");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Video-Export fehlgeschlagen");
+    } finally {
+      setIsExporting(false);
+      setExportProgress(0);
+    }
   }
 
   function pausePlayback() {
@@ -1584,6 +1893,27 @@ export function TacticBoardEditor({
         >
           <Square aria-hidden="true" className="h-4 w-4" />
           Stop
+        </Button>
+
+        <Button
+          disabled={isExporting}
+          onClick={exportVideo}
+          size="sm"
+          title="Taktik-Animation als WebM-Video herunterladen"
+          type="button"
+          variant="outline"
+        >
+          {isExporting ? (
+            <span className="flex items-center gap-1.5">
+              <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
+              {exportProgress}%
+            </span>
+          ) : (
+            <>
+              <Download aria-hidden="true" className="h-4 w-4" />
+              Video
+            </>
+          )}
         </Button>
 
         <div className="flex items-center gap-1 rounded-md border border-border bg-white p-0.5">

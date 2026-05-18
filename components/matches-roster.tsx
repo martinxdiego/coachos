@@ -562,9 +562,10 @@ function MatchCard({
 interface MatchesRosterProps {
   matches: MatchRow[];
   players: PlayerOption[];
+  createAction?: React.ReactNode;
 }
 
-export function MatchesRoster({ matches, players }: MatchesRosterProps) {
+export function MatchesRoster({ matches, players, createAction }: MatchesRosterProps) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [competitionFilter, setCompetitionFilter] = useState<string>("all");
@@ -789,6 +790,19 @@ export function MatchesRoster({ matches, players }: MatchesRosterProps) {
             matches.length === 0
               ? "Noch keine Spiele geplant."
               : "Keine Treffer."
+          }
+          action={
+            matches.length === 0 ? (
+              createAction ?? null
+            ) : (
+              <Button
+                onClick={() => setStatusFilter("all")}
+                type="button"
+                variant="outline"
+              >
+                Filter zurücksetzen
+              </Button>
+            )
           }
         />
       ) : (

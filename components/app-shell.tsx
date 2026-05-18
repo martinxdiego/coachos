@@ -38,7 +38,7 @@ export function AppShell({
         <header className="sticky top-0 z-30 border-b border-white/5 bg-slate-950/85 text-white shadow-[0_12px_40px_rgba(15,23,42,0.18)] backdrop-blur-xl">
           <div className="mx-auto flex max-w-7xl items-center gap-4 px-4 py-3 sm:px-6">
             <Link className="flex items-center gap-2.5" href="/">
-              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white p-1 shadow-sm">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white p-1 shadow-sm">
                 <Image
                   alt="SC Emmen"
                   className="h-full w-full object-contain"
@@ -48,11 +48,11 @@ export function AppShell({
                   width={36}
                 />
               </span>
-              <span className="hidden flex-col leading-tight sm:flex">
+              <span className="flex flex-col leading-tight">
                 <span className="text-[14px] font-semibold tracking-tight">
                   CoachOS
                 </span>
-                <span className="text-[11px] text-slate-400">
+                <span className="max-w-[140px] truncate text-[11px] text-slate-400 sm:max-w-none">
                   {activeTeam?.name ?? "Workspace wählen"}
                 </span>
               </span>

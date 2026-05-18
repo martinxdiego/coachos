@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="100" fill="#0f172a"/>
+  <circle cx="256" cy="240" r="140" fill="#10b981"/>
+  <circle cx="256" cy="240" r="140" fill="none" stroke="#6ee7b7" stroke-width="6"/>
+  <polygon points="256,100 296,208 256,236 216,208" fill="#064e3b"/>
+  <polygon points="396,240 304,240 256,236 304,208" fill="#064e3b"/>
+  <polygon points="116,240 208,240 256,236 208,208" fill="#064e3b"/>
+  <polygon points="336,356 296,260 256,236 296,240" fill="#064e3b"/>
+  <polygon points="176,356 216,260 256,236 216,240" fill="#064e3b"/>
+  <text x="256" y="420" font-family="system-ui,sans-serif" font-size="48" font-weight="700" text-anchor="middle" fill="#10b981">CoachOS</text>
+</svg>

@@ -1,13 +1,12 @@
 "use client";
 
-import { useTransition } from "react";
-import { useConfirm, type ConfirmOptions } from "@/components/confirm-dialog";
+import { useRef, useTransition } from "react";
 import { toastDeleted, toastError } from "@/lib/toast";
 
 interface ConfirmDeleteFormProps
   extends Omit<React.FormHTMLAttributes<HTMLFormElement>, "action" | "onSubmit"> {
   action: (formData: FormData) => Promise<unknown> | unknown;
-  confirm: ConfirmOptions;
+  confirm: { title: string; description?: string };
   successMessage: string;
   errorMessage?: string;
   onComplete?: () => void;
@@ -25,38 +24,39 @@ function isRedirectError(err: unknown): boolean {
 
 export function ConfirmDeleteForm({
   action,
-  confirm: confirmOptions,
   successMessage,
   errorMessage,
   onComplete,
   children,
   ...formProps
 }: ConfirmDeleteFormProps) {
-  const confirm = useConfirm();
   const [, startTransition] = useTransition();
+  const cancelledRef = useRef(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const form = event.currentTarget;
-    const formData = new FormData(form);
-    const ok = await confirm({
-      destructive: true,
-      confirmLabel: "Löschen",
-      cancelLabel: "Abbrechen",
-      ...confirmOptions
-    });
-    if (!ok) return;
+    const formData = new FormData(event.currentTarget);
 
-    startTransition(async () => {
-      try {
-        await action(formData);
-        toastDeleted(successMessage);
-        onComplete?.();
-      } catch (err) {
-        if (isRedirectError(err)) {
-          throw err;
+    cancelledRef.current = false;
+
+    timerRef.current = setTimeout(() => {
+      if (cancelledRef.current) return;
+      startTransition(async () => {
+        try {
+          await action(formData);
+          onComplete?.();
+        } catch (err) {
+          if (isRedirectError(err)) throw err;
+          toastError(err, errorMessage);
         }
-        toastError(err, errorMessage);
+      });
+    }, 5000);
+
+    toastDeleted(successMessage, {
+      undo: () => {
+        cancelledRef.current = true;
+        if (timerRef.current) clearTimeout(timerRef.current);
       }
     });
   }

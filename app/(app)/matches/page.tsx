@@ -59,7 +59,19 @@ function MatchesSkeleton() {
   );
 }
 
-async function MatchesData({ teamId }: { teamId: string }) {
+async function MatchesData({
+  teamId,
+  ageGroup,
+  initialDate,
+  suggestedLineup,
+  suggestedSubstitutes
+}: {
+  teamId: string;
+  ageGroup: string | null;
+  initialDate: string;
+  suggestedLineup: string;
+  suggestedSubstitutes: string;
+}) {
   const supabase = await createClient();
 
   const [matchesResult, playersResult] = await Promise.all([
@@ -87,11 +99,27 @@ async function MatchesData({ teamId }: { teamId: string }) {
   const matches = (matchesResult.data ?? []) as MatchRow[];
   const players = (playersResult.data ?? []) as PlayerOption[];
 
-  return <MatchesRoster matches={matches} players={players} />;
+  return (
+    <MatchesRoster
+      matches={matches}
+      players={players}
+      createAction={
+        <CreateMatchDrawer
+          ageGroup={ageGroup}
+          initialDate={initialDate}
+          suggestedLineup={suggestedLineup}
+          suggestedSubstitutes={suggestedSubstitutes}
+        />
+      }
+    />
+  );
 }
 
-async function MatchesActions({ initialDate }: { initialDate: string }) {
+
+export default async function MatchesPage({ searchParams }: MatchesPageProps) {
   const { team } = await requireActiveTeam();
+  const resolvedSearchParams = await searchParams;
+  const initialDate = safeDate(resolvedSearchParams?.date);
   const supabase = await createClient();
 
   const { data: players } = await supabase
@@ -103,38 +131,12 @@ async function MatchesActions({ initialDate }: { initialDate: string }) {
 
   const suggestedLineup = (players ?? [])
     .slice(0, 11)
-    .map((player) =>
-      player.jersey_number
-        ? `#${player.jersey_number} ${player.name}`
-        : player.name
-    )
+    .map((p) => (p.jersey_number ? `#${p.jersey_number} ${p.name}` : p.name))
     .join("\n");
   const suggestedSubstitutes = (players ?? [])
     .slice(11)
-    .map((player) =>
-      player.jersey_number
-        ? `#${player.jersey_number} ${player.name}`
-        : player.name
-    )
+    .map((p) => (p.jersey_number ? `#${p.jersey_number} ${p.name}` : p.name))
     .join("\n");
-
-  return (
-    <div className="flex flex-wrap gap-2">
-      <MatchImportDrawer />
-      <CreateMatchDrawer
-        ageGroup={team.age_group}
-        initialDate={initialDate}
-        suggestedLineup={suggestedLineup}
-        suggestedSubstitutes={suggestedSubstitutes}
-      />
-    </div>
-  );
-}
-
-export default async function MatchesPage({ searchParams }: MatchesPageProps) {
-  const { team } = await requireActiveTeam();
-  const resolvedSearchParams = await searchParams;
-  const initialDate = safeDate(resolvedSearchParams?.date);
 
   return (
     <div className="space-y-6">
@@ -151,13 +153,25 @@ export default async function MatchesPage({ searchParams }: MatchesPageProps) {
             Suche helfen bei der Übersicht.
           </p>
         </div>
-        <Suspense fallback={null}>
-          <MatchesActions initialDate={initialDate} />
-        </Suspense>
+        <div className="flex flex-wrap gap-2">
+          <MatchImportDrawer />
+          <CreateMatchDrawer
+            ageGroup={team.age_group}
+            initialDate={initialDate}
+            suggestedLineup={suggestedLineup}
+            suggestedSubstitutes={suggestedSubstitutes}
+          />
+        </div>
       </div>
 
       <Suspense fallback={<MatchesSkeleton />}>
-        <MatchesData teamId={team.id} />
+        <MatchesData
+          ageGroup={team.age_group}
+          initialDate={initialDate}
+          suggestedLineup={suggestedLineup}
+          suggestedSubstitutes={suggestedSubstitutes}
+          teamId={team.id}
+        />
       </Suspense>
     </div>
   );

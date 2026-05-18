@@ -292,6 +292,32 @@ export function PlayersRoster({ players }: PlayersRosterProps) {
               ? "Noch keine Spieler im Workspace."
               : "Keine Treffer."
           }
+          action={
+            players.length === 0 ? (
+              <div className="flex flex-wrap justify-center gap-2">
+                <Button onClick={() => setCreateOpen(true)} type="button">
+                  <Plus aria-hidden="true" className="h-4 w-4" />
+                  Spieler hinzufügen
+                </Button>
+                <Button
+                  onClick={() => setImportOpen(true)}
+                  type="button"
+                  variant="outline"
+                >
+                  <Upload aria-hidden="true" className="h-4 w-4" />
+                  Kader importieren
+                </Button>
+              </div>
+            ) : (
+              <Button
+                onClick={() => setStatusFilter("all")}
+                type="button"
+                variant="outline"
+              >
+                Filter zurücksetzen
+              </Button>
+            )
+          }
         />
       ) : (
         <div className="space-y-4">

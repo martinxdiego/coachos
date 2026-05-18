@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import type { Metadata } from "next";
 import {
   Award,
   CalendarDays,
@@ -11,8 +12,11 @@ import {
 } from "lucide-react";
 import { PublicCheckinCard } from "@/components/public-checkin-card";
 import { PublicCoachInbox } from "@/components/public-coach-inbox";
+import { PublicInstallPrompt } from "@/components/public-install-prompt";
 import { PublicNoteToCoachCard } from "@/components/public-note-to-coach-card";
 import { PublicSeasonForm } from "@/components/public-season-form";
+import { PushSubscribeButton } from "@/components/push-subscribe-button";
+import { SwInit } from "./_sw-init";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -25,6 +29,18 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { formatDate, todayIsoDate } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
+
+export async function generateMetadata({ params }: PlayerPagePublicProps): Promise<Metadata> {
+  const { accessToken } = await params;
+  return {
+    manifest: `/spieler/${accessToken}/manifest`,
+    appleWebApp: {
+      capable: true,
+      statusBarStyle: "black-translucent",
+      title: "CoachOS",
+    },
+  };
+}
 
 interface PlayerPagePublicProps {
   params: Promise<{
@@ -161,6 +177,7 @@ export default async function PlayerPublicPage({ params }: PlayerPagePublicProps
 
   return (
     <div className="min-h-dvh bg-secondary/30 pb-12">
+      <SwInit />
       {/* Hero */}
       <section className="relative overflow-hidden bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950 px-4 pb-8 pt-10 text-white sm:px-6 sm:pt-14">
         <div
@@ -213,6 +230,9 @@ export default async function PlayerPublicPage({ params }: PlayerPagePublicProps
       </section>
 
       <div className="mx-auto max-w-3xl space-y-5 px-4 pt-6 sm:px-6">
+        {/* Install Banner */}
+        <PublicInstallPrompt />
+
         {/* Coach Inbox */}
         {messages.length > 0 ? (
           <PublicCoachInbox accessToken={accessToken} messages={messages} />
@@ -347,6 +367,12 @@ export default async function PlayerPublicPage({ params }: PlayerPagePublicProps
             ) : null}
           </CardContent>
         </Card>
+
+        {/* Push-Benachrichtigungen */}
+        <PushSubscribeButton
+          playerId={player.id}
+          playerUrl={`/spieler/${accessToken}`}
+        />
 
         {/* Notiz an Trainer */}
         <PublicNoteToCoachCard accessToken={accessToken} />

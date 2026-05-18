@@ -301,7 +301,8 @@ async function DashboardSections({ teamId }: { teamId: string }) {
     materialsResult,
     boardsResult,
     tasksResult,
-    healthResult
+    healthResult,
+    feedbackResult
   ] = await Promise.all([
     supabase
       .from("players")
@@ -360,7 +361,14 @@ async function DashboardSections({ teamId }: { teamId: string }) {
       .select("player_id,checkin_date,fatigue,sleep_quality,soreness,pain,stress,motivation,energy,injury_feeling,wellbeing")
       .eq("team_id", teamId)
       .order("checkin_date", { ascending: false })
-      .limit(200)
+      .limit(200),
+    supabase
+      .from("player_feedback")
+      .select("id,player_id,rating,notes,created_at")
+      .eq("team_id", teamId)
+      .gte("created_at", new Date(Date.now() - 48 * 3600000).toISOString())
+      .order("created_at", { ascending: false })
+      .limit(10)
   ]);
 
   for (const result of [
@@ -372,7 +380,8 @@ async function DashboardSections({ teamId }: { teamId: string }) {
     materialsResult,
     boardsResult,
     tasksResult,
-    healthResult
+    healthResult,
+    feedbackResult
   ]) {
     if (result.error) {
       throw new Error(result.error.message);
@@ -386,6 +395,7 @@ async function DashboardSections({ teamId }: { teamId: string }) {
   const boards = boardsResult.data ?? [];
   const tasks = tasksResult.data ?? [];
   const healthCheckins = healthResult.data ?? [];
+  const recentFeedback = feedbackResult.data ?? [];
 
   const latestCheckinsByPlayer = new Map<string, (typeof healthCheckins)[number]>();
   for (const checkin of healthCheckins) {
@@ -393,15 +403,29 @@ async function DashboardSections({ teamId }: { teamId: string }) {
       latestCheckinsByPlayer.set(checkin.player_id, checkin);
     }
   }
+
+  const todayCheckinIds = new Set(
+    healthCheckins.filter((c) => c.checkin_date === today).map((c) => c.player_id)
+  );
+  const checkedInToday = players.filter((p) => todayCheckinIds.has(p.id)).length;
+  const notCheckedInToday = players.length - checkedInToday;
   const wellnessAlerts = players
     .map((player) => {
       const latest = latestCheckinsByPlayer.get(player.id);
       if (!latest) return null;
       const risk = healthRisk(latest);
-      if (risk !== "red") return null;
+      if (risk === "green") return null;
       return { player, checkin: latest, risk };
     })
-    .filter((row): row is NonNullable<typeof row> => row !== null);
+    .filter((row): row is NonNullable<typeof row> => row !== null)
+    .sort((a, b) => (a.risk === "red" ? -1 : 1) - (b.risk === "red" ? -1 : 1));
+
+  const playerMap = new Map(players.map((p) => [p.id, p]));
+  const feedbackWithPlayer = recentFeedback
+    .map((f) => ({ feedback: f, player: playerMap.get(f.player_id) }))
+    .filter((row): row is { feedback: typeof recentFeedback[number]; player: NonNullable<typeof players[number]> } =>
+      row.player !== undefined
+    );
   const checkinPlayers = players.map((player) => ({
     id: player.id,
     name: player.name
@@ -506,67 +530,232 @@ async function DashboardSections({ teamId }: { teamId: string }) {
       : null
   ].filter((hint): hint is NonNullable<typeof hint> => hint !== null);
 
+  const checkinPct = players.length > 0 ? Math.round((checkedInToday / players.length) * 100) : 0;
+
+  const todayTraining = nextTraining?.date === today ? nextTraining : null;
+  const todayMatch = nextMatch?.date === today ? nextMatch : null;
+  const nextEventLabel = todayTraining
+    ? `Training${todayTraining.start_time ? ` · ${todayTraining.start_time.slice(0, 5)}` : ""}`
+    : todayMatch
+    ? `Spiel vs. ${todayMatch.opponent}${todayMatch.kickoff_time ? ` · ${todayMatch.kickoff_time.slice(0, 5)}` : ""}`
+    : nextTraining
+    ? `Nächstes Training · ${formatDate(nextTraining.date)}`
+    : nextMatch
+    ? `Nächstes Spiel · ${formatDate(nextMatch.date)}`
+    : null;
+
   return (
     <>
       {/* Onboarding-Tour (einmalig) */}
       <DashboardOnboarding />
 
-      {/* Wellness-Alert Banner */}
-      {wellnessAlerts.length > 0 ? (
-        <section
-          aria-label="Wellness-Warnung"
-          className="rounded-2xl border border-red-300 bg-gradient-to-br from-red-50 via-red-50/70 to-red-50 p-5 shadow-soft"
-        >
-          <div className="flex flex-wrap items-start gap-3">
-            <span
-              aria-hidden="true"
-              className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-600 text-white shadow-sm"
-            >
-              <AlertTriangle className="h-5 w-5" />
+      {/* Heute im Fokus */}
+      {(feedbackWithPlayer.length > 0 || wellnessAlerts.length > 0) && players.length > 0 ? (
+        <section className="rounded-2xl border border-amber-300/60 bg-gradient-to-br from-amber-50 via-amber-50/60 to-orange-50/40 p-5 shadow-soft">
+          <div className="mb-4 flex items-center gap-2">
+            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-500 text-white shadow-sm">
+              <AlertTriangle aria-hidden="true" className="h-4 w-4" />
             </span>
-            <div className="min-w-0 flex-1">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-red-700">
-                Belastung kritisch
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-amber-700">
+                Heute im Fokus
               </p>
-              <p className="mt-0.5 text-[16px] font-semibold tracking-tight text-red-950">
-                {wellnessAlerts.length === 1
-                  ? "1 Spieler braucht Aufmerksamkeit vor dem Training"
-                  : `${wellnessAlerts.length} Spieler brauchen Aufmerksamkeit vor dem Training`}
+              <p className="text-[14px] font-semibold tracking-tight text-amber-950">
+                {[
+                  feedbackWithPlayer.length > 0 && `${feedbackWithPlayer.length} neue Nachricht${feedbackWithPlayer.length > 1 ? "en" : ""}`,
+                  wellnessAlerts.filter((a) => a.risk === "red").length > 0 &&
+                    `${wellnessAlerts.filter((a) => a.risk === "red").length} Spieler kritisch`,
+                  wellnessAlerts.filter((a) => a.risk === "yellow").length > 0 &&
+                    `${wellnessAlerts.filter((a) => a.risk === "yellow").length} Spieler auffällig`
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
               </p>
-              <ul className="mt-3 flex flex-wrap gap-2">
-                {wellnessAlerts.slice(0, 6).map(({ player, checkin }) => (
-                  <li key={player.id}>
-                    <Link
-                      className="inline-flex items-center gap-2 rounded-full border border-red-300 bg-white/80 px-3 py-1 text-[12px] font-medium text-red-900 ring-1 ring-red-200 transition hover:bg-white"
-                      href={`/players/${player.id}`}
-                    >
-                      <span
-                        aria-hidden="true"
-                        className="h-1.5 w-1.5 rounded-full bg-red-600"
-                      />
-                      {player.name}
-                      <span className="text-red-600">
-                        S {checkin.pain}/5 · E {checkin.energy}/5
-                      </span>
-                    </Link>
-                  </li>
-                ))}
-                {wellnessAlerts.length > 6 ? (
-                  <li className="inline-flex items-center px-2 text-[12px] text-red-700">
-                    +{wellnessAlerts.length - 6} weitere
-                  </li>
-                ) : null}
-              </ul>
             </div>
+          </div>
+          <div className="space-y-2">
+            {/* Spieler-Nachrichten */}
+            {feedbackWithPlayer.map(({ feedback, player }) => (
+              <Link
+                className="flex items-start gap-3 rounded-xl border border-amber-200/80 bg-white/70 p-3 transition hover:bg-white"
+                href={`/players/${player.id}`}
+                key={feedback.id}
+              >
+                <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-blue-100 text-blue-700">
+                  <HeartPulse aria-hidden="true" className="h-3.5 w-3.5" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[13px] font-semibold text-foreground">{player.name}</span>
+                    <span className="text-[11px] text-muted-foreground">
+                      · Stimmung {feedback.rating}/10 · vor {Math.round((Date.now() - new Date(feedback.created_at).getTime()) / 3600000)}h
+                    </span>
+                  </div>
+                  {feedback.notes ? (
+                    <p className="mt-0.5 line-clamp-2 text-[12px] leading-5 text-foreground/80">
+                      &ldquo;{feedback.notes}&rdquo;
+                    </p>
+                  ) : null}
+                </div>
+                <ArrowRight aria-hidden="true" className="mt-1 h-4 w-4 shrink-0 text-muted-foreground" />
+              </Link>
+            ))}
+            {/* Wellness-Alerts */}
+            {wellnessAlerts.slice(0, 6).map(({ player, checkin, risk }) => (
+              <Link
+                className="flex items-center gap-3 rounded-xl border border-amber-200/80 bg-white/70 p-3 transition hover:bg-white"
+                href={`/players/${player.id}`}
+                key={player.id}
+              >
+                <span
+                  className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-white ${risk === "red" ? "bg-red-500" : "bg-amber-400"}`}
+                >
+                  <span aria-hidden="true" className="text-[10px] font-bold">
+                    {risk === "red" ? "🔴" : "🟡"}
+                  </span>
+                </span>
+                <div className="min-w-0 flex-1">
+                  <span className="text-[13px] font-semibold text-foreground">{player.name}</span>
+                  <span className="ml-2 text-[12px] text-muted-foreground">
+                    Schmerzen {checkin.pain}/5 · Müdigkeit {checkin.fatigue}/5 · Energie {checkin.energy}/5
+                  </span>
+                </div>
+                <ArrowRight aria-hidden="true" className="h-4 w-4 shrink-0 text-muted-foreground" />
+              </Link>
+            ))}
+          </div>
+          <div className="mt-3 flex justify-end">
             <Button asChild size="sm" variant="outline">
               <Link href="/health">
-                Belastung öffnen
+                Alle Belastungen
                 <ArrowRight aria-hidden="true" className="h-4 w-4" />
               </Link>
             </Button>
           </div>
         </section>
       ) : null}
+
+      {/* Tageskurzblick */}
+      {players.length > 0 ? (
+        <section className="rounded-2xl border border-border/70 bg-card p-5 shadow-soft">
+          <div className="mb-4 flex items-center justify-between gap-2">
+            <h2 className="text-[15px] font-semibold tracking-tight">
+              Tageskurzblick
+            </h2>
+            <span className="text-[12px] text-muted-foreground">
+              {germanLongDate(today)}
+            </span>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {/* Check-in heute */}
+            <div className="rounded-xl bg-secondary/50 p-3">
+              <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
+                Check-in Heute
+              </p>
+              <p className="mt-1 text-[22px] font-semibold tracking-tight">
+                {checkedInToday}
+                <span className="text-[14px] font-normal text-muted-foreground">
+                  /{players.length}
+                </span>
+              </p>
+              <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-border">
+                <div
+                  className="h-full rounded-full bg-primary transition-[width] duration-500"
+                  style={{ width: `${checkinPct}%` }}
+                />
+              </div>
+              <p className="mt-1.5 text-[11px] text-muted-foreground">
+                {notCheckedInToday > 0
+                  ? `${notCheckedInToday} noch ausstehend`
+                  : "Alle eingecheckt ✓"}
+              </p>
+            </div>
+
+            {/* Kader Status */}
+            <div className="rounded-xl bg-secondary/50 p-3">
+              <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
+                Kader
+              </p>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[12px] font-medium text-emerald-800">
+                  <span
+                    aria-hidden="true"
+                    className="h-1.5 w-1.5 rounded-full bg-emerald-500"
+                  />
+                  {availablePlayers} Fit
+                </span>
+                {limitedPlayersList.length > 0 ? (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[12px] font-medium text-amber-800">
+                    <span
+                      aria-hidden="true"
+                      className="h-1.5 w-1.5 rounded-full bg-amber-500"
+                    />
+                    {limitedPlayersList.length} Aufbau
+                  </span>
+                ) : null}
+                {injuredPlayers.length > 0 ? (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-[12px] font-medium text-red-800">
+                    <span
+                      aria-hidden="true"
+                      className="h-1.5 w-1.5 rounded-full bg-red-500"
+                    />
+                    {injuredPlayers.length} Verletzt
+                  </span>
+                ) : null}
+              </div>
+              <p className="mt-2 text-[11px] text-muted-foreground">
+                {players.length} Spieler gesamt
+              </p>
+            </div>
+
+            {/* Nächstes Event */}
+            <div className="rounded-xl bg-secondary/50 p-3">
+              <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
+                {todayTraining || todayMatch ? "Heute" : "Nächster Termin"}
+              </p>
+              {nextEventLabel ? (
+                <>
+                  <p className="mt-1 text-[13px] font-semibold tracking-tight leading-snug">
+                    {nextEventLabel}
+                  </p>
+                  <Link
+                    className="mt-2 inline-flex items-center gap-1 text-[11px] text-primary hover:underline"
+                    href={todayTraining || nextTraining ? "/trainings" : "/matches"}
+                  >
+                    Öffnen
+                    <ArrowRight aria-hidden="true" className="h-3 w-3" />
+                  </Link>
+                </>
+              ) : (
+                <p className="mt-1 text-[13px] text-muted-foreground">
+                  Keine Termine geplant
+                </p>
+              )}
+            </div>
+
+            {/* Offene Aufgaben */}
+            <div className="rounded-xl bg-secondary/50 p-3">
+              <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
+                Offene Aufgaben
+              </p>
+              <p className="mt-1 text-[22px] font-semibold tracking-tight">
+                {openTasks.length}
+              </p>
+              {openTasks.length > 0 ? (
+                <p className="mt-1.5 text-[11px] text-muted-foreground line-clamp-2">
+                  {openTasks[0].title}
+                  {openTasks.length > 1 ? ` +${openTasks.length - 1} weitere` : ""}
+                </p>
+              ) : (
+                <p className="mt-1.5 text-[11px] text-muted-foreground">
+                  Alles erledigt ✓
+                </p>
+              )}
+            </div>
+          </div>
+        </section>
+      ) : null}
+
 
       {/* Quick Actions */}
       <DashboardQuickActions players={checkinPlayers} />
