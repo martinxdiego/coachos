@@ -22,7 +22,6 @@ export async function POST(req: Request) {
     process.env.VAPID_PRIVATE_KEY!
   );
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const today = todayIsoDate();
 

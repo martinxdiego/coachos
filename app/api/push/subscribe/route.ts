@@ -10,7 +10,6 @@ export async function POST(req: Request) {
   }
 
   const admin = createAdminClient();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { error } = await (admin as any).from("push_subscriptions").upsert(
     {
       player_id: playerId,
