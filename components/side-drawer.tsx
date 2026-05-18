@@ -35,7 +35,7 @@ export function SideDrawer({
       />
       <aside
         aria-modal="true"
-        className="absolute inset-x-0 bottom-0 flex max-h-[96dvh] w-full flex-col overflow-hidden rounded-t-2xl bg-white shadow-2xl transition-all duration-300 md:inset-x-auto md:bottom-4 md:right-4 md:w-[min(92vw,640px)] md:rounded-2xl"
+        className="absolute inset-x-0 bottom-0 flex max-h-[96dvh] w-full flex-col overflow-hidden rounded-t-2xl bg-white shadow-2xl transition-all duration-300 md:inset-x-auto md:bottom-4 md:right-4 md:top-[72px] md:max-h-[calc(100dvh-88px)] md:w-[min(92vw,640px)] md:rounded-2xl"
         role="dialog"
       >
         <header className="border-b border-border px-4 py-4 sm:px-5">
