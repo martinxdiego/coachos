@@ -7,6 +7,7 @@ import {
   PdfKeyValueBlock,
   PdfMetaGrid,
   PdfPhaseImages,
+  PdfPhaseDiagram,
   PdfSection
 } from "./components";
 import { baseStyles, palette } from "./styles";
@@ -156,6 +157,9 @@ export function TrainingDocument({
                     <Text style={baseStyles.phaseDescription}>
                       {phase.description}
                     </Text>
+                  ) : null}
+                  {phase.diagram ? (
+                    <PdfPhaseDiagram diagram={phase.diagram} />
                   ) : null}
                   <PdfKeyValueBlock
                     label="Coachingpunkte"
