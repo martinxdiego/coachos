@@ -26,6 +26,7 @@ import { useConfirm } from "@/components/confirm-dialog";
 import { EmptyState } from "@/components/empty-state";
 import { PdfDownloadButton } from "@/components/pdf-download-button";
 import { PhaseImageUploader } from "@/components/phase-image-uploader";
+import { TrainingPhaseDiagram } from "@/components/training-phase-diagram";
 import { ToastForm } from "@/components/toast-form";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -711,6 +712,12 @@ export function TrainingWeekAccordion({
                                           <p className="text-sm leading-6 text-muted-foreground">
                                             {phase.description}
                                           </p>
+                                        ) : null}
+                                        {phase.diagram ? (
+                                          <TrainingPhaseDiagram
+                                            diagram={phase.diagram}
+                                            className="mt-2 max-w-sm"
+                                          />
                                         ) : null}
                                         <div className="no-print pt-1">
                                           <PhaseImageUploader
