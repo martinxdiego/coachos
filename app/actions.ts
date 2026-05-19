@@ -1266,7 +1266,14 @@ ${recentLines}
 ${matchLine}
 
 ## AUFGABE
-Erstelle einen detaillierten Trainingsplan als JSON-Objekt. Antworte AUSSCHLIESSLICH mit gültigem JSON — kein Markdown, kein Fließtext:
+Erstelle einen detaillierten Trainingsplan als JSON-Objekt. Antworte AUSSCHLIESSLICH mit gültigem JSON — kein Markdown, kein Fließtext.
+
+KOORDINATENSYSTEM für diagram:
+- x=0 linke Auslinie, x=100 rechte Auslinie
+- y=0 gegnerisches Tor (Angriffsziel), y=100 eigenes Tor
+- Team A = angreifendes/pressendes Team (blau), Team B = verteidigende/aufbauendes Team (rot)
+- Neutrale Spieler = Joker/Anspielstation (gelb)
+- Alle x/y-Koordinaten zwischen 0 und 100
 
 {
   "focus": "Präziser, eingängiger Trainingstitel (max 60 Zeichen)",
@@ -1283,7 +1290,24 @@ Erstelle einen detaillierten Trainingsplan als JSON-Objekt. Antworte AUSSCHLIESS
       "organization": "Feldgröße, Gruppenaufteilung, Wechselregeln",
       "material": "Konkretes Material z.B. '6 Bälle, 8 Hütchen, 4 Leibchen, 2 Kleintore'",
       "variations": "Leichtere Variante / Schwierigere Variante (je eine Zeile)",
-      "load_management": "Wie absolvieren eingeschränkte Spieler diese Phase konkret?"
+      "load_management": "Wie absolvieren eingeschränkte Spieler diese Phase konkret?",
+      "diagram": {
+        "field": "half | full | third | box",
+        "players": [
+          { "id": "A1", "team": "A", "role": "ST", "label": "ST", "x": 50, "y": 25 },
+          { "id": "B1", "team": "B", "role": "IV", "label": "IV", "x": 50, "y": 40 },
+          { "id": "N1", "team": "neutral", "role": "Joker", "label": "J", "x": 15, "y": 50 }
+        ],
+        "movements": [
+          { "from": "A1", "to_x": 60, "to_y": 15, "type": "run | pass | dribble | shot", "label": "Tiefenlauf", "sequence": 1 }
+        ],
+        "zones": [
+          { "label": "Presszone", "x": 20, "y": 15, "w": 60, "h": 25, "color": "red | orange | blue | green" }
+        ],
+        "goals": [
+          { "type": "big_goal | mini_goal", "label": "Tor", "x": 50, "y": 0, "width": 15 }
+        ]
+      }
     }
   ]
 }
@@ -1294,7 +1318,8 @@ QUALITÄTSREGELN:
 - Coachingpunkte sind KONKRET (nicht 'Kommunikation' sondern 'Spieler ruft den Namen vor dem Pass')
 - 🔴-Spieler werden namentlich in notes UND load_management erwähnt
 - Übungen sind altersgruppengerecht für ${ageGroup ?? "die Altersgruppe"}
-- Das Trainingsziel passt exakt zum Schwerpunkt`;
+- Das Trainingsziel passt exakt zum Schwerpunkt
+- DIAGRAM-REGELN: Spieler nie alle auf einer Linie. Koordinaten taktisch sinnvoll. Warmup/Cooldown: Kreis- oder Reihenformation. Taktik/Spielform: realistische Abstände, erkennbare Struktur. movements.from muss eine existierende player id sein. Alle x/y zwischen 0 und 100.`;
 
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
   const message = await client.messages.create({
@@ -1316,6 +1341,7 @@ QUALITÄTSREGELN:
     material: string;
     variations: string;
     load_management: string;
+    diagram?: object | null;
   };
   type AiPlan = {
     focus: string;
@@ -1367,6 +1393,7 @@ QUALITÄTSREGELN:
     material: phase.material ?? null,
     variations: phase.variations ?? null,
     load_management: phase.load_management ?? null,
+    diagram: (phase.diagram ?? null) as import("@/lib/types").Json | null,
     sort_order: index,
   }));
 

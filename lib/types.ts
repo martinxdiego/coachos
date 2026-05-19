@@ -281,6 +281,7 @@ export interface Database {
           variations: string | null;
           load_management: string | null;
           image_urls: string[] | null;
+          diagram: Json | null;
           sort_order: number;
           created_at: string;
           updated_at: string;
@@ -301,6 +302,7 @@ export interface Database {
           variations?: string | null;
           load_management?: string | null;
           image_urls?: string[] | null;
+          diagram?: Json | null;
           sort_order?: number;
           created_at?: string;
           updated_at?: string;

@@ -1112,3 +1112,9 @@ drop policy if exists "Authenticated delete training images" on storage.objects;
 create policy "Authenticated delete training images" on storage.objects for delete
 to authenticated
 using (bucket_id = 'training-images');
+
+-- ===== Training phase diagram: KI-generiertes Taktik-Diagramm =====
+-- Speichert das Diagramm-JSON pro Phase (Spieler, Zonen, Bewegungen, Tore).
+-- Wird vom SVG-Renderer direkt gelesen und als Taktikskizze visualisiert.
+alter table public.training_phases
+  add column if not exists diagram jsonb default null;
