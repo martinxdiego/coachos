@@ -1324,7 +1324,7 @@ QUALITÄTSREGELN:
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
   const message = await client.messages.create({
     model: "claude-opus-4-7",
-    max_tokens: 4096,
+    max_tokens: 16000,
     messages: [{ role: "user", content: prompt }],
   });
 
