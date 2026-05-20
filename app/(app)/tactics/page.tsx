@@ -1,9 +1,7 @@
 import { Shield } from "lucide-react";
 import { createTacticBoard } from "@/app/actions";
-import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
-import { PrintButton } from "@/components/print-button";
-import { TacticBoardEditor } from "@/components/tactic-board-editor";
+import { TacticBoardAccordion } from "@/components/tactic-board-accordion";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -26,7 +24,7 @@ export default async function TacticsPage() {
       .select("*")
       .eq("team_id", team.id)
       .order("updated_at", { ascending: false })
-      .limit(6),
+      .limit(50),
     supabase
       .from("players")
       .select("id,name,position,jersey_number")
@@ -81,36 +79,8 @@ export default async function TacticsPage() {
           </CardContent>
         </Card>
 
-        <div className="space-y-4">
-          {boards.length > 0 ? (
-            boards.map((board) => (
-              <Card className="print-card" key={board.id}>
-                <CardHeader>
-                  <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                    <div>
-                      <CardTitle>{board.title}</CardTitle>
-                      {board.description ? (
-                        <p className="mt-2 text-sm text-muted-foreground">
-                          {board.description}
-                        </p>
-                      ) : null}
-                    </div>
-                    <div className="no-print">
-                      <PrintButton label="Board drucken" />
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <TacticBoardEditor board={board} players={players} />
-                </CardContent>
-              </Card>
-            ))
-          ) : (
-            <EmptyState
-              body="Erstelle ein Board und platziere Spieler, Gegner, Ball, Hütchen, Pfeile und Notizen."
-              title="Noch kein Taktikboard."
-            />
-          )}
+        <div>
+          <TacticBoardAccordion boards={boards} players={players} />
         </div>
       </section>
     </div>

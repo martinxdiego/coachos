@@ -35,12 +35,34 @@ export type DiagramGoal = {
   width: number;
 };
 
+export type DiagramCone = {
+  id: string;
+  x: number;
+  y: number;
+  color?: "orange" | "red" | "yellow" | "blue";
+};
+
+export type DiagramMannequin = {
+  id: string;
+  x: number;
+  y: number;
+};
+
+export type DiagramBall = {
+  id: string;
+  x: number;
+  y: number;
+};
+
 export type PhaseDiagram = {
   field: "half" | "full" | "third" | "box";
   players?: DiagramPlayer[];
   movements?: DiagramMovement[];
   zones?: DiagramZone[];
   goals?: DiagramGoal[];
+  cones?: DiagramCone[];
+  mannequins?: DiagramMannequin[];
+  balls?: DiagramBall[];
 };
 
 // --- Koordinaten-Mapping -------------------------------------------------
@@ -413,6 +435,74 @@ function Legend() {
   );
 }
 
+// --- Hütchen, Mannequin, Ball ---------------------------------------------
+
+function Cones({ cones }: { cones: DiagramCone[] }) {
+  const COLOR: Record<string, { fill: string; stroke: string }> = {
+    orange: { fill: "#f97316", stroke: "#ea580c" },
+    red:    { fill: "#ef4444", stroke: "#b91c1c" },
+    yellow: { fill: "#fbbf24", stroke: "#d97706" },
+    blue:   { fill: "#3b82f6", stroke: "#1d4ed8" },
+  };
+  return (
+    <>
+      {cones.map((c) => {
+        const cx = lx(c.x), cy = ly(c.y);
+        const r = 2.2;
+        const col = COLOR[c.color ?? "orange"] ?? COLOR.orange;
+        return (
+          <polygon
+            key={c.id}
+            points={`${cx},${cy - r * 1.1} ${cx - r},${cy + r * 0.7} ${cx + r},${cy + r * 0.7}`}
+            fill={col.fill}
+            stroke={col.stroke}
+            strokeWidth={0.3}
+          />
+        );
+      })}
+    </>
+  );
+}
+
+function Mannequins({ mannequins }: { mannequins: DiagramMannequin[] }) {
+  return (
+    <>
+      {mannequins.map((m) => {
+        const cx = lx(m.x), cy = ly(m.y);
+        return (
+          <g key={m.id}>
+            {/* Head */}
+            <circle cx={cx} cy={cy - 3.2} r={1.4} fill="#94a3b8" stroke="#64748b" strokeWidth={0.3} />
+            {/* Body */}
+            <rect x={cx - 1.1} y={cy - 1.8} width={2.2} height={3.5} rx={0.3} fill="#94a3b8" stroke="#64748b" strokeWidth={0.3} />
+            {/* Arms */}
+            <line x1={cx - 2.8} y1={cy - 0.8} x2={cx + 2.8} y2={cy - 0.8} stroke="#64748b" strokeWidth={0.5} />
+          </g>
+        );
+      })}
+    </>
+  );
+}
+
+function Balls({ balls }: { balls: DiagramBall[] }) {
+  return (
+    <>
+      {balls.map((b) => {
+        const cx = lx(b.x), cy = ly(b.y);
+        const r = 2.2;
+        return (
+          <g key={b.id}>
+            <circle cx={cx} cy={cy} r={r} fill="#fff" stroke="#374151" strokeWidth={0.4} />
+            {/* Pentagon pattern */}
+            <line x1={cx - r * 0.7} y1={cy} x2={cx + r * 0.7} y2={cy} stroke="#374151" strokeWidth={0.2} />
+            <line x1={cx} y1={cy - r * 0.7} x2={cx} y2={cy + r * 0.7} stroke="#374151" strokeWidth={0.2} />
+          </g>
+        );
+      })}
+    </>
+  );
+}
+
 // --- Haupt-Komponente -----------------------------------------------------
 
 interface TrainingPhaseDiagramProps {
@@ -424,10 +514,13 @@ export function TrainingPhaseDiagram({ diagram, className }: TrainingPhaseDiagra
   if (!diagram || typeof diagram !== "object") return null;
 
   const d = diagram as PhaseDiagram;
-  const players  = d.players  ?? [];
+  const players   = d.players   ?? [];
   const movements = d.movements ?? [];
-  const zones    = d.zones    ?? [];
-  const goals    = d.goals    ?? [];
+  const zones     = d.zones     ?? [];
+  const goals     = d.goals     ?? [];
+  const cones     = d.cones     ?? [];
+  const mannequins = d.mannequins ?? [];
+  const balls     = d.balls     ?? [];
 
   return (
     <div className={className}>
@@ -440,7 +533,10 @@ export function TrainingPhaseDiagram({ diagram, className }: TrainingPhaseDiagra
         <FieldMarkings fieldType={d.field ?? "half"} />
         <Zones zones={zones} />
         <Goals goals={goals} />
+        <Cones cones={cones} />
+        <Mannequins mannequins={mannequins} />
         <Movements movements={movements} players={players} />
+        <Balls balls={balls} />
         <Players players={players} />
         <Legend />
       </svg>
