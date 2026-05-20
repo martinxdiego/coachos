@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { BotMessageSquare, ExternalLink, Pencil, Plus, Upload } from "lucide-react";
+import { BotMessageSquare, LayoutPanelLeft, Pencil, Plus, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { uploadPhaseImage } from "@/app/actions";
 import { PhaseImageUploader } from "@/components/phase-image-uploader";
 import { SketchCanvasDrawer } from "@/components/sketch-canvas-drawer";
+import { TacticBoardDrawer } from "@/components/tactic-board-drawer";
 import { Button } from "@/components/ui/button";
 
 interface PhaseMediaMenuProps {
@@ -21,6 +22,7 @@ export function PhaseMediaMenu({
 }: PhaseMediaMenuProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [sketchOpen, setSketchOpen] = useState(false);
+  const [tacticOpen, setTacticOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -51,10 +53,9 @@ export function PhaseMediaMenu({
     e.target.value = "";
   }
 
-  function openTacticsBoard() {
+  function openTacticBoard() {
     setMenuOpen(false);
-    window.open("/tactics", "_blank", "noopener,noreferrer");
-    toast.info("Taktikboard öffnet in neuem Tab. Dort als Bild exportieren und hier hochladen.");
+    setTacticOpen(true);
   }
 
   return (
@@ -115,13 +116,13 @@ export function PhaseMediaMenu({
             {/* Tactics board */}
             <button
               className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm transition hover:bg-secondary"
-              onClick={openTacticsBoard}
+              onClick={openTacticBoard}
               type="button"
             >
-              <ExternalLink className="h-4 w-4 shrink-0 text-muted-foreground" />
+              <LayoutPanelLeft className="h-4 w-4 shrink-0 text-muted-foreground" />
               <span>
                 <span className="block font-medium">Taktikboard</span>
-                <span className="text-xs text-muted-foreground">Öffnet /tactics → exportieren</span>
+                <span className="text-xs text-muted-foreground">Spieler, Pfeile, Zonen, Tore</span>
               </span>
             </button>
 
@@ -154,6 +155,13 @@ export function PhaseMediaMenu({
       <SketchCanvasDrawer
         isOpen={sketchOpen}
         onClose={() => setSketchOpen(false)}
+        phaseId={phaseId}
+      />
+
+      {/* Tactic board drawer */}
+      <TacticBoardDrawer
+        isOpen={tacticOpen}
+        onClose={() => setTacticOpen(false)}
         phaseId={phaseId}
       />
     </>

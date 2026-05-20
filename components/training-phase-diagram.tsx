@@ -47,35 +47,35 @@ export type PhaseDiagram = {
 // Das logische Koordinatensystem (0-100) wird auf den SVG-Viewport gemappt.
 // Feldmarkierungen passen sich an den field-Typ an.
 
-const VIEWBOX_W = 100;
-const VIEWBOX_H = 130;
+export const VIEWBOX_W = 100;
+export const VIEWBOX_H = 130;
 
 // Spielfeld-Bereich innerhalb des Viewbox (Ränder für Labels)
-const FIELD = { x: 5, y: 5, w: 90, h: 120 };
+export const FIELD = { x: 5, y: 5, w: 90, h: 120 };
 
-function lx(x: number) {
+export function lx(x: number) {
   return FIELD.x + (x / 100) * FIELD.w;
 }
-function ly(y: number) {
+export function ly(y: number) {
   return FIELD.y + (y / 100) * FIELD.h;
 }
 
 // --- Farben ---------------------------------------------------------------
 
-const TEAM_COLORS: Record<DiagramPlayer["team"], { fill: string; stroke: string; text: string }> = {
+export const TEAM_COLORS: Record<DiagramPlayer["team"], { fill: string; stroke: string; text: string }> = {
   A:       { fill: "#3b82f6", stroke: "#1d4ed8", text: "#fff" },
   B:       { fill: "#ef4444", stroke: "#b91c1c", text: "#fff" },
   neutral: { fill: "#f59e0b", stroke: "#b45309", text: "#fff" },
 };
 
-const ZONE_COLORS: Record<DiagramZone["color"], { fill: string; stroke: string }> = {
+export const ZONE_COLORS: Record<DiagramZone["color"], { fill: string; stroke: string }> = {
   red:    { fill: "rgba(239,68,68,0.15)",  stroke: "#ef4444" },
   orange: { fill: "rgba(249,115,22,0.15)", stroke: "#f97316" },
   blue:   { fill: "rgba(59,130,246,0.15)", stroke: "#3b82f6" },
   green:  { fill: "rgba(34,197,94,0.15)",  stroke: "#22c55e" },
 };
 
-const MOVEMENT_COLORS: Record<DiagramMovement["type"], string> = {
+export const MOVEMENT_COLORS: Record<DiagramMovement["type"], string> = {
   run:     "#6b7280",
   pass:    "#3b82f6",
   dribble: "#f59e0b",
@@ -112,7 +112,7 @@ function buildMovementPath(
 
 // --- Feldmarkierungen -----------------------------------------------------
 
-function FieldMarkings({ fieldType }: { fieldType: PhaseDiagram["field"] }) {
+export function FieldMarkings({ fieldType }: { fieldType: PhaseDiagram["field"] }) {
   const fx = FIELD.x;
   const fy = FIELD.y;
   const fw = FIELD.w;
