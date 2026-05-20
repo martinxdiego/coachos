@@ -1053,6 +1053,25 @@ export async function updateTraining(formData: FormData) {
   revalidatePath("/trainings");
 }
 
+export async function updatePhaseDiagram(formData: FormData) {
+  const { supabase, team } = await requireActiveTeam();
+  const phaseId = requiredString(formData, "phase_id", "Phase");
+  const diagramJson = requiredString(formData, "diagram", "Diagramm");
+  let diagram: unknown;
+  try {
+    diagram = JSON.parse(diagramJson);
+  } catch {
+    throw new Error("Ungültiges Diagramm-Format");
+  }
+  const { error } = await supabase
+    .from("training_phases")
+    .update({ diagram: diagram as Json })
+    .eq("id", phaseId)
+    .eq("team_id", team.id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/trainings");
+}
+
 export async function updateTrainingPhase(formData: FormData) {
   const { supabase, team } = await requireActiveTeam();
   const phaseId = requiredString(formData, "phase_id", "Phase");
