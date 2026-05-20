@@ -1053,6 +1053,34 @@ export async function updateTraining(formData: FormData) {
   revalidatePath("/trainings");
 }
 
+export async function updateTrainingPhase(formData: FormData) {
+  const { supabase, team } = await requireActiveTeam();
+  const phaseId = requiredString(formData, "phase_id", "Phase");
+
+  const { error } = await supabase
+    .from("training_phases")
+    .update({
+      title: optionalString(formData, "title") ?? undefined,
+      duration_minutes: optionalNumber(formData, "duration_minutes"),
+      description: optionalString(formData, "description"),
+      coaching_points: optionalString(formData, "coaching_points"),
+      organization: optionalString(formData, "organization"),
+      material: optionalString(formData, "material"),
+      player_count: optionalString(formData, "player_count"),
+      field_size: optionalString(formData, "field_size"),
+      variations: optionalString(formData, "variations"),
+      load_management: optionalString(formData, "load_management"),
+    })
+    .eq("id", phaseId)
+    .eq("team_id", team.id);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  revalidatePath("/trainings");
+}
+
 export async function duplicateTraining(formData: FormData) {
   const { supabase, user, team } = await requireActiveTeam();
   const id = requiredString(formData, "id", "Training");

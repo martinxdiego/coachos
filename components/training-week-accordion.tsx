@@ -20,12 +20,13 @@ import {
   duplicateTraining,
   saveAttendance,
   savePlayerEvaluation,
-  updateTraining
+  updateTraining,
+  updateTrainingPhase
 } from "@/app/actions";
 import { useConfirm } from "@/components/confirm-dialog";
 import { EmptyState } from "@/components/empty-state";
 import { PdfDownloadButton } from "@/components/pdf-download-button";
-import { PhaseImageUploader } from "@/components/phase-image-uploader";
+import { PhaseMediaMenu } from "@/components/phase-media-menu";
 import { TrainingPhaseDiagram } from "@/components/training-phase-diagram";
 import { ToastForm } from "@/components/toast-form";
 import { Badge } from "@/components/ui/badge";
@@ -218,6 +219,7 @@ export function TrainingWeekAccordion({
   const [openWeeks, setOpenWeeks] = useState<Set<string>>(new Set());
   const [openTrainings, setOpenTrainings] = useState<Set<string>>(new Set());
   const [editingIds, setEditingIds] = useState<Set<string>>(new Set());
+  const [editingPhaseIds, setEditingPhaseIds] = useState<Set<string>>(new Set());
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
   const [query, setQuery] = useState("");
   const [intensityFilter, setIntensityFilter] = useState("all");
@@ -313,6 +315,18 @@ export function TrainingWeekAccordion({
 
   function toggleEditing(id: string) {
     setEditingIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }
+
+  function toggleEditingPhase(id: string) {
+    setEditingPhaseIds((current) => {
       const next = new Set(current);
       if (next.has(id)) {
         next.delete(id);
@@ -656,6 +670,56 @@ export function TrainingWeekAccordion({
                         >
                           <div className="overflow-hidden">
                             <div className="space-y-4 border-t border-border p-4">
+                              {/* Sticky action bar */}
+                              <div className="no-print sticky top-0 z-10 -mx-4 -mt-4 mb-2 flex items-center justify-between border-b border-border/60 bg-card/95 px-4 py-2 backdrop-blur-sm">
+                                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                                  {training.focus}
+                                </span>
+                                <div className="flex items-center gap-2">
+                                  {isEditing ? (
+                                    <>
+                                      <Button
+                                        form={`edit-training-${training.id}`}
+                                        size="sm"
+                                        type="submit"
+                                        variant="default"
+                                      >
+                                        <Save aria-hidden="true" className="h-3.5 w-3.5" />
+                                        Speichern
+                                      </Button>
+                                      <Button
+                                        onClick={() => toggleEditing(training.id)}
+                                        size="sm"
+                                        type="button"
+                                        variant="outline"
+                                      >
+                                        <X aria-hidden="true" className="h-3.5 w-3.5" />
+                                        Abbrechen
+                                      </Button>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <PdfDownloadButton
+                                        className="h-8 text-xs"
+                                        href={`/api/pdf/training/${training.id}`}
+                                        label="PDF"
+                                        variant="outline"
+                                      />
+                                      <Button
+                                        disabled={isDeleting}
+                                        onClick={() => toggleEditing(training.id)}
+                                        size="sm"
+                                        type="button"
+                                        variant="outline"
+                                      >
+                                        <Pencil aria-hidden="true" className="h-3.5 w-3.5" />
+                                        Bearbeiten
+                                      </Button>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+
                               <div className="grid gap-3 md:grid-cols-4">
                                 <div className="rounded-lg bg-secondary px-3 py-2">
                                   <p className="text-xs text-muted-foreground">Dauer</p>
@@ -720,16 +784,155 @@ export function TrainingWeekAccordion({
                                           />
                                         ) : null}
                                         <div className="no-print pt-1">
-                                          <PhaseImageUploader
+                                          <PhaseMediaMenu
                                             images={phase.image_urls ?? []}
                                             phaseId={phase.id}
                                             phaseTitle={phase.title}
                                           />
                                         </div>
+                                        {/* Inline phase edit form */}
+                                        <div
+                                          className={cn(
+                                            "no-print grid transition-all duration-200 ease-out",
+                                            editingPhaseIds.has(phase.id)
+                                              ? "grid-rows-[1fr]"
+                                              : "grid-rows-[0fr]"
+                                          )}
+                                        >
+                                          <div className="overflow-hidden">
+                                            <ToastForm
+                                              action={updateTrainingPhase}
+                                              className="mt-3 space-y-3 rounded-xl border border-border/70 bg-secondary/30 p-3"
+                                              onComplete={() => toggleEditingPhase(phase.id)}
+                                              successMessage="Phase gespeichert"
+                                            >
+                                              <input name="phase_id" type="hidden" defaultValue={phase.id} />
+                                              <div className="grid gap-3 sm:grid-cols-2">
+                                                <div className="space-y-1">
+                                                  <Label htmlFor={`${phase.id}-title`}>Titel</Label>
+                                                  <Input
+                                                    defaultValue={phase.title}
+                                                    id={`${phase.id}-title`}
+                                                    name="title"
+                                                    required
+                                                  />
+                                                </div>
+                                                <div className="space-y-1">
+                                                  <Label htmlFor={`${phase.id}-duration`}>Dauer (Min.)</Label>
+                                                  <Input
+                                                    defaultValue={phase.duration_minutes ?? ""}
+                                                    id={`${phase.id}-duration`}
+                                                    min={1}
+                                                    name="duration_minutes"
+                                                    type="number"
+                                                  />
+                                                </div>
+                                              </div>
+                                              <div className="space-y-1">
+                                                <Label htmlFor={`${phase.id}-description`}>Beschreibung</Label>
+                                                <Textarea
+                                                  defaultValue={phase.description ?? ""}
+                                                  id={`${phase.id}-description`}
+                                                  name="description"
+                                                  rows={2}
+                                                />
+                                              </div>
+                                              <div className="space-y-1">
+                                                <Label htmlFor={`${phase.id}-coaching`}>Coachingpunkte</Label>
+                                                <Textarea
+                                                  defaultValue={phase.coaching_points ?? ""}
+                                                  id={`${phase.id}-coaching`}
+                                                  name="coaching_points"
+                                                  rows={2}
+                                                />
+                                              </div>
+                                              <div className="space-y-1">
+                                                <Label htmlFor={`${phase.id}-org`}>Organisation</Label>
+                                                <Textarea
+                                                  defaultValue={phase.organization ?? ""}
+                                                  id={`${phase.id}-org`}
+                                                  name="organization"
+                                                  rows={2}
+                                                />
+                                              </div>
+                                              <div className="grid gap-3 sm:grid-cols-3">
+                                                <div className="space-y-1">
+                                                  <Label htmlFor={`${phase.id}-material`}>Material</Label>
+                                                  <Input
+                                                    defaultValue={phase.material ?? ""}
+                                                    id={`${phase.id}-material`}
+                                                    name="material"
+                                                  />
+                                                </div>
+                                                <div className="space-y-1">
+                                                  <Label htmlFor={`${phase.id}-players`}>Spieleranzahl</Label>
+                                                  <Input
+                                                    defaultValue={phase.player_count ?? ""}
+                                                    id={`${phase.id}-players`}
+                                                    name="player_count"
+                                                  />
+                                                </div>
+                                                <div className="space-y-1">
+                                                  <Label htmlFor={`${phase.id}-field`}>Feldgrösse</Label>
+                                                  <Input
+                                                    defaultValue={phase.field_size ?? ""}
+                                                    id={`${phase.id}-field`}
+                                                    name="field_size"
+                                                  />
+                                                </div>
+                                              </div>
+                                              <div className="space-y-1">
+                                                <Label htmlFor={`${phase.id}-variations`}>Varianten</Label>
+                                                <Textarea
+                                                  defaultValue={phase.variations ?? ""}
+                                                  id={`${phase.id}-variations`}
+                                                  name="variations"
+                                                  rows={2}
+                                                />
+                                              </div>
+                                              <div className="space-y-1">
+                                                <Label htmlFor={`${phase.id}-load`}>Belastungssteuerung</Label>
+                                                <Textarea
+                                                  defaultValue={phase.load_management ?? ""}
+                                                  id={`${phase.id}-load`}
+                                                  name="load_management"
+                                                  rows={2}
+                                                />
+                                              </div>
+                                              <div className="flex gap-2 justify-end">
+                                                <Button
+                                                  onClick={() => toggleEditingPhase(phase.id)}
+                                                  size="sm"
+                                                  type="button"
+                                                  variant="outline"
+                                                >
+                                                  <X aria-hidden="true" className="h-3.5 w-3.5" />
+                                                  Abbrechen
+                                                </Button>
+                                                <Button size="sm" type="submit">
+                                                  <Save aria-hidden="true" className="h-3.5 w-3.5" />
+                                                  Speichern
+                                                </Button>
+                                              </div>
+                                            </ToastForm>
+                                          </div>
+                                        </div>
                                       </div>
-                                      <span className="rounded-lg bg-white px-3 py-2 text-sm font-semibold sm:self-start">
-                                        {phase.duration_minutes ?? 0} Min.
-                                      </span>
+                                      <div className="flex flex-col items-end gap-2 sm:self-start">
+                                        <span className="rounded-lg bg-white px-3 py-2 text-sm font-semibold">
+                                          {phase.duration_minutes ?? 0} Min.
+                                        </span>
+                                        <Button
+                                          className="no-print h-7 w-7 p-0"
+                                          onClick={() => toggleEditingPhase(phase.id)}
+                                          size="sm"
+                                          title="Phase bearbeiten"
+                                          type="button"
+                                          variant={editingPhaseIds.has(phase.id) ? "default" : "outline"}
+                                        >
+                                          <Pencil aria-hidden="true" className="h-3 w-3" />
+                                        </Button>
+                                      </div>
                                     </div>
                                   ))
                                 ) : (
@@ -907,6 +1110,7 @@ export function TrainingWeekAccordion({
                                   <ToastForm
                                     action={updateTraining}
                                     className="space-y-4 rounded-2xl border border-border/70 bg-secondary/30 p-4"
+                                    id={`edit-training-${training.id}`}
                                     onComplete={() => toggleEditing(training.id)}
                                     successMessage="Training aktualisiert"
                                   >
