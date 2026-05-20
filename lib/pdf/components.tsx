@@ -243,10 +243,13 @@ function PdfFieldMarkings({ fieldType }: { fieldType: string }) {
 export function PdfPhaseDiagram({ diagram }: { diagram: unknown }) {
   if (!diagram || typeof diagram !== "object") return null;
   const d = diagram as PhaseDiagram;
-  const players   = d.players   ?? [];
-  const movements = d.movements ?? [];
-  const zones     = d.zones     ?? [];
-  const goals     = d.goals     ?? [];
+  const players    = d.players    ?? [];
+  const movements  = d.movements  ?? [];
+  const zones      = d.zones      ?? [];
+  const goals      = d.goals      ?? [];
+  const cones      = d.cones      ?? [];
+  const mannequins = d.mannequins ?? [];
+  const balls      = d.balls      ?? [];
 
   return (
     <View style={{ marginTop: 6, marginBottom: 2 }}>
@@ -283,6 +286,45 @@ export function PdfPhaseDiagram({ diagram }: { diagram: unknown }) {
               width={hw * 2} height={depth}
               fill="#374151" stroke="#9ca3af" strokeWidth={0.4}
             />
+          );
+        })}
+
+        {/* Hütchen */}
+        {cones.map((c, i) => {
+          const cx = dx(c.x), cy = dy(c.y);
+          const r = 2.5;
+          const fill = c.color === "red" ? "#ef4444" : c.color === "yellow" ? "#fbbf24" : c.color === "blue" ? "#3b82f6" : "#f97316";
+          const stroke = c.color === "red" ? "#b91c1c" : c.color === "yellow" ? "#d97706" : c.color === "blue" ? "#1d4ed8" : "#ea580c";
+          return (
+            <Polygon key={i}
+              points={`${cx},${cy - r * 1.1} ${cx - r},${cy + r * 0.7} ${cx + r},${cy + r * 0.7}`}
+              fill={fill} stroke={stroke} strokeWidth={0.3}
+            />
+          );
+        })}
+
+        {/* Mannequins */}
+        {mannequins.map((m, i) => {
+          const cx = dx(m.x), cy = dy(m.y);
+          return (
+            <G key={i}>
+              <Circle cx={cx} cy={cy - 3.2} r={1.4} fill="#94a3b8" stroke="#64748b" strokeWidth={0.3} />
+              <Rect x={cx - 1.1} y={cy - 1.8} width={2.2} height={3.5} fill="#94a3b8" stroke="#64748b" strokeWidth={0.3} />
+              <Line x1={cx - 2.8} y1={cy - 0.8} x2={cx + 2.8} y2={cy - 0.8} stroke="#64748b" strokeWidth={0.5} />
+            </G>
+          );
+        })}
+
+        {/* Bälle */}
+        {balls.map((b, i) => {
+          const cx = dx(b.x), cy = dy(b.y);
+          const r = 2.2;
+          return (
+            <G key={i}>
+              <Circle cx={cx} cy={cy} r={r} fill="#fff" stroke="#374151" strokeWidth={0.4} />
+              <Line x1={cx - r * 0.7} y1={cy} x2={cx + r * 0.7} y2={cy} stroke="#374151" strokeWidth={0.2} />
+              <Line x1={cx} y1={cy - r * 0.7} x2={cx} y2={cy + r * 0.7} stroke="#374151" strokeWidth={0.2} />
+            </G>
           );
         })}
 
