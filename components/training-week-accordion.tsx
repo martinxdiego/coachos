@@ -17,6 +17,7 @@ import {
 import { toast } from "sonner";
 import {
   deleteTraining,
+  deleteTrainingWeek,
   duplicateTraining,
   saveAttendance,
   savePlayerEvaluation,
@@ -221,6 +222,7 @@ export function TrainingWeekAccordion({
   const [editingIds, setEditingIds] = useState<Set<string>>(new Set());
   const [editingPhaseIds, setEditingPhaseIds] = useState<Set<string>>(new Set());
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
+  const [deletingWeeks, setDeletingWeeks] = useState<Set<string>>(new Set());
   const [query, setQuery] = useState("");
   const [intensityFilter, setIntensityFilter] = useState("all");
   const [teamFilter, setTeamFilter] = useState("all");
@@ -334,6 +336,31 @@ export function TrainingWeekAccordion({
         next.add(id);
       }
       return next;
+    });
+  }
+
+  async function handleDeleteWeek(week: WeekGroup) {
+    if (deletingWeeks.has(week.key)) return;
+    const confirmed = await confirm({
+      title: `${week.label} löschen?`,
+      description: `Alle ${week.trainings.length} Trainings dieser Woche werden unwiderruflich gelöscht.`,
+      confirmLabel: "Woche löschen",
+      cancelLabel: "Abbrechen",
+      destructive: true,
+    });
+    if (!confirmed) return;
+    setDeletingWeeks((prev) => new Set(prev).add(week.key));
+    startTransition(async () => {
+      try {
+        const formData = new FormData();
+        for (const t of week.trainings) formData.append("training_id", t.id);
+        await deleteTrainingWeek(formData);
+        setVisibleTrainings((prev) => prev.filter((t) => !week.trainings.some((w) => w.id === t.id)));
+        toast.success(`${week.trainings.length} Trainings gelöscht`);
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Fehler beim Löschen");
+      }
+      setDeletingWeeks((prev) => { const next = new Set(prev); next.delete(week.key); return next; });
     });
   }
 
@@ -525,13 +552,19 @@ export function TrainingWeekAccordion({
           return sum + (training.duration_minutes ?? phaseMinutes);
         }, 0);
 
+        const isDeletingWeek = deletingWeeks.has(week.key);
+
         return (
           <section
-            className="overflow-hidden rounded-2xl border border-border/70 bg-card shadow-soft"
+            className={cn(
+              "overflow-hidden rounded-2xl border border-border/70 bg-card shadow-soft transition-opacity duration-200",
+              isDeletingWeek && "opacity-50"
+            )}
             key={week.key}
           >
+            <div className="flex items-stretch">
             <button
-              className="flex w-full flex-col gap-3 px-4 py-4 text-left transition hover:bg-secondary/60 sm:flex-row sm:items-center sm:justify-between"
+              className="flex min-w-0 flex-1 flex-col gap-3 px-4 py-4 text-left transition hover:bg-secondary/60 sm:flex-row sm:items-center sm:justify-between"
               onClick={() => toggleWeek(week.key)}
               type="button"
             >
@@ -560,6 +593,16 @@ export function TrainingWeekAccordion({
                 </Badge>
               </span>
             </button>
+            <button
+              className="no-print flex items-center border-l border-border/60 px-3 text-muted-foreground transition hover:bg-red-50 hover:text-red-600"
+              disabled={isDeletingWeek}
+              onClick={(e) => { e.stopPropagation(); handleDeleteWeek(week); }}
+              title="Woche löschen"
+              type="button"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+            </div>
 
             <div
               className={cn(
@@ -714,6 +757,16 @@ export function TrainingWeekAccordion({
                                       >
                                         <Pencil aria-hidden="true" className="h-3.5 w-3.5" />
                                         Bearbeiten
+                                      </Button>
+                                      <Button
+                                        className="text-red-600 hover:bg-red-50 hover:text-red-700"
+                                        disabled={isDeleting}
+                                        onClick={() => handleDelete(training)}
+                                        size="sm"
+                                        type="button"
+                                        variant="ghost"
+                                      >
+                                        <Trash2 aria-hidden="true" className="h-3.5 w-3.5" />
                                       </Button>
                                     </>
                                   )}

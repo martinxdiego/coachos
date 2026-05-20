@@ -1053,6 +1053,33 @@ export async function updateTraining(formData: FormData) {
   revalidatePath("/trainings");
 }
 
+export async function deleteTacticBoard(formData: FormData) {
+  const { supabase, team } = await requireActiveTeam();
+  const id = requiredString(formData, "id", "Taktikboard");
+  const { error } = await supabase
+    .from("tactic_boards")
+    .delete()
+    .eq("id", id)
+    .eq("team_id", team.id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/tactics");
+}
+
+export async function deleteTrainingWeek(formData: FormData) {
+  const { supabase, team } = await requireActiveTeam();
+  const ids = formData.getAll("training_id") as string[];
+  if (ids.length === 0) return;
+  const { error } = await supabase
+    .from("training_sessions")
+    .delete()
+    .in("id", ids)
+    .eq("team_id", team.id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/");
+  revalidatePath("/calendar");
+  revalidatePath("/trainings");
+}
+
 export async function updatePhaseDiagram(formData: FormData) {
   const { supabase, team } = await requireActiveTeam();
   const phaseId = requiredString(formData, "phase_id", "Phase");
