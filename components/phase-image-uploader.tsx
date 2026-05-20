@@ -12,6 +12,7 @@ interface PhaseImageUploaderProps {
   phaseTitle: string;
   images: string[];
   maxImages?: number;
+  hideControls?: boolean;
 }
 
 const MAX_BYTES = 8 * 1024 * 1024;
@@ -20,7 +21,8 @@ export function PhaseImageUploader({
   phaseId,
   phaseTitle,
   images,
-  maxImages = 8
+  maxImages = 8,
+  hideControls = false,
 }: PhaseImageUploaderProps) {
   const [isPending, startTransition] = useTransition();
   const [pendingPreviews, setPendingPreviews] = useState<string[]>([]);
@@ -118,42 +120,44 @@ export function PhaseImageUploader({
 
   return (
     <div className="space-y-2.5">
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-[12px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
-          Bilder · {images.length}
-          {maxImages ? `/${maxImages}` : ""}
-        </p>
-        <div>
-          <input
-            accept="image/*"
-            className="sr-only"
-            id={`phase-image-${phaseId}`}
-            multiple
-            onChange={(event) => handleFiles(event.target.files)}
-            ref={fileInputRef}
-            type="file"
-          />
-          <Button
-            disabled={!canAdd || isPending}
-            onClick={() => fileInputRef.current?.click()}
-            size="sm"
-            type="button"
-            variant="outline"
-          >
-            {isPending ? (
-              <Loader2
-                aria-hidden="true"
-                className="h-3.5 w-3.5 animate-spin"
-              />
-            ) : (
-              <ImagePlus aria-hidden="true" className="h-3.5 w-3.5" />
-            )}
-            {pendingPreviews.length > 0 ? "Wird hochgeladen…" : "Bild hinzufügen"}
-          </Button>
+      {!hideControls && (
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-[12px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+            Bilder · {images.length}
+            {maxImages ? `/${maxImages}` : ""}
+          </p>
+          <div>
+            <input
+              accept="image/*"
+              className="sr-only"
+              id={`phase-image-${phaseId}`}
+              multiple
+              onChange={(event) => handleFiles(event.target.files)}
+              ref={fileInputRef}
+              type="file"
+            />
+            <Button
+              disabled={!canAdd || isPending}
+              onClick={() => fileInputRef.current?.click()}
+              size="sm"
+              type="button"
+              variant="outline"
+            >
+              {isPending ? (
+                <Loader2
+                  aria-hidden="true"
+                  className="h-3.5 w-3.5 animate-spin"
+                />
+              ) : (
+                <ImagePlus aria-hidden="true" className="h-3.5 w-3.5" />
+              )}
+              {pendingPreviews.length > 0 ? "Wird hochgeladen…" : "Bild hinzufügen"}
+            </Button>
+          </div>
         </div>
-      </div>
+      )}
 
-      {totalCount === 0 ? (
+      {!hideControls && totalCount === 0 ? (
         <button
           aria-label={`Bild zu ${phaseTitle} hinzufügen`}
           className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-border/70 bg-secondary/30 px-3 py-6 text-[12px] font-medium text-muted-foreground transition-colors hover:border-foreground/40 hover:bg-secondary/60"
@@ -164,7 +168,9 @@ export function PhaseImageUploader({
           <ImagePlus aria-hidden="true" className="h-4 w-4" />
           Skizze, Aufstellung oder Übungsfoto anhängen
         </button>
-      ) : (
+      ) : null}
+
+      {totalCount > 0 ? (
         <ul className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5">
           {images.map((url) => {
             const isRemoving = removingUrl === url;
@@ -228,7 +234,7 @@ export function PhaseImageUploader({
             </li>
           ))}
         </ul>
-      )}
+      ) : null}
 
       {lightboxUrl ? (
         <div

@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { BotMessageSquare, LayoutPanelLeft, Pencil, Plus, Upload } from "lucide-react";
+import { BotMessageSquare, ChevronDown, ImagePlus, LayoutPanelLeft, Pencil, Plus, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { uploadPhaseImage } from "@/app/actions";
 import { PhaseImageUploader } from "@/components/phase-image-uploader";
 import { SketchCanvasDrawer } from "@/components/sketch-canvas-drawer";
 import { TacticBoardDrawer } from "@/components/tactic-board-drawer";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 interface PhaseMediaMenuProps {
   images: string[];
@@ -60,24 +61,38 @@ export function PhaseMediaMenu({
 
   return (
     <>
-      <PhaseImageUploader
-        images={images}
-        phaseId={phaseId}
-        phaseTitle={phaseTitle}
-      />
+      {images.length > 0 ? (
+        <PhaseImageUploader
+          hideControls={true}
+          images={images}
+          phaseId={phaseId}
+          phaseTitle={phaseTitle}
+        />
+      ) : null}
 
-      {/* Add media button + dropdown */}
-      <div className="relative mt-2 inline-block" ref={menuRef}>
-        <Button
-          className="h-8 gap-1.5 text-xs"
-          onClick={() => setMenuOpen((v) => !v)}
-          size="sm"
-          type="button"
-          variant="outline"
-        >
-          <Plus className="h-3.5 w-3.5" />
-          Bild hinzufügen
-        </Button>
+      <div className={cn("relative mt-2", images.length === 0 ? "block" : "inline-block")} ref={menuRef}>
+        {images.length === 0 ? (
+          <button
+            className="flex w-full items-center gap-2.5 rounded-lg border border-dashed border-border/60 px-3 py-2.5 text-left text-[12px] text-muted-foreground transition hover:border-primary/40 hover:bg-secondary/50 hover:text-foreground"
+            onClick={() => setMenuOpen((v) => !v)}
+            type="button"
+          >
+            <ImagePlus className="h-4 w-4 shrink-0" />
+            <span>Bild, Skizze oder Taktik anhängen</span>
+            <ChevronDown className="ml-auto h-3.5 w-3.5 opacity-50" />
+          </button>
+        ) : (
+          <Button
+            className="h-8 gap-1.5 text-xs"
+            onClick={() => setMenuOpen((v) => !v)}
+            size="sm"
+            type="button"
+            variant="outline"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            Bild hinzufügen
+          </Button>
+        )}
 
         {menuOpen ? (
           <div className="absolute left-0 top-full z-20 mt-1 w-56 overflow-hidden rounded-xl border border-border bg-white shadow-lg">

@@ -1321,7 +1321,7 @@ export function TacticBoardEditor({
 
     setActiveElements((current) => [
       ...current.filter((item) => item.type !== "player"),
-      ...rosterElements
+      ...rosterElements.slice(0, rosterPositions.length),
     ]);
   }
 

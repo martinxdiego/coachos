@@ -3,15 +3,9 @@ import { createTacticBoard } from "@/app/actions";
 import { PageHeader } from "@/components/page-header";
 import { TacticBoardAccordion } from "@/components/tactic-board-accordion";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle
-} from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { requireActiveTeam } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -51,38 +45,27 @@ export default async function TacticsPage() {
         title="Taktikboard"
       />
 
-      <section className="grid gap-4 xl:grid-cols-[360px_1fr]">
-        <Card className="h-fit border-emerald-200 bg-emerald-50/70 no-print">
-          <CardHeader>
-            <CardTitle>Neues Board</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <form action={createTacticBoard} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="title">Titel</Label>
-                <Input
-                  id="title"
-                  name="title"
-                  placeholder="Pressing 4-3-3"
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="description">Beschreibung</Label>
-                <Textarea id="description" name="description" />
-              </div>
-              <Button className="w-full" type="submit">
-                <Shield aria-hidden="true" className="h-4 w-4" />
-                Board erstellen
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
+      {/* Compact create form */}
+      <Card className="no-print border-emerald-200 bg-emerald-50/70">
+        <CardContent className="py-3">
+          <form action={createTacticBoard} className="flex flex-col gap-3 sm:flex-row sm:items-end">
+            <div className="min-w-0 flex-1 space-y-1.5">
+              <Label htmlFor="title">Titel</Label>
+              <Input id="title" name="title" placeholder="z.B. Pressing 4-3-3" required />
+            </div>
+            <div className="min-w-0 flex-1 space-y-1.5">
+              <Label htmlFor="description">Beschreibung (optional)</Label>
+              <Input id="description" name="description" />
+            </div>
+            <Button className="shrink-0" type="submit">
+              <Shield className="h-4 w-4" />
+              Board erstellen
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
 
-        <div>
-          <TacticBoardAccordion boards={boards} players={players} />
-        </div>
-      </section>
+      <TacticBoardAccordion boards={boards} players={players} />
     </div>
   );
 }

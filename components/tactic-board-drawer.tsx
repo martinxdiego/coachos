@@ -124,7 +124,7 @@ export function TacticBoardDrawer({
   const [arrowSource, setArrowSource] = useState<DiagramPlayer | null>(null);
   const [mousePos,    setMousePos]    = useState<{ dx: number; dy: number } | null>(null);
   const [zoneDraft,   setZoneDraft]   = useState<ZoneDraft | null>(null);
-  const [draggingId,  setDraggingId]  = useState<string | null>(null);
+  const [dragging,    setDragging]    = useState<{ type: "player" | "cone" | "mannequin" | "ball"; id: string } | null>(null);
   const [history,     setHistory]     = useState<Snapshot[]>([]);
   const [isSaving,    setIsSaving]    = useState(false);
 
@@ -235,10 +235,17 @@ export function TacticBoardDrawer({
   function handleSvgPointerMove(e: React.PointerEvent<SVGSVGElement>) {
     const { dx, dy } = coords(e);
     setMousePos({ dx, dy });
-    if (draggingId) {
-      setPlayers((prev) =>
-        prev.map((p) => p.id === draggingId ? { ...p, x: dx, y: dy } : p)
-      );
+    if (dragging) {
+      const { dx: ddx, dy: ddy } = coords(e);
+      if (dragging.type === "player") {
+        setPlayers((prev) => prev.map((p) => p.id === dragging.id ? { ...p, x: ddx, y: ddy } : p));
+      } else if (dragging.type === "cone") {
+        setCones((prev) => prev.map((c) => c.id === dragging.id ? { ...c, x: ddx, y: ddy } : c));
+      } else if (dragging.type === "mannequin") {
+        setMannequins((prev) => prev.map((m) => m.id === dragging.id ? { ...m, x: ddx, y: ddy } : m));
+      } else if (dragging.type === "ball") {
+        setBalls((prev) => prev.map((b) => b.id === dragging.id ? { ...b, x: ddx, y: ddy } : b));
+      }
       return;
     }
     if (activeTool === "zone" && zoneDraft) {
@@ -255,8 +262,8 @@ export function TacticBoardDrawer({
       if (w > 4 && h > 4) addZone(x, y, w, h);
       setZoneDraft(null);
     }
-    if (draggingId) {
-      setDraggingId(null);
+    if (dragging) {
+      setDragging(null);
     }
   }
 
@@ -282,7 +289,7 @@ export function TacticBoardDrawer({
     if (activeTool !== "select") return;
     e.stopPropagation();
     pushHistory();
-    setDraggingId(player.id);
+    setDragging({ type: "player", id: player.id });
     svgRef.current?.setPointerCapture(e.pointerId);
   }
 
@@ -514,7 +521,7 @@ export function TacticBoardDrawer({
         {/* SVG Field */}
         <div
           className="overflow-hidden rounded-xl border border-border"
-          style={{ cursor: activeTool === "zone" ? "crosshair" : "default" }}
+          style={{ cursor: dragging ? "grabbing" : activeTool === "zone" ? "crosshair" : "default" }}
         >
           <svg
             className="w-full select-none touch-none"
@@ -585,10 +592,17 @@ export function TacticBoardDrawer({
               const stroke = CONE_STROKE[c.color ?? "orange"] ?? CONE_STROKE.orange;
               return (
                 <polygon key={c.id}
-                  className="cursor-pointer"
                   points={`${cx},${cy - r * 1.1} ${cx - r},${cy + r * 0.7} ${cx + r},${cy + r * 0.7}`}
                   fill={fill} stroke={stroke} strokeWidth={0.3}
+                  style={{ cursor: activeTool === "select" ? "grab" : "pointer" }}
                   onClick={(e) => { e.stopPropagation(); if (activeTool === "delete") { pushHistory(); setCones((prev) => prev.filter((x) => x.id !== c.id)); } }}
+                  onPointerDown={(e) => {
+                    if (activeTool !== "select") return;
+                    e.stopPropagation();
+                    pushHistory();
+                    setDragging({ type: "cone", id: c.id });
+                    svgRef.current?.setPointerCapture(e.pointerId);
+                  }}
                 />
               );
             })}
@@ -598,8 +612,15 @@ export function TacticBoardDrawer({
               const cx = lx(m.x), cy = ly(m.y);
               return (
                 <g key={m.id}
-                  className="cursor-pointer"
+                  style={{ cursor: activeTool === "select" ? "grab" : "pointer" }}
                   onClick={(e) => { e.stopPropagation(); if (activeTool === "delete") { pushHistory(); setMannequins((prev) => prev.filter((x) => x.id !== m.id)); } }}
+                  onPointerDown={(e) => {
+                    if (activeTool !== "select") return;
+                    e.stopPropagation();
+                    pushHistory();
+                    setDragging({ type: "mannequin", id: m.id });
+                    svgRef.current?.setPointerCapture(e.pointerId);
+                  }}
                 >
                   <circle cx={cx} cy={cy - 3.2} r={1.4} fill="#94a3b8" stroke="#64748b" strokeWidth={0.3} />
                   <rect x={cx - 1.1} y={cy - 1.8} width={2.2} height={3.5} rx={0.3} fill="#94a3b8" stroke="#64748b" strokeWidth={0.3} />
@@ -633,8 +654,15 @@ export function TacticBoardDrawer({
               const r = 2.2;
               return (
                 <g key={b.id}
-                  className="cursor-pointer"
+                  style={{ cursor: activeTool === "select" ? "grab" : "pointer" }}
                   onClick={(e) => { e.stopPropagation(); if (activeTool === "delete") { pushHistory(); setBalls((prev) => prev.filter((x) => x.id !== b.id)); } }}
+                  onPointerDown={(e) => {
+                    if (activeTool !== "select") return;
+                    e.stopPropagation();
+                    pushHistory();
+                    setDragging({ type: "ball", id: b.id });
+                    svgRef.current?.setPointerCapture(e.pointerId);
+                  }}
                 >
                   <circle cx={cx} cy={cy} r={r} fill="#fff" stroke="#374151" strokeWidth={0.4} />
                   <line x1={cx - r * 0.7} y1={cy} x2={cx + r * 0.7} y2={cy} stroke="#374151" strokeWidth={0.2} />
@@ -660,7 +688,7 @@ export function TacticBoardDrawer({
               const c = TEAM_COLORS[p.team] ?? TEAM_COLORS.A;
               const isSource = arrowSource?.id === p.id;
               return (
-                <g key={p.id} style={{ cursor: activeTool === "select" ? "grab" : "pointer" }}>
+                <g key={p.id} style={{ cursor: dragging?.id === p.id ? "grabbing" : activeTool === "select" ? "grab" : "pointer" }}>
                   <circle
                     cx={cx} cy={cy} r={3.5}
                     fill={c.fill} stroke={isSource ? "#fff" : c.stroke}
