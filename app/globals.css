@@ -141,6 +141,17 @@ h1, h2, h3, h4 {
   to   { transform: rotate(360deg); }
 }
 
+@keyframes svg-pop {
+  0%   { transform: scale(0.45); opacity: 0; }
+  62%  { transform: scale(1.2);  opacity: 1; }
+  100% { transform: scale(1);    opacity: 1; }
+}
+.animate-svg-pop {
+  animation: svg-pop 0.26s cubic-bezier(.22,1,.36,1) both;
+  transform-origin: center;
+  transform-box: fill-box;
+}
+
 .animate-logo-intro  { animation: logo-intro   0.9s  cubic-bezier(0.22,1,0.36,1) both; }
 .animate-glow-breathe{ animation: glow-breathe 3.4s  ease-in-out infinite; }
 .animate-spin-slow   { animation: spin-slow    24s   linear infinite; }

@@ -224,6 +224,7 @@ export function TrainingWeekAccordion({
   const [editingIds, setEditingIds] = useState<Set<string>>(new Set());
   const [editingPhaseIds, setEditingPhaseIds] = useState<Set<string>>(new Set());
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
+  const [removingIds, setRemovingIds] = useState<Set<string>>(new Set());
   const [deletingWeeks, setDeletingWeeks] = useState<Set<string>>(new Set());
   const [query, setQuery] = useState("");
   const [intensityFilter, setIntensityFilter] = useState("all");
@@ -385,6 +386,10 @@ export function TrainingWeekAccordion({
 
     const previousTrainings = visibleTrainings;
     setDeletingIds((current) => new Set(current).add(training.id));
+    setRemovingIds((current) => new Set(current).add(training.id));
+
+    // Warte auf Slide-Out-Animation, dann DOM-Eintrag entfernen
+    await new Promise((resolve) => setTimeout(resolve, 380));
     setVisibleTrainings((current) =>
       current.filter((item) => item.id !== training.id)
     );
@@ -404,6 +409,11 @@ export function TrainingWeekAccordion({
         router.refresh();
       } catch (deleteError) {
         setVisibleTrainings(previousTrainings);
+        setRemovingIds((current) => {
+          const next = new Set(current);
+          next.delete(training.id);
+          return next;
+        });
         toast.error(
           deleteError instanceof Error
             ? deleteError.message
@@ -625,11 +635,23 @@ export function TrainingWeekAccordion({
                     const isTrainingOpen = openTrainings.has(training.id);
                     const isEditing = editingIds.has(training.id);
                     const isDeleting = deletingIds.has(training.id);
+                    const isRemoving = removingIds.has(training.id);
                     const phasesByType = new Map(
                       trainingPhases.map((phase) => [phase.phase_type, phase])
                     );
 
                     return (
+                      <div
+                        key={`wrap-${training.id}`}
+                        style={{
+                          display: "grid",
+                          gridTemplateRows: isRemoving ? "0fr" : "1fr",
+                          opacity: isRemoving ? 0 : 1,
+                          transition: "grid-template-rows .38s cubic-bezier(.4,0,.2,1), opacity .22s ease-out",
+                          overflow: "hidden",
+                        }}
+                      >
+                      <div style={{ overflow: "hidden", minHeight: 0 }}>
                       <article
                         className={cn(
                           "rounded-2xl border border-border/70 bg-card transition-opacity duration-200",
@@ -714,7 +736,13 @@ export function TrainingWeekAccordion({
                           )}
                         >
                           <div className="overflow-hidden">
-                            <div className="space-y-4 border-t border-border p-4">
+                            <div
+                              className="space-y-4 border-t border-border p-4"
+                              style={{
+                                opacity: isTrainingOpen ? 1 : 0,
+                                transition: "opacity 0.22s ease-out 0.14s",
+                              }}
+                            >
                               {/* Sticky action bar */}
                               <div className="no-print sticky top-0 z-10 -mx-4 -mt-4 mb-2 flex items-center justify-between border-b border-border/60 bg-card/95 px-4 py-2 backdrop-blur-sm">
                                 <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
@@ -1295,6 +1323,8 @@ export function TrainingWeekAccordion({
                           </div>
                         </div>
                       </article>
+                      </div>
+                      </div>
                     );
                   })}
                 </div>

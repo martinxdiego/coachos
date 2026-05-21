@@ -39,6 +39,7 @@ export function TacticBoardAccordion({
   const confirm = useConfirm();
   const [openIds, setOpenIds] = useState<Set<string>>(new Set());
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
+  const [removingIds, setRemovingIds] = useState<Set<string>>(new Set());
   const [visibleBoards, setVisibleBoards] = useState(boards);
   const [, startTransition] = useTransition();
 
@@ -63,7 +64,10 @@ export function TacticBoardAccordion({
     if (!confirmed) return;
 
     setDeletingIds((prev) => new Set(prev).add(board.id));
+    setRemovingIds((prev) => new Set(prev).add(board.id));
+    await new Promise((resolve) => setTimeout(resolve, 380));
     setVisibleBoards((prev) => prev.filter((b) => b.id !== board.id));
+    setRemovingIds((prev) => { const next = new Set(prev); next.delete(board.id); return next; });
 
     startTransition(async () => {
       try {
@@ -73,6 +77,7 @@ export function TacticBoardAccordion({
         toast.success("Board gelöscht");
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Fehler beim Löschen");
+        setRemovingIds((prev) => { const next = new Set(prev); next.delete(board.id); return next; });
         setVisibleBoards((prev) => {
           if (prev.some((b) => b.id === board.id)) return prev;
           return [board, ...prev].sort(
@@ -94,16 +99,23 @@ export function TacticBoardAccordion({
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <p className="text-sm font-medium text-muted-foreground">
-          {visibleBoards.length} {visibleBoards.length === 1 ? "Board" : "Boards"}
-        </p>
-      </div>
       {visibleBoards.map((board) => {
         const isOpen = openIds.has(board.id);
         const isDeleting = deletingIds.has(board.id);
+        const isRemoving = removingIds.has(board.id);
 
         return (
+          <div
+            key={`wrap-${board.id}`}
+            style={{
+              display: "grid",
+              gridTemplateRows: isRemoving ? "0fr" : "1fr",
+              opacity: isRemoving ? 0 : 1,
+              transition: "grid-template-rows .38s cubic-bezier(.4,0,.2,1), opacity .22s ease-out",
+              overflow: "hidden",
+            }}
+          >
+          <div style={{ overflow: "hidden", minHeight: 0 }}>
           <article
             className={cn(
               "overflow-hidden rounded-2xl border border-border/70 bg-card shadow-soft transition-opacity duration-200",
@@ -172,6 +184,8 @@ export function TacticBoardAccordion({
               </div>
             </div>
           </article>
+          </div>
+          </div>
         );
       })}
     </div>

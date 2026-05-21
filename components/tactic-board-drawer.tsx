@@ -127,6 +127,7 @@ export function TacticBoardDrawer({
   const [dragging,    setDragging]    = useState<{ type: "player" | "cone" | "mannequin" | "ball"; id: string } | null>(null);
   const [history,     setHistory]     = useState<Snapshot[]>([]);
   const [isSaving,    setIsSaving]    = useState(false);
+  const [poppedId,    setPoppedId]    = useState<string | null>(null);
 
   // ── History (undo) ───────────────────────────────────────────────────────
 
@@ -161,12 +162,16 @@ export function TacticBoardDrawer({
     return `${prefix}${count + 1}`;
   }
 
+  function pop(id: string) {
+    setPoppedId(id);
+    setTimeout(() => setPoppedId((cur) => (cur === id ? null : cur)), 300);
+  }
+
   function addPlayer(dx: number, dy: number, team: "A" | "B" | "neutral") {
+    const id = `p-${Date.now()}`;
     pushHistory();
-    setPlayers((prev) => [
-      ...prev,
-      { id: `p-${Date.now()}`, team, role: "", label: nextLabel(team), x: dx, y: dy },
-    ]);
+    setPlayers((prev) => [...prev, { id, team, role: "", label: nextLabel(team), x: dx, y: dy }]);
+    pop(id);
   }
 
   function addMovement(fromId: string, toX: number, toY: number, type: DiagramMovement["type"]) {
@@ -179,10 +184,7 @@ export function TacticBoardDrawer({
 
   function addGoal(dx: number, dy: number, type: DiagramGoal["type"]) {
     pushHistory();
-    setGoals((prev) => [
-      ...prev,
-      { type, label: "", x: dx, y: dy, width: type === "big_goal" ? 14 : 7 },
-    ]);
+    setGoals((prev) => [...prev, { type, label: "", x: dx, y: dy, width: type === "big_goal" ? 14 : 7 }]);
   }
 
   function addZone(x: number, y: number, w: number, h: number) {
@@ -191,18 +193,24 @@ export function TacticBoardDrawer({
   }
 
   function addCone(dx: number, dy: number) {
+    const id = `c-${Date.now()}`;
     pushHistory();
-    setCones((prev) => [...prev, { id: `c-${Date.now()}`, x: dx, y: dy, color: coneColor }]);
+    setCones((prev) => [...prev, { id, x: dx, y: dy, color: coneColor }]);
+    pop(id);
   }
 
   function addMannequin(dx: number, dy: number) {
+    const id = `m-${Date.now()}`;
     pushHistory();
-    setMannequins((prev) => [...prev, { id: `m-${Date.now()}`, x: dx, y: dy }]);
+    setMannequins((prev) => [...prev, { id, x: dx, y: dy }]);
+    pop(id);
   }
 
   function addBall(dx: number, dy: number) {
+    const id = `b-${Date.now()}`;
     pushHistory();
-    setBalls((prev) => [...prev, { id: `b-${Date.now()}`, x: dx, y: dy }]);
+    setBalls((prev) => [...prev, { id, x: dx, y: dy }]);
+    pop(id);
   }
 
   function removePlayer(id: string) {
@@ -590,6 +598,7 @@ export function TacticBoardDrawer({
               const r = 2.2;
               const fill   = CONE_FILL[c.color ?? "orange"]   ?? CONE_FILL.orange;
               const stroke = CONE_STROKE[c.color ?? "orange"] ?? CONE_STROKE.orange;
+              const isNew  = poppedId === c.id;
               const handlePointerDown = (e: React.PointerEvent) => {
                 if (activeTool !== "select") return;
                 e.stopPropagation();
@@ -602,7 +611,7 @@ export function TacticBoardDrawer({
                 if (activeTool === "delete") { pushHistory(); setCones((prev) => prev.filter((x) => x.id !== c.id)); }
               };
               return (
-                <g key={c.id} style={{ cursor: activeTool === "select" ? "grab" : "pointer" }}>
+                <g key={c.id} className={isNew ? "animate-svg-pop" : undefined} style={{ cursor: activeTool === "select" ? "grab" : "pointer" }}>
                   {/* invisible hit area */}
                   <circle cx={cx} cy={cy} r={6} fill="transparent" pointerEvents="all"
                     onClick={handleClick} onPointerDown={handlePointerDown} />
@@ -619,6 +628,7 @@ export function TacticBoardDrawer({
               const cx = lx(m.x), cy = ly(m.y);
               return (
                 <g key={m.id}
+                  className={poppedId === m.id ? "animate-svg-pop" : undefined}
                   style={{ cursor: activeTool === "select" ? "grab" : "pointer" }}
                   onClick={(e) => { e.stopPropagation(); if (activeTool === "delete") { pushHistory(); setMannequins((prev) => prev.filter((x) => x.id !== m.id)); } }}
                   onPointerDown={(e) => {
@@ -663,6 +673,7 @@ export function TacticBoardDrawer({
               const r = 2.2;
               return (
                 <g key={b.id}
+                  className={poppedId === b.id ? "animate-svg-pop" : undefined}
                   style={{ cursor: activeTool === "select" ? "grab" : "pointer" }}
                   onClick={(e) => { e.stopPropagation(); if (activeTool === "delete") { pushHistory(); setBalls((prev) => prev.filter((x) => x.id !== b.id)); } }}
                   onPointerDown={(e) => {
@@ -699,7 +710,7 @@ export function TacticBoardDrawer({
               const c = TEAM_COLORS[p.team] ?? TEAM_COLORS.A;
               const isSource = arrowSource?.id === p.id;
               return (
-                <g key={p.id} style={{ cursor: dragging?.id === p.id ? "grabbing" : activeTool === "select" ? "grab" : "pointer" }}>
+                <g key={p.id} className={poppedId === p.id ? "animate-svg-pop" : undefined} style={{ cursor: dragging?.id === p.id ? "grabbing" : activeTool === "select" ? "grab" : "pointer" }}>
                   {/* invisible hit area */}
                   <circle cx={cx} cy={cy} r={6} fill="transparent" pointerEvents="all"
                     onClick={(e) => handlePlayerClick(e, p)}
