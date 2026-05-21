@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { CalendarPlus, Check, ChevronLeft, ChevronRight } from "lucide-react";
+import { toast } from "sonner";
 import { createTraining } from "@/app/actions";
 import { SideDrawer } from "@/components/side-drawer";
 import { ToastForm } from "@/components/toast-form";
@@ -287,9 +288,17 @@ export function CreateTrainingDrawer({
             {step < steps.length - 1 ? (
               <Button
                 className="w-full sm:w-auto"
-                onClick={() =>
-                  setStep((current) => Math.min(steps.length - 1, current + 1))
-                }
+                onClick={() => {
+                  if (step === 0) {
+                    const focusEl = document.getElementById("drawer-training-focus") as HTMLInputElement | null;
+                    if (!focusEl?.value.trim()) {
+                      focusEl?.focus();
+                      toast.error("Bitte Schwerpunkt eingeben");
+                      return;
+                    }
+                  }
+                  setStep((current) => Math.min(steps.length - 1, current + 1));
+                }}
                 type="button"
               >
                 Weiter

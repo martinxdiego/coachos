@@ -128,6 +128,8 @@ export function TacticBoardDrawer({
   const [history,     setHistory]     = useState<Snapshot[]>([]);
   const [isSaving,    setIsSaving]    = useState(false);
   const [poppedId,    setPoppedId]    = useState<string | null>(null);
+  const [coneRotations,     setConeRotations]     = useState<Record<string, number>>({});
+  const [mannequinRotations, setMannequinRotations] = useState<Record<string, number>>({});
 
   // ── History (undo) ───────────────────────────────────────────────────────
 
@@ -225,6 +227,7 @@ export function TacticBoardDrawer({
     setPlayers([]); setMovements([]); setZones([]); setGoals([]);
     setCones([]); setMannequins([]); setBalls([]);
     setArrowSource(null); setZoneDraft(null);
+    setConeRotations({}); setMannequinRotations({});
   }
 
   // ── SVG interaction ──────────────────────────────────────────────────────
@@ -610,15 +613,25 @@ export function TacticBoardDrawer({
                 e.stopPropagation();
                 if (activeTool === "delete") { pushHistory(); setCones((prev) => prev.filter((x) => x.id !== c.id)); }
               };
+              const handleDoubleClick = (e: React.MouseEvent) => {
+                e.stopPropagation();
+                pushHistory();
+                setCones((prev) => prev.filter((x) => x.id !== c.id));
+              };
+              const rot = coneRotations[c.id] ?? 0;
               return (
                 <g key={c.id} className={isNew ? "animate-svg-pop" : undefined} style={{ cursor: activeTool === "select" ? "grab" : "pointer" }}>
                   {/* invisible hit area */}
                   <circle cx={cx} cy={cy} r={6} fill="transparent" pointerEvents="all"
-                    onClick={handleClick} onPointerDown={handlePointerDown} />
-                  <polygon
-                    points={`${cx},${cy - r * 1.1} ${cx - r},${cy + r * 0.7} ${cx + r},${cy + r * 0.7}`}
-                    fill={fill} stroke={stroke} strokeWidth={0.3} pointerEvents="none"
+                    onClick={handleClick} onDoubleClick={handleDoubleClick} onPointerDown={handlePointerDown}
+                    onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); setConeRotations(prev => ({ ...prev, [c.id]: ((prev[c.id] ?? 0) + 90) % 360 })); }}
                   />
+                  <g transform={`rotate(${rot} ${cx} ${cy})`}>
+                    <polygon
+                      points={`${cx},${cy - r * 1.1} ${cx - r},${cy + r * 0.7} ${cx + r},${cy + r * 0.7}`}
+                      fill={fill} stroke={stroke} strokeWidth={0.3} pointerEvents="none"
+                    />
+                  </g>
                 </g>
               );
             })}
@@ -631,6 +644,8 @@ export function TacticBoardDrawer({
                   className={poppedId === m.id ? "animate-svg-pop" : undefined}
                   style={{ cursor: activeTool === "select" ? "grab" : "pointer" }}
                   onClick={(e) => { e.stopPropagation(); if (activeTool === "delete") { pushHistory(); setMannequins((prev) => prev.filter((x) => x.id !== m.id)); } }}
+                  onDoubleClick={(e) => { e.stopPropagation(); pushHistory(); setMannequins((prev) => prev.filter((x) => x.id !== m.id)); }}
+                  onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); setMannequinRotations(prev => ({ ...prev, [m.id]: ((prev[m.id] ?? 0) + 90) % 360 })); }}
                   onPointerDown={(e) => {
                     if (activeTool !== "select") return;
                     e.stopPropagation();
@@ -641,9 +656,11 @@ export function TacticBoardDrawer({
                 >
                   {/* invisible hit area */}
                   <rect x={cx - 5} y={cy - 7} width={10} height={12} fill="transparent" pointerEvents="all" />
-                  <circle cx={cx} cy={cy - 3.2} r={1.4} fill="#94a3b8" stroke="#64748b" strokeWidth={0.3} pointerEvents="none" />
-                  <rect x={cx - 1.1} y={cy - 1.8} width={2.2} height={3.5} rx={0.3} fill="#94a3b8" stroke="#64748b" strokeWidth={0.3} pointerEvents="none" />
-                  <line x1={cx - 2.8} y1={cy - 0.8} x2={cx + 2.8} y2={cy - 0.8} stroke="#64748b" strokeWidth={0.5} pointerEvents="none" />
+                  <g transform={`rotate(${mannequinRotations[m.id] ?? 0} ${cx} ${cy})`}>
+                    <circle cx={cx} cy={cy - 3.2} r={1.4} fill="#94a3b8" stroke="#64748b" strokeWidth={0.3} pointerEvents="none" />
+                    <rect x={cx - 1.1} y={cy - 1.8} width={2.2} height={3.5} rx={0.3} fill="#94a3b8" stroke="#64748b" strokeWidth={0.3} pointerEvents="none" />
+                    <line x1={cx - 2.8} y1={cy - 0.8} x2={cx + 2.8} y2={cy - 0.8} stroke="#64748b" strokeWidth={0.5} pointerEvents="none" />
+                  </g>
                 </g>
               );
             })}
@@ -676,6 +693,7 @@ export function TacticBoardDrawer({
                   className={poppedId === b.id ? "animate-svg-pop" : undefined}
                   style={{ cursor: activeTool === "select" ? "grab" : "pointer" }}
                   onClick={(e) => { e.stopPropagation(); if (activeTool === "delete") { pushHistory(); setBalls((prev) => prev.filter((x) => x.id !== b.id)); } }}
+                  onDoubleClick={(e) => { e.stopPropagation(); pushHistory(); setBalls((prev) => prev.filter((x) => x.id !== b.id)); }}
                   onPointerDown={(e) => {
                     if (activeTool !== "select") return;
                     e.stopPropagation();
@@ -710,7 +728,9 @@ export function TacticBoardDrawer({
               const c = TEAM_COLORS[p.team] ?? TEAM_COLORS.A;
               const isSource = arrowSource?.id === p.id;
               return (
-                <g key={p.id} className={poppedId === p.id ? "animate-svg-pop" : undefined} style={{ cursor: dragging?.id === p.id ? "grabbing" : activeTool === "select" ? "grab" : "pointer" }}>
+                <g key={p.id} className={poppedId === p.id ? "animate-svg-pop" : undefined} style={{ cursor: dragging?.id === p.id ? "grabbing" : activeTool === "select" ? "grab" : "pointer" }}
+                  onDoubleClick={(e) => { e.stopPropagation(); removePlayer(p.id); }}
+                >
                   {/* invisible hit area */}
                   <circle cx={cx} cy={cy} r={6} fill="transparent" pointerEvents="all"
                     onClick={(e) => handlePlayerClick(e, p)}

@@ -450,9 +450,12 @@ function renderFrameToCanvas(
         ctx.fillStyle = fill; ctx.fill(); ctx.strokeStyle = "#0f172a"; ctx.lineWidth = 1 * s; ctx.stroke();
       } else if (mk.startsWith("marker-cone")) {
         const fills: Record<string, string> = { "marker-cone-red": "#ef4444", "marker-cone-yellow": "#facc15", "marker-cone-blue": "#3b82f6", "marker-cone-black": "#1f2937", "marker-cone-white": "#ffffff" };
-        ctx.beginPath(); ctx.arc(ex, ey, 6 * s, 0, Math.PI * 2);
+        const rims: Record<string, string> = { "marker-cone-red": "#7f1d1d", "marker-cone-yellow": "#854d0e", "marker-cone-blue": "#1e3a8a", "marker-cone-black": "#f8fafc", "marker-cone-white": "#475569" };
+        const coneH = 10 * s; const coneHW = 5 * s;
+        ctx.beginPath(); ctx.moveTo(ex, ey - coneH); ctx.lineTo(ex + coneHW, ey); ctx.lineTo(ex - coneHW, ey); ctx.closePath();
         ctx.fillStyle = fills[mk] ?? "#94a3b8"; ctx.fill();
-        ctx.strokeStyle = "#475569"; ctx.lineWidth = 1 * s; ctx.stroke();
+        ctx.strokeStyle = rims[mk] ?? "#475569"; ctx.lineWidth = 0.8 * s; ctx.stroke();
+        ctx.fillStyle = rims[mk] ?? "#475569"; ctx.globalAlpha = 0.85; ctx.fillRect(ex - coneHW, ey, coneHW * 2, 2 * s); ctx.globalAlpha = 1;
       } else if (mk === "pole") {
         ctx.fillStyle = "#dc2626"; ctx.fillRect(ex - 2 * s, ey - 14 * s, 4 * s, 16 * s);
       } else if (mk === "hurdle") {
@@ -810,11 +813,11 @@ const materialIconSizes: Record<MaterialKind, MaterialIconSize> = {
   "ball-orange": { width: 18, height: 18 },
   "ball-white": { width: 18, height: 18 },
   "ball-blue": { width: 18, height: 18 },
-  "marker-cone-red": { width: 16, height: 16 },
-  "marker-cone-yellow": { width: 16, height: 16 },
-  "marker-cone-blue": { width: 16, height: 16 },
-  "marker-cone-black": { width: 16, height: 16 },
-  "marker-cone-white": { width: 16, height: 16 },
+  "marker-cone-red": { width: 16, height: 20 },
+  "marker-cone-yellow": { width: 16, height: 20 },
+  "marker-cone-blue": { width: 16, height: 20 },
+  "marker-cone-black": { width: 16, height: 20 },
+  "marker-cone-white": { width: 16, height: 20 },
   pole: { width: 10, height: 32 },
   hurdle: { width: 28, height: 18 },
   ring: { width: 22, height: 22 },
@@ -872,25 +875,13 @@ function MaterialIcon({
     };
     const { fill, rim } = palette[kind];
     return (
-      <svg height={h} viewBox="0 0 16 16" width={w}>
-        <circle
-          cx="8"
-          cy="8"
-          fill={fill}
-          r="7"
-          stroke={rim}
-          strokeWidth="0.9"
-        />
-        <circle
-          cx="8"
-          cy="8"
-          fill="none"
-          opacity="0.55"
-          r="4"
-          stroke={rim}
-          strokeWidth="0.7"
-        />
-        <circle cx="8" cy="8" fill={rim} opacity="0.7" r="1.4" />
+      <svg height={h} viewBox="0 0 16 20" width={w}>
+        {/* cone body — triangle */}
+        <polygon points="8,1 14,17 2,17" fill={fill} stroke={rim} strokeWidth="0.8" strokeLinejoin="round" />
+        {/* highlight stripe */}
+        <line x1="5.5" y1="10" x2="10.5" y2="10" stroke="rgba(255,255,255,0.55)" strokeWidth="1.2" strokeLinecap="round" />
+        {/* base */}
+        <rect x="1.5" y="17" width="13" height="2.5" rx="1" fill={rim} opacity="0.85" />
       </svg>
     );
   }

@@ -911,7 +911,7 @@ function trainingPayload(formData: FormData) {
     start_time: optionalString(formData, "start_time"),
     duration_minutes: optionalNumber(formData, "duration_minutes"),
     location: optionalString(formData, "location"),
-    focus: requiredString(formData, "focus", "Training focus"),
+    focus: optionalString(formData, "focus") ?? "",
     goal: optionalString(formData, "goal"),
     age_group: optionalString(formData, "age_group"),
     intensity,
