@@ -141,9 +141,9 @@ h1, h2, h3, h4 {
   to   { transform: rotate(360deg); }
 }
 
-.animate-logo-intro  { animation: logo-intro   0.75s cubic-bezier(0.22,1,0.36,1) both; }
-.animate-glow-breathe{ animation: glow-breathe 2.6s  ease-in-out infinite; }
-.animate-spin-slow   { animation: spin-slow    18s   linear infinite; }
+.animate-logo-intro  { animation: logo-intro   0.9s  cubic-bezier(0.22,1,0.36,1) both; }
+.animate-glow-breathe{ animation: glow-breathe 3.4s  ease-in-out infinite; }
+.animate-spin-slow   { animation: spin-slow    24s   linear infinite; }
 
 @keyframes score-pop {
   0%   { transform: scale(1); }

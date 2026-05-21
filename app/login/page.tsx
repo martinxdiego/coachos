@@ -58,7 +58,7 @@ export default function LoginPage() {
       setRevealed(true);
       return;
     }
-    const t = setTimeout(() => setRevealed(true), 520);
+    const t = setTimeout(() => setRevealed(true), 1900);
     return () => clearTimeout(t);
   }, []);
 
@@ -72,7 +72,7 @@ export default function LoginPage() {
         style={{
           opacity: revealed ? 0 : 1,
           pointerEvents: revealed ? "none" : undefined,
-          transition: "opacity .72s cubic-bezier(.22,1,.36,1) 0ms",
+          transition: "opacity .75s cubic-bezier(.22,1,.36,1) 0ms",
         }}
       >
         {/* Äusserer Glow-Ring */}
@@ -94,13 +94,13 @@ export default function LoginPage() {
         {/* Wortmarke */}
         <p
           className="mt-5 text-xl font-semibold tracking-tight text-white"
-          style={{ animation: "fade-up .5s cubic-bezier(.22,1,.36,1) .35s both" }}
+          style={{ animation: "fade-up .6s cubic-bezier(.22,1,.36,1) .7s both" }}
         >
           CoachOS
         </p>
         <p
           className="mt-1 text-[13px] text-emerald-400/80"
-          style={{ animation: "fade-up .5s cubic-bezier(.22,1,.36,1) .48s both" }}
+          style={{ animation: "fade-up .6s cubic-bezier(.22,1,.36,1) .95s both" }}
         >
           Trainer-Workspace
         </p>
@@ -153,7 +153,7 @@ export default function LoginPage() {
           <div className="space-y-4">
             <h1
               className="max-w-[14ch] text-[2.75rem] font-bold leading-[1.1] tracking-tight sm:text-[3.5rem] lg:text-[4rem]"
-              style={rx(revealed, 90)}
+              style={rx(revealed, 100)}
             >
               Ein Workspace für{" "}
               <span
@@ -165,7 +165,7 @@ export default function LoginPage() {
             </h1>
             <p
               className="max-w-[48ch] text-[1.05rem] leading-relaxed text-slate-400"
-              style={rx(revealed, 180)}
+              style={rx(revealed, 220)}
             >
               CoachOS bündelt Spieler, Trainingsphasen, Spiele, Material,
               Aufgaben und Taktikboards in einem professionellen Staff-Tool.
@@ -178,7 +178,7 @@ export default function LoginPage() {
               <div
                 key={f.title}
                 className="group relative overflow-hidden rounded-2xl border border-white/[.07] bg-white/[.04] p-5 backdrop-blur-sm transition-all duration-300 hover:border-emerald-400/30 hover:bg-white/[.07] hover:shadow-[0_0_28px_rgba(52,211,153,.07)]"
-                style={rx(revealed, 280 + i * 70)}
+                style={rx(revealed, 340 + i * 80)}
               >
                 {/* Nummer-Label oben rechts */}
                 <span className="absolute right-4 top-4 text-[11px] font-semibold tabular-nums text-white/20 transition-colors group-hover:text-emerald-400/50">
@@ -201,7 +201,7 @@ export default function LoginPage() {
         <section className="space-y-4">
 
           {/* Login Card */}
-          <div style={rx(revealed, 140, { x: 20 })}>
+          <div style={rx(revealed, 180, { x: 20 })}>
             <div className="overflow-hidden rounded-2xl border border-white/10 bg-white shadow-[0_24px_64px_rgba(0,0,0,.55),0_0_0_1px_rgba(255,255,255,.05)] backdrop-blur-md">
               <div className="border-b border-slate-100 px-6 pb-4 pt-6">
                 <p className="text-[17px] font-semibold text-slate-900">Einloggen</p>
@@ -246,7 +246,7 @@ export default function LoginPage() {
           </div>
 
           {/* Register Card */}
-          <div style={rx(revealed, 260, { x: 20 })}>
+          <div style={rx(revealed, 320, { x: 20 })}>
             <div className="overflow-hidden rounded-2xl border border-white/[.09] bg-white/[.06] shadow-[0_12px_40px_rgba(0,0,0,.3)] backdrop-blur-xl">
               <div className="border-b border-white/10 px-6 pb-4 pt-6">
                 <p className="text-[17px] font-semibold text-white">Account erstellen</p>
