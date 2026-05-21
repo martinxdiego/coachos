@@ -1,154 +1,233 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { KeyRound, ShieldCheck, UsersRound } from "lucide-react";
 import { signIn, signUp } from "@/app/actions";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle
-} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-const features = [
+// ─── Inline-Transition-Helper ─────────────────────────────────────────────────
+// Erzeugt ein vollständiges CSSProperties-Objekt für state-gesteuerte Reveals.
+function rx(
+  visible: boolean,
+  delayMs: number,
+  from: { y?: number; x?: number } = { y: 22 }
+): React.CSSProperties {
+  return {
+    opacity: visible ? 1 : 0,
+    transform: visible
+      ? "translate(0,0)"
+      : `translate(${from.x ?? 0}px,${from.y ?? 0}px)`,
+    transition: [
+      `opacity .65s cubic-bezier(.22,1,.36,1) ${delayMs}ms`,
+      `transform .65s cubic-bezier(.22,1,.36,1) ${delayMs}ms`,
+    ].join(", "),
+  };
+}
+
+// ─── Feature-Daten ────────────────────────────────────────────────────────────
+const FEATURES = [
   {
     icon: UsersRound,
+    label: "01",
     title: "Workspace zuerst",
     body: "Mehrere Teams, klare Trennung, schneller Wechsel.",
   },
   {
     icon: KeyRound,
+    label: "02",
     title: "Co-Trainer einladen",
     body: "Staff-Zugriff über einfache Invite-Codes.",
   },
   {
     icon: ShieldCheck,
+    label: "03",
     title: "Privat by default",
     body: "Keine Spieler- oder Elternaccounts in dieser Version.",
   },
 ];
 
+// ─── Komponente ───────────────────────────────────────────────────────────────
 export default function LoginPage() {
-  return (
-    <main className="relative min-h-screen overflow-hidden bg-slate-950 px-4 py-8 text-white">
+  const [revealed, setRevealed] = useState(false);
 
-      {/* ── Animated background blobs ─────────────────────────────── */}
+  useEffect(() => {
+    // Prefers-reduced-motion: Intro überspringen
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      setRevealed(true);
+      return;
+    }
+    const t = setTimeout(() => setRevealed(true), 520);
+    return () => clearTimeout(t);
+  }, []);
+
+  return (
+    <main className="relative min-h-screen overflow-hidden bg-slate-950 px-4 py-10 text-white">
+
+      {/* ── Intro-Overlay ─────────────────────────────────────────── */}
       <div
         aria-hidden="true"
-        className="animate-blob pointer-events-none absolute -left-32 -top-32 h-[600px] w-[600px] rounded-full bg-emerald-500/20 blur-[120px]"
+        className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-slate-950"
+        style={{
+          opacity: revealed ? 0 : 1,
+          pointerEvents: revealed ? "none" : undefined,
+          transition: "opacity .72s cubic-bezier(.22,1,.36,1) 0ms",
+        }}
+      >
+        {/* Äusserer Glow-Ring */}
+        <div className="animate-glow-breathe absolute h-56 w-56 rounded-full bg-emerald-500/18 blur-3xl" />
+
+        {/* Logo-Kachel */}
+        <div className="animate-logo-intro relative z-10 flex h-[72px] w-[72px] items-center justify-center rounded-2xl border border-emerald-400/25 bg-slate-900 shadow-[0_0_48px_rgba(52,211,153,.28)]">
+          {/* Drehender Rahmen */}
+          <div
+            className="animate-spin-slow absolute inset-[-1px] rounded-2xl"
+            style={{
+              background:
+                "conic-gradient(from 0deg, transparent 60%, rgba(52,211,153,.55) 80%, transparent 100%)",
+            }}
+          />
+          <ShieldCheck className="relative z-10 h-8 w-8 text-emerald-400" />
+        </div>
+
+        {/* Wortmarke */}
+        <p
+          className="mt-5 text-xl font-semibold tracking-tight text-white"
+          style={{ animation: "fade-up .5s cubic-bezier(.22,1,.36,1) .35s both" }}
+        >
+          CoachOS
+        </p>
+        <p
+          className="mt-1 text-[13px] text-emerald-400/80"
+          style={{ animation: "fade-up .5s cubic-bezier(.22,1,.36,1) .48s both" }}
+        >
+          Trainer-Workspace
+        </p>
+      </div>
+
+      {/* ── Animierte Hintergrund-Blobs ───────────────────────────── */}
+      <div
+        aria-hidden="true"
+        className="animate-blob pointer-events-none absolute -left-40 -top-40 h-[680px] w-[680px] rounded-full bg-emerald-500/[.14] blur-[130px]"
         style={{ animationDelay: "0s" }}
       />
       <div
         aria-hidden="true"
-        className="animate-blob pointer-events-none absolute -bottom-40 -right-20 h-[500px] w-[500px] rounded-full bg-indigo-500/15 blur-[100px]"
-        style={{ animationDelay: "3s" }}
+        className="animate-blob pointer-events-none absolute -bottom-48 right-0 h-[560px] w-[560px] rounded-full bg-indigo-500/[.12] blur-[110px]"
+        style={{ animationDelay: "3.5s" }}
       />
       <div
         aria-hidden="true"
-        className="animate-blob pointer-events-none absolute right-1/3 top-1/4 h-[360px] w-[360px] rounded-full bg-emerald-400/10 blur-[90px]"
-        style={{ animationDelay: "5.5s" }}
+        className="animate-blob pointer-events-none absolute right-1/4 top-1/3 h-[380px] w-[380px] rounded-full bg-teal-400/[.09] blur-[90px]"
+        style={{ animationDelay: "6s" }}
       />
 
-      {/* ── Subtle grid overlay ───────────────────────────────────── */}
+      {/* ── Dezentes Grid ─────────────────────────────────────────── */}
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-0"
         style={{
           backgroundImage:
-            "linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px)",
-          backgroundSize: "60px 60px",
+            "linear-gradient(rgba(255,255,255,.022) 1px,transparent 1px)," +
+            "linear-gradient(90deg,rgba(255,255,255,.022) 1px,transparent 1px)",
+          backgroundSize: "64px 64px",
         }}
       />
 
-      {/* ── Content ───────────────────────────────────────────────── */}
-      <div className="relative mx-auto grid min-h-[calc(100vh-4rem)] max-w-6xl gap-8 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
+      {/* ── Inhalt ────────────────────────────────────────────────── */}
+      <div className="relative mx-auto grid min-h-[calc(100vh-5rem)] max-w-6xl gap-12 lg:grid-cols-[1.15fr_.85fr] lg:items-center">
 
-        {/* Left — hero copy */}
-        <section className="space-y-8">
+        {/* ── Linke Seite: Hero ───────────────────────────────────── */}
+        <section className="space-y-10">
+
           {/* Badge */}
-          <div
-            className="animate-fade-up inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-3 py-2 text-sm text-emerald-300 backdrop-blur-sm"
-            style={{ animationDelay: "0ms" }}
-          >
-            <ShieldCheck aria-hidden="true" className="h-4 w-4" />
-            Private Trainerplattform
+          <div style={rx(revealed, 0)}>
+            <span className="inline-flex items-center gap-2 rounded-full border border-emerald-400/25 bg-emerald-500/10 px-3.5 py-1.5 text-[13px] font-medium text-emerald-300 backdrop-blur-sm">
+              <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
+              Private Trainerplattform
+            </span>
           </div>
 
           {/* Headline */}
-          <div
-            className="animate-fade-up"
-            style={{ animationDelay: "80ms" }}
-          >
-            <h1 className="max-w-3xl text-4xl font-semibold tracking-tight sm:text-5xl">
+          <div className="space-y-4">
+            <h1
+              className="max-w-[14ch] text-[2.75rem] font-bold leading-[1.1] tracking-tight sm:text-[3.5rem] lg:text-[4rem]"
+              style={rx(revealed, 90)}
+            >
               Ein Workspace für{" "}
-              <span className="bg-gradient-to-r from-emerald-300 via-emerald-200 to-teal-300 bg-clip-text text-transparent">
-                Trainerteam, Planung, Taktik
+              <span
+                className="bg-gradient-to-r from-emerald-300 via-emerald-200 to-teal-300 bg-clip-text text-transparent"
+              >
+                Trainerteam, Taktik
               </span>{" "}
               und Spieltag.
             </h1>
             <p
-              className="animate-fade-up mt-5 max-w-2xl text-base leading-7 text-slate-300"
-              style={{ animationDelay: "160ms" }}
+              className="max-w-[48ch] text-[1.05rem] leading-relaxed text-slate-400"
+              style={rx(revealed, 180)}
             >
               CoachOS bündelt Spieler, Trainingsphasen, Spiele, Material,
               Aufgaben und Taktikboards in einem professionellen Staff-Tool.
             </p>
           </div>
 
-          {/* Feature cards */}
-          <div className="grid gap-3 md:grid-cols-3">
-            {features.map((f, i) => (
+          {/* Feature Cards */}
+          <div className="grid gap-3 sm:grid-cols-3">
+            {FEATURES.map((f, i) => (
               <div
                 key={f.title}
-                className="animate-fade-up group rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-sm transition-all duration-300 hover:border-emerald-400/30 hover:bg-white/10 hover:shadow-[0_0_24px_rgba(52,211,153,0.08)]"
-                style={{ animationDelay: `${240 + i * 80}ms` }}
+                className="group relative overflow-hidden rounded-2xl border border-white/[.07] bg-white/[.04] p-5 backdrop-blur-sm transition-all duration-300 hover:border-emerald-400/30 hover:bg-white/[.07] hover:shadow-[0_0_28px_rgba(52,211,153,.07)]"
+                style={rx(revealed, 280 + i * 70)}
               >
+                {/* Nummer-Label oben rechts */}
+                <span className="absolute right-4 top-4 text-[11px] font-semibold tabular-nums text-white/20 transition-colors group-hover:text-emerald-400/50">
+                  {f.label}
+                </span>
                 <f.icon
                   aria-hidden="true"
-                  className="h-5 w-5 text-emerald-300 transition-transform duration-300 group-hover:scale-110"
+                  className="h-5 w-5 text-emerald-400 transition-transform duration-300 group-hover:scale-110"
                 />
-                <p className="mt-3 font-semibold">{f.title}</p>
-                <p className="mt-1 text-sm leading-6 text-slate-400">{f.body}</p>
+                <p className="mt-3 font-semibold leading-snug">{f.title}</p>
+                <p className="mt-1.5 text-sm leading-relaxed text-slate-400">
+                  {f.body}
+                </p>
               </div>
             ))}
           </div>
         </section>
 
-        {/* Right — auth forms */}
+        {/* ── Rechte Seite: Forms ─────────────────────────────────── */}
         <section className="space-y-4">
-          {/* Login card */}
-          <div
-            className="animate-slide-right"
-            style={{ animationDelay: "120ms" }}
-          >
-            <Card className="border-white/10 bg-white shadow-2xl">
-              <CardHeader>
-                <CardTitle className="text-slate-900">Einloggen</CardTitle>
-                <CardDescription>
+
+          {/* Login Card */}
+          <div style={rx(revealed, 140, { x: 20 })}>
+            <div className="overflow-hidden rounded-2xl border border-white/10 bg-white shadow-[0_24px_64px_rgba(0,0,0,.55),0_0_0_1px_rgba(255,255,255,.05)] backdrop-blur-md">
+              <div className="border-b border-slate-100 px-6 pb-4 pt-6">
+                <p className="text-[17px] font-semibold text-slate-900">Einloggen</p>
+                <p className="mt-0.5 text-[13px] text-slate-500">
                   Zurück in deinen aktiven Trainer-Workspace.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
+                </p>
+              </div>
+              <div className="px-6 py-5">
                 <form action={signIn} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="signin-email">E-Mail</Label>
+                  <div className="space-y-1.5">
+                    <Label className="text-slate-700" htmlFor="signin-email">E-Mail</Label>
                     <Input
                       autoComplete="email"
-                      className="transition-shadow focus:shadow-[0_0_0_3px_rgba(16,185,129,0.15)]"
+                      className="border-slate-200 bg-slate-50 text-slate-900 transition-shadow placeholder:text-slate-400 focus:border-emerald-400 focus:bg-white focus:shadow-[0_0_0_3px_rgba(16,185,129,.12)] focus:ring-0"
                       id="signin-email"
                       name="email"
+                      placeholder="coach@team.ch"
                       required
                       type="email"
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="signin-password">Passwort</Label>
+                  <div className="space-y-1.5">
+                    <Label className="text-slate-700" htmlFor="signin-password">Passwort</Label>
                     <Input
                       autoComplete="current-password"
-                      className="transition-shadow focus:shadow-[0_0_0_3px_rgba(16,185,129,0.15)]"
+                      className="border-slate-200 bg-slate-50 text-slate-900 transition-shadow placeholder:text-slate-400 focus:border-emerald-400 focus:bg-white focus:shadow-[0_0_0_3px_rgba(16,185,129,.12)] focus:ring-0"
                       id="signin-password"
                       name="password"
                       required
@@ -156,46 +235,44 @@ export default function LoginPage() {
                     />
                   </div>
                   <Button
-                    className="relative w-full overflow-hidden bg-emerald-600 hover:bg-emerald-500 active:scale-[0.98]"
+                    className="relative w-full overflow-hidden bg-emerald-600 text-white shadow-[0_2px_12px_rgba(16,185,129,.35)] transition-all duration-200 hover:bg-emerald-500 hover:shadow-[0_4px_20px_rgba(16,185,129,.45)] active:scale-[.98]"
                     type="submit"
                   >
                     Einloggen
                   </Button>
                 </form>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           </div>
 
-          {/* Register card */}
-          <div
-            className="animate-slide-right"
-            style={{ animationDelay: "240ms" }}
-          >
-            <Card className="border-white/10 bg-white/90 shadow-xl backdrop-blur-sm">
-              <CardHeader>
-                <CardTitle className="text-slate-900">Account erstellen</CardTitle>
-                <CardDescription>
+          {/* Register Card */}
+          <div style={rx(revealed, 260, { x: 20 })}>
+            <div className="overflow-hidden rounded-2xl border border-white/[.09] bg-white/[.06] shadow-[0_12px_40px_rgba(0,0,0,.3)] backdrop-blur-xl">
+              <div className="border-b border-white/10 px-6 pb-4 pt-6">
+                <p className="text-[17px] font-semibold text-white">Account erstellen</p>
+                <p className="mt-0.5 text-[13px] text-slate-400">
                   Danach erstellst du einen Workspace oder trittst per Code bei.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
+                </p>
+              </div>
+              <div className="px-6 py-5">
                 <form action={signUp} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="signup-email">E-Mail</Label>
+                  <div className="space-y-1.5">
+                    <Label className="text-slate-300" htmlFor="signup-email">E-Mail</Label>
                     <Input
                       autoComplete="email"
-                      className="transition-shadow focus:shadow-[0_0_0_3px_rgba(16,185,129,0.15)]"
+                      className="border-white/10 bg-white/10 text-white placeholder:text-slate-500 focus:border-emerald-400/50 focus:bg-white/15 focus:shadow-[0_0_0_3px_rgba(16,185,129,.1)] focus:ring-0"
                       id="signup-email"
                       name="email"
+                      placeholder="coach@team.ch"
                       required
                       type="email"
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="signup-password">Passwort</Label>
+                  <div className="space-y-1.5">
+                    <Label className="text-slate-300" htmlFor="signup-password">Passwort</Label>
                     <Input
                       autoComplete="new-password"
-                      className="transition-shadow focus:shadow-[0_0_0_3px_rgba(16,185,129,0.15)]"
+                      className="border-white/10 bg-white/10 text-white placeholder:text-slate-500 focus:border-emerald-400/50 focus:bg-white/15 focus:shadow-[0_0_0_3px_rgba(16,185,129,.1)] focus:ring-0"
                       id="signup-password"
                       minLength={8}
                       name="password"
@@ -204,15 +281,15 @@ export default function LoginPage() {
                     />
                   </div>
                   <Button
-                    className="w-full active:scale-[0.98]"
+                    className="w-full border border-white/15 bg-white/10 text-white transition-all duration-200 hover:bg-white/18 active:scale-[.98]"
                     type="submit"
-                    variant="secondary"
+                    variant="ghost"
                   >
                     Account erstellen
                   </Button>
                 </form>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           </div>
         </section>
       </div>
