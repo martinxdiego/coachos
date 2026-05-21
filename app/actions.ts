@@ -1127,6 +1127,39 @@ export async function updateTrainingPhase(formData: FormData) {
   revalidatePath("/trainings");
 }
 
+export async function reorderPhase(formData: FormData) {
+  const { supabase, team } = await requireActiveTeam();
+  const phaseId = requiredString(formData, "phase_id", "Phase");
+  const direction = formData.get("direction") as "up" | "down";
+
+  const { data: phase } = await supabase
+    .from("training_phases")
+    .select("id, sort_order, training_id")
+    .eq("id", phaseId)
+    .eq("team_id", team.id)
+    .single();
+  if (!phase) throw new Error("Phase nicht gefunden");
+
+  const { data: siblings } = await supabase
+    .from("training_phases")
+    .select("id, sort_order")
+    .eq("training_id", phase.training_id)
+    .eq("team_id", team.id)
+    .order("sort_order", { ascending: true });
+  if (!siblings || siblings.length < 2) return;
+
+  const idx = siblings.findIndex((s) => s.id === phaseId);
+  const swapIdx = direction === "up" ? idx - 1 : idx + 1;
+  if (swapIdx < 0 || swapIdx >= siblings.length) return;
+
+  const swapWith = siblings[swapIdx];
+  await Promise.all([
+    supabase.from("training_phases").update({ sort_order: swapWith.sort_order }).eq("id", phaseId).eq("team_id", team.id),
+    supabase.from("training_phases").update({ sort_order: phase.sort_order }).eq("id", swapWith.id).eq("team_id", team.id),
+  ]);
+  revalidatePath("/trainings");
+}
+
 export async function duplicateTraining(formData: FormData) {
   const { supabase, user, team } = await requireActiveTeam();
   const id = requiredString(formData, "id", "Training");

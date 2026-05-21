@@ -590,20 +590,27 @@ export function TacticBoardDrawer({
               const r = 2.2;
               const fill   = CONE_FILL[c.color ?? "orange"]   ?? CONE_FILL.orange;
               const stroke = CONE_STROKE[c.color ?? "orange"] ?? CONE_STROKE.orange;
+              const handlePointerDown = (e: React.PointerEvent) => {
+                if (activeTool !== "select") return;
+                e.stopPropagation();
+                pushHistory();
+                setDragging({ type: "cone", id: c.id });
+                svgRef.current?.setPointerCapture(e.pointerId);
+              };
+              const handleClick = (e: React.MouseEvent) => {
+                e.stopPropagation();
+                if (activeTool === "delete") { pushHistory(); setCones((prev) => prev.filter((x) => x.id !== c.id)); }
+              };
               return (
-                <polygon key={c.id}
-                  points={`${cx},${cy - r * 1.1} ${cx - r},${cy + r * 0.7} ${cx + r},${cy + r * 0.7}`}
-                  fill={fill} stroke={stroke} strokeWidth={0.3}
-                  style={{ cursor: activeTool === "select" ? "grab" : "pointer" }}
-                  onClick={(e) => { e.stopPropagation(); if (activeTool === "delete") { pushHistory(); setCones((prev) => prev.filter((x) => x.id !== c.id)); } }}
-                  onPointerDown={(e) => {
-                    if (activeTool !== "select") return;
-                    e.stopPropagation();
-                    pushHistory();
-                    setDragging({ type: "cone", id: c.id });
-                    svgRef.current?.setPointerCapture(e.pointerId);
-                  }}
-                />
+                <g key={c.id} style={{ cursor: activeTool === "select" ? "grab" : "pointer" }}>
+                  {/* invisible hit area */}
+                  <circle cx={cx} cy={cy} r={6} fill="transparent" pointerEvents="all"
+                    onClick={handleClick} onPointerDown={handlePointerDown} />
+                  <polygon
+                    points={`${cx},${cy - r * 1.1} ${cx - r},${cy + r * 0.7} ${cx + r},${cy + r * 0.7}`}
+                    fill={fill} stroke={stroke} strokeWidth={0.3} pointerEvents="none"
+                  />
+                </g>
               );
             })}
 
@@ -622,9 +629,11 @@ export function TacticBoardDrawer({
                     svgRef.current?.setPointerCapture(e.pointerId);
                   }}
                 >
-                  <circle cx={cx} cy={cy - 3.2} r={1.4} fill="#94a3b8" stroke="#64748b" strokeWidth={0.3} />
-                  <rect x={cx - 1.1} y={cy - 1.8} width={2.2} height={3.5} rx={0.3} fill="#94a3b8" stroke="#64748b" strokeWidth={0.3} />
-                  <line x1={cx - 2.8} y1={cy - 0.8} x2={cx + 2.8} y2={cy - 0.8} stroke="#64748b" strokeWidth={0.5} />
+                  {/* invisible hit area */}
+                  <rect x={cx - 5} y={cy - 7} width={10} height={12} fill="transparent" pointerEvents="all" />
+                  <circle cx={cx} cy={cy - 3.2} r={1.4} fill="#94a3b8" stroke="#64748b" strokeWidth={0.3} pointerEvents="none" />
+                  <rect x={cx - 1.1} y={cy - 1.8} width={2.2} height={3.5} rx={0.3} fill="#94a3b8" stroke="#64748b" strokeWidth={0.3} pointerEvents="none" />
+                  <line x1={cx - 2.8} y1={cy - 0.8} x2={cx + 2.8} y2={cy - 0.8} stroke="#64748b" strokeWidth={0.5} pointerEvents="none" />
                 </g>
               );
             })}
@@ -664,9 +673,11 @@ export function TacticBoardDrawer({
                     svgRef.current?.setPointerCapture(e.pointerId);
                   }}
                 >
-                  <circle cx={cx} cy={cy} r={r} fill="#fff" stroke="#374151" strokeWidth={0.4} />
-                  <line x1={cx - r * 0.7} y1={cy} x2={cx + r * 0.7} y2={cy} stroke="#374151" strokeWidth={0.2} />
-                  <line x1={cx} y1={cy - r * 0.7} x2={cx} y2={cy + r * 0.7} stroke="#374151" strokeWidth={0.2} />
+                  {/* invisible hit area */}
+                  <circle cx={cx} cy={cy} r={6} fill="transparent" pointerEvents="all" />
+                  <circle cx={cx} cy={cy} r={r} fill="#fff" stroke="#374151" strokeWidth={0.4} pointerEvents="none" />
+                  <line x1={cx - r * 0.7} y1={cy} x2={cx + r * 0.7} y2={cy} stroke="#374151" strokeWidth={0.2} pointerEvents="none" />
+                  <line x1={cx} y1={cy - r * 0.7} x2={cx} y2={cy + r * 0.7} stroke="#374151" strokeWidth={0.2} pointerEvents="none" />
                 </g>
               );
             })}
@@ -689,12 +700,16 @@ export function TacticBoardDrawer({
               const isSource = arrowSource?.id === p.id;
               return (
                 <g key={p.id} style={{ cursor: dragging?.id === p.id ? "grabbing" : activeTool === "select" ? "grab" : "pointer" }}>
+                  {/* invisible hit area */}
+                  <circle cx={cx} cy={cy} r={6} fill="transparent" pointerEvents="all"
+                    onClick={(e) => handlePlayerClick(e, p)}
+                    onPointerDown={(e) => handlePlayerPointerDown(e, p)}
+                  />
                   <circle
                     cx={cx} cy={cy} r={3.5}
                     fill={c.fill} stroke={isSource ? "#fff" : c.stroke}
                     strokeWidth={isSource ? 1.2 : 0.7}
-                    onClick={(e) => handlePlayerClick(e, p)}
-                    onPointerDown={(e) => handlePlayerPointerDown(e, p)}
+                    pointerEvents="none"
                   />
                   <text fill={c.text} fontSize="2.8" fontWeight="700" pointerEvents="none" textAnchor="middle" x={cx} y={cy + 1.1}>
                     {p.label.length > 4 ? p.label.slice(0, 4) : p.label}

@@ -94,6 +94,11 @@ export function TacticBoardAccordion({
 
   return (
     <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <p className="text-sm font-medium text-muted-foreground">
+          {visibleBoards.length} {visibleBoards.length === 1 ? "Board" : "Boards"}
+        </p>
+      </div>
       {visibleBoards.map((board) => {
         const isOpen = openIds.has(board.id);
         const isDeleting = deletingIds.has(board.id);

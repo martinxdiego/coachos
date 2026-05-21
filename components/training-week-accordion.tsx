@@ -6,6 +6,7 @@ import {
   ChevronDown,
   ChevronRight,
   ChevronsUpDown,
+  ChevronUp,
   ClipboardList,
   Copy,
   Pencil,
@@ -19,6 +20,7 @@ import {
   deleteTraining,
   deleteTrainingWeek,
   duplicateTraining,
+  reorderPhase,
   saveAttendance,
   savePlayerEvaluation,
   updateTraining,
@@ -975,16 +977,49 @@ export function TrainingWeekAccordion({
                                         <span className="rounded-lg bg-white px-3 py-2 text-sm font-semibold">
                                           {phase.duration_minutes ?? 0} Min.
                                         </span>
-                                        <Button
-                                          className="no-print h-7 w-7 p-0"
-                                          onClick={() => toggleEditingPhase(phase.id)}
-                                          size="sm"
-                                          title="Phase bearbeiten"
-                                          type="button"
-                                          variant={editingPhaseIds.has(phase.id) ? "default" : "outline"}
-                                        >
-                                          <Pencil aria-hidden="true" className="h-3 w-3" />
-                                        </Button>
+                                        <div className="no-print flex items-center gap-1">
+                                          {/* Reorder buttons */}
+                                          <div className="flex flex-col gap-0.5 no-print">
+                                            <button
+                                              className="flex h-5 w-5 items-center justify-center rounded text-muted-foreground hover:bg-secondary hover:text-foreground disabled:opacity-30"
+                                              disabled={index === 0}
+                                              onClick={() => {
+                                                const fd = new FormData();
+                                                fd.set("phase_id", phase.id);
+                                                fd.set("direction", "up");
+                                                startTransition(() => { void reorderPhase(fd).then(() => router.refresh()).catch(() => { toast.error("Fehler beim Verschieben"); }); });
+                                              }}
+                                              title="Phase nach oben"
+                                              type="button"
+                                            >
+                                              <ChevronUp className="h-3 w-3" />
+                                            </button>
+                                            <button
+                                              className="flex h-5 w-5 items-center justify-center rounded text-muted-foreground hover:bg-secondary hover:text-foreground disabled:opacity-30"
+                                              disabled={index === trainingPhases.length - 1}
+                                              onClick={() => {
+                                                const fd = new FormData();
+                                                fd.set("phase_id", phase.id);
+                                                fd.set("direction", "down");
+                                                startTransition(() => { void reorderPhase(fd).then(() => router.refresh()).catch(() => { toast.error("Fehler beim Verschieben"); }); });
+                                              }}
+                                              title="Phase nach unten"
+                                              type="button"
+                                            >
+                                              <ChevronDown className="h-3 w-3" />
+                                            </button>
+                                          </div>
+                                          <Button
+                                            className="no-print h-7 w-7 p-0"
+                                            onClick={() => toggleEditingPhase(phase.id)}
+                                            size="sm"
+                                            title="Phase bearbeiten"
+                                            type="button"
+                                            variant={editingPhaseIds.has(phase.id) ? "default" : "outline"}
+                                          >
+                                            <Pencil aria-hidden="true" className="h-3 w-3" />
+                                          </Button>
+                                        </div>
                                       </div>
                                     </div>
                                   ))

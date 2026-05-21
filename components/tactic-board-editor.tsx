@@ -1044,6 +1044,9 @@ export function TacticBoardEditor({
     initialBoardState.scenes[0]?.id ?? "scene-1"
   );
 
+  const [saveStatus, setSaveStatus] = useState<"saved" | "unsaved" | "saving">("saved");
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // History stack: snapshots of `boardState` BEFORE each committed mutation.
   // Pointer-drag intermediates are NOT pushed — only the pre-drag snapshot.
   const [past, setPast] = useState<BoardState[]>([]);
@@ -1782,6 +1785,47 @@ export function TacticBoardEditor({
     }
   }, [dragTarget, isPlaying]);
 
+  // ── Autosave ─────────────────────────────────────────────────────────────
+  const titleInputRef = useRef<HTMLInputElement | null>(null);
+
+  async function doSave() {
+    setSaveStatus("saving");
+    try {
+      const formData = new FormData();
+      formData.set("id", board.id);
+      formData.set("title", titleInputRef.current?.value ?? board.title);
+      formData.set("description", "");
+      formData.set("elements", JSON.stringify(boardState));
+      await saveTacticBoard(formData);
+      setSaveStatus("saved");
+    } catch {
+      setSaveStatus("unsaved");
+    }
+  }
+
+  useEffect(() => {
+    if (boardState === initialBoardState) return;
+    setSaveStatus("unsaved");
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => {
+      doSave();
+    }, 3000);
+    return () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [boardState]);
+
+  useEffect(() => {
+    function handleBeforeUnload(e: BeforeUnloadEvent) {
+      if (saveStatus === "unsaved") {
+        e.preventDefault();
+      }
+    }
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [saveStatus]);
+
   const renderElements = isAnimating ? animatedElements : elements;
   const renderArrows = renderElements.filter((item) => item.type === "arrow");
   const renderZones = renderElements.filter((item) => item.type === "zone");
@@ -1791,7 +1835,7 @@ export function TacticBoardEditor({
 
   return (
     <div className="space-y-4">
-      <form action={saveTacticBoard} className="space-y-4">
+      <form action={saveTacticBoard} className="space-y-4" onSubmit={() => setSaveStatus("saving")}>
         <input name="id" type="hidden" value={board.id} />
         <input
           name="elements"
@@ -1799,17 +1843,28 @@ export function TacticBoardEditor({
           value={JSON.stringify(boardState)}
         />
         <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto]">
-          <Input defaultValue={board.title} name="title" required />
+          <Input defaultValue={board.title} name="title" ref={titleInputRef} required />
           <Textarea
             className="min-h-10"
             defaultValue={board.description ?? ""}
             name="description"
             placeholder="Beschreibung"
           />
-          <Button type="submit">
-            <Save aria-hidden="true" className="h-4 w-4" />
-            Speichern
-          </Button>
+          <div className="flex items-center gap-2">
+            {saveStatus === "unsaved" && (
+              <span className="text-xs text-amber-600">● Nicht gespeichert</span>
+            )}
+            {saveStatus === "saving" && (
+              <span className="text-xs text-muted-foreground">Speichert…</span>
+            )}
+            {saveStatus === "saved" && (
+              <span className="text-xs text-emerald-600">✓ Gespeichert</span>
+            )}
+            <Button type="submit">
+              <Save aria-hidden="true" className="h-4 w-4" />
+              Speichern
+            </Button>
+          </div>
         </div>
       </form>
 
