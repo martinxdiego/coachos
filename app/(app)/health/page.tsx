@@ -20,8 +20,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { healthRisk } from "@/lib/coach-metrics";
+import { calculatePredictiveInjuryRisk } from "@/lib/predictive-health";
 import { requireActiveTeam } from "@/lib/auth";
 import { formatDate, todayIsoDate } from "@/lib/utils";
+import { db } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
@@ -58,51 +60,110 @@ const riskMeta = {
 };
 
 export default async function HealthPage() {
-  const { supabase, team } = await requireActiveTeam();
+  const { team } = await requireActiveTeam();
   const today = todayIsoDate();
-  const [playersResult, checkinsResult] = await Promise.all([
-    supabase
-      .from("players")
-      .select("id,name,position,team_category,status,medical_notes,coach_alerts")
-      .eq("team_id", team.id)
-      .order("last_name", { ascending: true }),
-    supabase
-      .from("health_checkins")
-      .select("*")
-      .eq("team_id", team.id)
-      .order("checkin_date", { ascending: false })
-      .limit(500)
-  ]);
 
-  if (playersResult.error) {
-    throw new Error(playersResult.error.message);
-  }
+  const playersData = await db.player.findMany({
+    where: { workspaceId: team.id },
+    select: {
+      id: true,
+      name: true,
+      position: true,
+      status: true,
+      medicalNotes: true,
+      coachAlerts: true,
+      firstName: true,
+      lastName: true
+    },
+    orderBy: [
+      { lastName: "asc" },
+      { name: "asc" }
+    ]
+  });
 
-  if (checkinsResult.error) {
-    throw new Error(checkinsResult.error.message);
-  }
+  const checkinsData = await db.healthCheck.findMany({
+    where: {
+      player: {
+        workspaceId: team.id
+      }
+    },
+    select: {
+      id: true,
+      playerId: true,
+      date: true,
+      contextType: true,
+      fatigue: true,
+      sleepQuality: true,
+      soreness: true,
+      pain: true,
+      stress: true,
+      motivation: true,
+      energy: true,
+      injuryFeeling: true,
+      wellbeing: true,
+      notes: true
+    },
+    orderBy: {
+      date: "desc"
+    },
+    take: 500
+  });
 
-  const players = playersResult.data ?? [];
-  const checkins = checkinsResult.data ?? [];
+  const players = playersData.map((p) => ({
+    id: p.id,
+    name: p.name,
+    position: p.position,
+    team_category: null,
+    status: p.status === "FIT" ? "available" : p.status === "INJURED" ? "injured" : p.status === "REHAB" ? "limited" : p.status.toLowerCase() as any,
+    medical_notes: p.medicalNotes,
+    coach_alerts: p.coachAlerts
+  }));
+
+  const checkins = checkinsData.map((c) => ({
+    id: c.id,
+    player_id: c.playerId,
+    checkin_date: c.date.toISOString().slice(0, 10),
+    context_type: c.contextType ?? "training",
+    fatigue: c.fatigue,
+    sleep_quality: c.sleepQuality ?? 3,
+    soreness: c.soreness,
+    pain: c.pain,
+    stress: c.stress,
+    motivation: c.motivation,
+    energy: c.energy ?? 3,
+    injury_feeling: c.injuryFeeling ?? 1,
+    wellbeing: c.wellbeing ?? 3,
+    notes: c.notes
+  }));
+
   const latestByPlayer = new Map(
     players.map((player) => [
       player.id,
       checkins.find((checkin) => checkin.player_id === player.id) ?? null
     ])
   );
+
+  const predictiveRisks = await Promise.all(
+    players.map(async (player) => {
+      const result = await calculatePredictiveInjuryRisk(player.id, team.id);
+      return { playerId: player.id, result };
+    })
+  );
+  const predictiveRiskMap = new Map(predictiveRisks.map((pr) => [pr.playerId, pr.result]));
+
   const warningRows = players
     .map((player) => {
+      const pred = predictiveRiskMap.get(player.id);
       const checkin = latestByPlayer.get(player.id);
-      return checkin ? { player, checkin, risk: healthRisk(checkin) } : null;
+      return pred && pred.risk !== "green" ? { player, checkin, risk: pred.risk } : null;
     })
-    .filter((row): row is NonNullable<typeof row> => row !== null)
-    .filter((row) => row.risk !== "green");
+    .filter((row): row is NonNullable<typeof row> => row !== null);
 
   const rosterRows: HealthRow[] = players.map((player) => {
     const latest = latestByPlayer.get(player.id);
-    const risk = latest ? healthRisk(latest) : null;
+    const pred = predictiveRiskMap.get(player.id)!;
+    const risk = pred.risk;
     const meta = risk ? riskMeta[risk] : null;
-    const riskScore = risk === "red" ? 3 : risk === "yellow" ? 2 : risk === "green" ? 1 : 0;
     return {
       playerId: player.id,
       playerName: player.name,
@@ -110,11 +171,13 @@ export default async function HealthPage() {
       category: player.team_category,
       risk,
       riskLabel: meta?.label ?? "Offen",
-      riskScore,
+      riskScore: pred.score,
       checkinDate: latest ? latest.checkin_date : null,
       fatigue: latest ? latest.fatigue : null,
       energy: latest ? latest.energy : null,
-      pain: latest ? latest.pain : null
+      pain: latest ? latest.pain : null,
+      predictiveReasons: pred.reasons,
+      predictiveRecommendation: pred.recommendation
     };
   });
 

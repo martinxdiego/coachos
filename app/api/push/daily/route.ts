@@ -1,14 +1,7 @@
-import webpush from "web-push";
 import { NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { todayIsoDate } from "@/lib/utils";
-
-type PushSub = {
-  player_id: string;
-  endpoint: string;
-  p256dh: string;
-  auth: string;
-};
+import { db } from "@/lib/db";
+import { addJob } from "@/lib/queue";
 
 export async function POST(req: Request) {
   const authHeader = req.headers.get("authorization");
@@ -16,68 +9,63 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  webpush.setVapidDetails(
-    process.env.VAPID_SUBJECT!,
-    process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!,
-    process.env.VAPID_PRIVATE_KEY!
-  );
-
-  const db = createAdminClient() as any;
   const today = todayIsoDate();
 
-  const [subsResult, checkinsResult] = await Promise.all([
-    db.from("push_subscriptions").select("player_id, endpoint, p256dh, auth"),
-    db.from("health_checkins").select("player_id").eq("checkin_date", today),
-  ]);
+  try {
+    const [subs, checkins] = await Promise.all([
+      db.pushSubscription.findMany({
+        include: {
+          player: {
+            select: {
+              id: true,
+              firstName: true,
+              name: true,
+              accessToken: true
+            }
+          }
+        }
+      }),
+      db.healthCheck.findMany({
+        where: {
+          date: new Date(`${today}T00:00:00.000Z`)
+        },
+        select: {
+          playerId: true
+        }
+      })
+    ]);
 
-  const checkedInIds = new Set<string>(
-    (checkinsResult.data ?? []).map((c: { player_id: string }) => c.player_id)
-  );
-  const pending: PushSub[] = (subsResult.data ?? []).filter(
-    (s: PushSub) => !checkedInIds.has(s.player_id)
-  );
+    const checkedInIds = new Set<string>(checkins.map((c) => c.playerId));
+    const pending = subs.filter((sub) => !checkedInIds.has(sub.playerId));
 
-  if (pending.length === 0) return NextResponse.json({ sent: 0 });
+    if (pending.length === 0) {
+      return NextResponse.json({ sent: 0 });
+    }
 
-  const playerIds = [...new Set(pending.map((s) => s.player_id))];
-  const { data: players } = await db
-    .from("players")
-    .select("id, first_name, name, access_token")
-    .in("id", playerIds);
+    let queuedCount = 0;
+    await Promise.all(
+      pending.map(async (sub) => {
+        const player = sub.player;
+        if (!player) return;
 
-  const playerMap = new Map(
-    (players ?? []).map((p: { id: string; first_name: string | null; name: string; access_token: string }) => [p.id, p])
-  );
-  const dead: string[] = [];
-  let sent = 0;
+        await addJob("push-notifications", `daily-wellness-${player.id}-${today}`, {
+          subscription: {
+            endpoint: sub.endpoint,
+            p256dh: sub.p256dh,
+            auth: sub.auth
+          },
+          payload: {
+            title: `Hey ${player.firstName ?? player.name}! 👋`,
+            body: "Zeit für deinen Wellness-Check. Wie fühlst du dich heute?",
+            url: `/spieler/${player.accessToken}`
+          }
+        });
+        queuedCount++;
+      })
+    );
 
-  await Promise.allSettled(
-    pending.map(async (sub) => {
-      const player = playerMap.get(sub.player_id) as
-        | { id: string; first_name: string | null; name: string; access_token: string }
-        | undefined;
-      if (!player) return;
-      const payload = JSON.stringify({
-        title: `Hey ${player.first_name ?? player.name}! 👋`,
-        body: "Zeit für deinen Wellness-Check. Wie fühlst du dich heute?",
-        url: `/spieler/${player.access_token}`,
-      });
-      try {
-        await webpush.sendNotification(
-          { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
-          payload
-        );
-        sent++;
-      } catch (err: unknown) {
-        const status = (err as { statusCode?: number }).statusCode;
-        if (status === 410 || status === 404) dead.push(sub.endpoint);
-      }
-    })
-  );
-
-  if (dead.length) {
-    await db.from("push_subscriptions").delete().in("endpoint", dead);
+    return NextResponse.json({ queued: queuedCount });
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message }, { status: 500 });
   }
-
-  return NextResponse.json({ sent, expired: dead.length });
 }

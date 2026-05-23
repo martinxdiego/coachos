@@ -50,51 +50,91 @@ const criteria = [
   ["concentration", "Konzentration"]
 ] as const;
 
+import { db } from "@/lib/db";
+
 export default async function EvaluationsPage() {
-  const { supabase, team } = await requireActiveTeam();
+  const { team } = await requireActiveTeam();
   const today = todayIsoDate();
-  const [playersResult, trainingsResult, matchesResult, evaluationsResult] =
-    await Promise.all([
-      supabase
-        .from("players")
-        .select("id,name,position,team_category")
-        .eq("team_id", team.id)
-        .order("last_name", { ascending: true }),
-      supabase
-        .from("training_sessions")
-        .select("id,date,focus")
-        .eq("team_id", team.id)
-        .order("date", { ascending: false })
-        .limit(20),
-      supabase
-        .from("matches")
-        .select("id,date,opponent")
-        .eq("team_id", team.id)
-        .order("date", { ascending: false })
-        .limit(20),
-      supabase
-        .from("player_evaluations")
-        .select("*")
-        .eq("team_id", team.id)
-        .order("evaluation_date", { ascending: false })
-        .limit(700)
-    ]);
 
-  for (const result of [
-    playersResult,
-    trainingsResult,
-    matchesResult,
-    evaluationsResult
-  ]) {
-    if (result.error) {
-      throw new Error(result.error.message);
-    }
-  }
+  const [playersRaw, trainingsRaw, matchesRaw, evaluationsRaw] = await Promise.all([
+    db.player.findMany({
+      where: { workspaceId: team.id },
+      select: {
+        id: true,
+        name: true,
+        position: true,
+      },
+      orderBy: { lastName: "asc" }
+    }),
+    db.training.findMany({
+      where: { workspaceId: team.id },
+      select: {
+        id: true,
+        date: true,
+        focus: true,
+      },
+      orderBy: { date: "desc" },
+      take: 20
+    }),
+    db.match.findMany({
+      where: { workspaceId: team.id },
+      select: {
+        id: true,
+        date: true,
+        opponent: true,
+      },
+      orderBy: { date: "desc" },
+      take: 20
+    }),
+    db.rating.findMany({
+      where: {
+        player: {
+          workspaceId: team.id
+        }
+      },
+      orderBy: { date: "desc" },
+      take: 700
+    })
+  ]);
 
-  const players = playersResult.data ?? [];
-  const trainings = trainingsResult.data ?? [];
-  const matches = matchesResult.data ?? [];
-  const evaluations = evaluationsResult.data ?? [];
+  const players = playersRaw.map((p) => ({
+    id: p.id,
+    name: p.name,
+    position: p.position,
+    team_category: null,
+  }));
+
+  const trainings = trainingsRaw.map((t) => ({
+    id: t.id,
+    date: t.date.toISOString().slice(0, 10),
+    focus: t.focus,
+  }));
+
+  const matches = matchesRaw.map((m) => ({
+    id: m.id,
+    date: m.date.toISOString().slice(0, 10),
+    opponent: m.opponent,
+  }));
+
+  const evaluations = evaluationsRaw.map((e) => ({
+    id: e.id,
+    player_id: e.playerId,
+    user_id: e.raterId,
+    context_type: e.contextType as EvaluationContextType,
+    context_id: e.contextId,
+    context_label: e.contextLabel,
+    evaluation_date: e.date.toISOString().slice(0, 10),
+    participation: e.participation,
+    motivation: e.motivation,
+    training_quality: e.trainingQuality,
+    match_quality: e.matchQuality,
+    behavior: e.behavior,
+    effort: e.effort,
+    concentration: e.concentration,
+    notes: e.notes,
+    created_at: e.createdAt.toISOString(),
+    updated_at: e.updatedAt.toISOString(),
+  }));
   const knownContextIds = new Set([
     ...trainings.map((training) => training.id),
     ...matches.map((match) => match.id)

@@ -25,7 +25,7 @@ import {
   CardTitle
 } from "@/components/ui/card";
 import { healthRisk, evaluationAverage, winnerPointTotal } from "@/lib/coach-metrics";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { db } from "@/lib/db";
 import { formatDate, todayIsoDate } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -76,88 +76,214 @@ export default async function PlayerPublicPage({ params }: PlayerPagePublicProps
     notFound();
   }
 
-  const admin = createAdminClient();
-  const { data: player } = await admin
-    .from("players")
-    .select("*")
-    .eq("access_token", accessToken)
-    .maybeSingle();
+  const dbPlayer = await db.player.findFirst({
+    where: { accessToken }
+  });
 
-  if (!player) {
+  if (!dbPlayer) {
     notFound();
   }
 
   const today = todayIsoDate();
+  const todayDate = new Date(`${today}T00:00:00.000Z`);
 
   const [
-    teamResult,
-    trainingsResult,
-    matchesResult,
-    checkinsResult,
-    pointsResult,
-    evaluationsResult,
-    awardsResult,
-    messagesResult
+    dbTeam,
+    dbTrainings,
+    dbMatches,
+    dbCheckins,
+    dbPoints,
+    dbEvaluations,
+    dbAwards,
+    dbMessages
   ] = await Promise.all([
-    admin
-      .from("teams")
-      .select("id,name,age_group,season")
-      .eq("id", player.team_id)
-      .maybeSingle(),
-    admin
-      .from("training_sessions")
-      .select("id,date,start_time,focus,goal,location")
-      .eq("team_id", player.team_id)
-      .gte("date", today)
-      .order("date", { ascending: true })
-      .limit(6),
-    admin
-      .from("matches")
-      .select("id,date,kickoff_time,opponent,location,match_goals")
-      .eq("team_id", player.team_id)
-      .gte("date", today)
-      .order("date", { ascending: true })
-      .limit(6),
-    admin
-      .from("health_checkins")
-      .select("*")
-      .eq("player_id", player.id)
-      .order("checkin_date", { ascending: false })
-      .limit(60),
-    admin
-      .from("winner_points")
-      .select("*")
-      .eq("player_id", player.id)
-      .order("awarded_at", { ascending: false })
-      .limit(30),
-    admin
-      .from("player_evaluations")
-      .select("*")
-      .eq("player_id", player.id)
-      .order("evaluation_date", { ascending: false })
-      .limit(20),
-    admin
-      .from("player_awards")
-      .select("*")
-      .eq("player_id", player.id)
-      .order("award_date", { ascending: false })
-      .limit(10),
-    admin
-      .from("coach_messages")
-      .select("*")
-      .eq("player_id", player.id)
-      .order("created_at", { ascending: false })
-      .limit(40)
+    db.workspace.findUnique({
+      where: { id: dbPlayer.workspaceId },
+      select: { id: true, name: true, ageGroup: true, season: true }
+    }),
+    db.training.findMany({
+      where: {
+        workspaceId: dbPlayer.workspaceId,
+        date: { gte: todayDate }
+      },
+      orderBy: { date: "asc" },
+      take: 6
+    }),
+    db.match.findMany({
+      where: {
+        workspaceId: dbPlayer.workspaceId,
+        date: { gte: todayDate }
+      },
+      orderBy: { date: "asc" },
+      take: 6
+    }),
+    db.healthCheck.findMany({
+      where: { playerId: dbPlayer.id },
+      orderBy: { date: "desc" },
+      take: 60
+    }),
+    db.winnerPoint.findMany({
+      where: { playerId: dbPlayer.id },
+      orderBy: { awardedAt: "desc" },
+      take: 30
+    }),
+    db.rating.findMany({
+      where: { playerId: dbPlayer.id },
+      orderBy: { date: "desc" },
+      take: 20
+    }),
+    db.award.findMany({
+      where: { playerId: dbPlayer.id },
+      orderBy: { date: "desc" },
+      take: 10
+    }),
+    db.coachMessage.findMany({
+      where: { playerId: dbPlayer.id },
+      orderBy: { createdAt: "desc" },
+      take: 40
+    })
   ]);
 
-  const team = teamResult.data;
-  const trainings = trainingsResult.data ?? [];
-  const matches = matchesResult.data ?? [];
-  const checkins = checkinsResult.data ?? [];
-  const points = pointsResult.data ?? [];
-  const evaluations = evaluationsResult.data ?? [];
-  const awards = awardsResult.data ?? [];
-  const messages = messagesResult.data ?? [];
+  const player = {
+    ...dbPlayer,
+    first_name: dbPlayer.firstName,
+    last_name: dbPlayer.lastName,
+    photo_url: dbPlayer.photoUrl,
+    jersey_number: dbPlayer.jerseyNumber,
+    birth_date: dbPlayer.birthDate?.toISOString().slice(0, 10) ?? null,
+    birth_year: dbPlayer.birthYear,
+    height_cm: dbPlayer.height,
+    weight_kg: dbPlayer.weight,
+    preferred_foot: dbPlayer.preferredFoot,
+    strong_foot: dbPlayer.strongFoot,
+    favorite_team: dbPlayer.favoriteTeam,
+    favorite_player: dbPlayer.favoritePlayer,
+    football_goals: dbPlayer.footballGoals,
+    motivation: dbPlayer.motivation,
+    allergies: dbPlayer.allergies,
+    injuries: dbPlayer.injuries,
+    limitations: dbPlayer.limitations,
+    medications: dbPlayer.medications,
+    coach_alerts: dbPlayer.coachAlerts,
+    season_form_completed_at: dbPlayer.seasonFormCompletedAt?.toISOString() ?? null,
+    parent_contact: dbPlayer.parentContact,
+    emergency_contact: dbPlayer.emergencyContact,
+  } as any;
+
+  const team = dbTeam ? {
+    id: dbTeam.id,
+    name: dbTeam.name,
+    age_group: dbTeam.ageGroup,
+    season: dbTeam.season
+  } : null;
+
+  const trainings = dbTrainings.map((t) => ({
+    id: t.id,
+    date: t.date.toISOString().slice(0, 10),
+    start_time: t.startTime,
+    focus: t.focus,
+    goal: t.goal,
+    location: t.location,
+    team_id: t.workspaceId
+  }));
+
+  const matches = dbMatches.map((m) => ({
+    id: m.id,
+    date: m.date.toISOString().slice(0, 10),
+    kickoff_time: m.kickoffTime,
+    opponent: m.opponent,
+    location: m.location,
+    match_goals: m.matchGoals,
+    team_id: m.workspaceId
+  }));
+
+  const checkins = dbCheckins.map((c) => ({
+    id: c.id,
+    player_id: c.playerId,
+    checkin_date: c.date.toISOString().slice(0, 10),
+    context_type: c.contextType,
+    fatigue: c.fatigue,
+    sleep: c.sleep,
+    sleep_quality: c.sleepQuality ?? 3,
+    soreness: c.soreness,
+    pain: c.pain,
+    stress: c.stress,
+    motivation: c.motivation,
+    energy: c.energy ?? 3,
+    injury_feeling: c.injuryFeeling ?? 3,
+    wellbeing: c.wellbeing ?? 3,
+    notes: c.notes,
+    created_at: c.createdAt.toISOString(),
+    updated_at: c.updatedAt.toISOString()
+  }));
+
+  const points = dbPoints.map((p) => ({
+    id: p.id,
+    workspace_id: p.workspaceId,
+    player_id: p.playerId,
+    date: p.date.toISOString().slice(0, 10),
+    context: p.context,
+    context_type: p.contextType,
+    context_id: p.contextId,
+    context_label: p.contextLabel,
+    points: p.points,
+    reason: p.reason,
+    awarded_at: p.awardedAt.toISOString(),
+    created_at: p.createdAt.toISOString(),
+    updated_at: p.updatedAt.toISOString()
+  }));
+
+  const evaluations = dbEvaluations.map((e) => ({
+    id: e.id,
+    player_id: e.playerId,
+    rater_id: e.raterId,
+    evaluation_date: e.date.toISOString().slice(0, 10),
+    context: e.context,
+    context_type: e.contextType,
+    context_id: e.contextId,
+    context_label: e.contextLabel,
+    participation: e.participation,
+    motivation: e.motivation,
+    training_quality: e.trainingQuality,
+    playing_quality: e.playingQuality,
+    match_quality: e.matchQuality,
+    behaviour: e.behaviour,
+    behavior: e.behavior,
+    effort: e.effort,
+    concentration: e.concentration,
+    average: e.average,
+    comment: e.comment,
+    notes: e.notes,
+    created_at: e.createdAt.toISOString(),
+    updated_at: e.updatedAt.toISOString()
+  }));
+
+  const awards = dbAwards.map((a) => ({
+    id: a.id,
+    workspace_id: a.workspaceId,
+    player_id: a.playerId,
+    previous_player_id: a.previousPlayerId,
+    match_id: a.matchId,
+    event_label: a.eventLabel,
+    date: a.date.toISOString().slice(0, 10),
+    event: a.event,
+    reason: a.reason,
+    created_at: a.createdAt.toISOString(),
+    updated_at: a.updatedAt.toISOString()
+  }));
+
+  const messages = dbMessages.map((m) => ({
+    id: m.id,
+    team_id: m.workspaceId,
+    created_by: m.userId,
+    player_id: m.playerId,
+    category: m.category,
+    body: m.body,
+    read_at: m.readAt ? m.readAt.toISOString() : null,
+    created_at: m.createdAt.toISOString(),
+    updated_at: m.updatedAt.toISOString(),
+    title: null
+  }));
 
   const todayCheckin =
     checkins.find((checkin) => checkin.checkin_date === today) ?? null;

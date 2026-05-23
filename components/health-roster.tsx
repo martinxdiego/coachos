@@ -23,6 +23,8 @@ export interface HealthRow {
   fatigue: number | null;
   energy: number | null;
   pain: number | null;
+  predictiveReasons?: string[];
+  predictiveRecommendation?: string;
 }
 
 type SortKey = "name" | "risk" | "date" | "energy" | "pain";
@@ -194,7 +196,7 @@ export function HealthRoster({ rows }: { rows: HealthRow[] }) {
                   onClick={() => toggleSort("risk")}
                   type="button"
                 >
-                  Belastung
+                  Belastung / Risiko
                   <SortIcon active={sort.key === "risk"} dir={sort.dir} />
                 </button>
               </th>
@@ -277,28 +279,47 @@ export function HealthRoster({ rows }: { rows: HealthRow[] }) {
                       {row.position ?? "Position offen"}
                       {row.category ? ` · ${row.category}` : ""}
                     </p>
+                    {row.predictiveReasons && row.predictiveReasons.length > 0 && (
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        {row.predictiveReasons.map((reason, idx) => (
+                          <span
+                            key={idx}
+                            className="inline-flex items-center rounded bg-red-50 px-1.5 py-0.5 text-[10px] font-medium text-red-700 ring-1 ring-inset ring-red-600/10 dark:bg-red-950/30 dark:text-red-400 dark:ring-red-500/20"
+                          >
+                            {reason}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </td>
                   <td className="px-3 py-3 align-top">
                     {row.risk ? (
-                      <span
-                        className={cn(
-                          "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1",
-                          riskClass[row.risk]
-                        )}
-                      >
+                      <div className="space-y-1">
                         <span
-                          aria-hidden="true"
                           className={cn(
-                            "h-1.5 w-1.5 rounded-full",
-                            row.risk === "red"
-                              ? "bg-red-600"
-                              : row.risk === "yellow"
-                                ? "bg-amber-500"
-                                : "bg-emerald-600"
+                            "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1",
+                            riskClass[row.risk]
                           )}
-                        />
-                        {row.riskLabel}
-                      </span>
+                        >
+                          <span
+                            aria-hidden="true"
+                            className={cn(
+                              "h-1.5 w-1.5 rounded-full",
+                              row.risk === "red"
+                                ? "bg-red-600"
+                                : row.risk === "yellow"
+                                  ? "bg-amber-500"
+                                  : "bg-emerald-600"
+                            )}
+                          />
+                          {row.riskLabel}
+                        </span>
+                        {row.riskScore > 0 && (
+                          <div className="text-[11px] text-muted-foreground font-medium pl-1">
+                            Risiko: {row.riskScore}%
+                          </div>
+                        )}
+                      </div>
                     ) : (
                       <Badge variant="outline">Kein Check</Badge>
                     )}

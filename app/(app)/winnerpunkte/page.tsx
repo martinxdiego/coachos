@@ -21,6 +21,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { requireActiveTeam } from "@/lib/auth";
 import { formatDate } from "@/lib/utils";
 import type { WinnerPointContextType } from "@/lib/types";
+import { db } from "@/lib/db";
+
+import { cacheGet, cacheSet } from "@/lib/redis";
 
 export const dynamic = "force-dynamic";
 
@@ -73,39 +76,80 @@ function isInPeriod(date: string, period: string) {
 export default async function WinnerPointsPage({
   searchParams
 }: WinnerPointsPageProps) {
-  const { supabase, team } = await requireActiveTeam();
+  const { team } = await requireActiveTeam();
   const resolvedSearchParams = await searchParams;
   const period = resolvedSearchParams?.period ?? "season";
   const category = resolvedSearchParams?.category ?? "all";
   const type = resolvedSearchParams?.type ?? "all";
 
-  const [playersResult, pointsResult] = await Promise.all([
-    supabase
-      .from("players")
-      .select("id,name,position,jersey_number,team_category")
-      .eq("team_id", team.id)
-      .order("last_name", { ascending: true }),
-    supabase
-      .from("winner_points")
-      .select("*")
-      .eq("team_id", team.id)
-      .order("awarded_at", { ascending: false })
-      .limit(800)
-  ]);
+  const playersCacheKey = `leaderboard:${team.id}:players`;
+  const pointsCacheKey = `leaderboard:${team.id}:points`;
 
-  if (playersResult.error) {
-    throw new Error(playersResult.error.message);
+  let cachedPlayers = await cacheGet<any[]>(playersCacheKey);
+  let cachedPoints = await cacheGet<any[]>(pointsCacheKey);
+
+  let dbPlayers: any[];
+  let dbPoints: any[];
+
+  if (cachedPlayers && cachedPoints) {
+    dbPlayers = cachedPlayers;
+    dbPoints = cachedPoints.map((pt) => ({
+      ...pt,
+      awardedAt: new Date(pt.awardedAt),
+      date: new Date(pt.date),
+      createdAt: new Date(pt.createdAt),
+      updatedAt: new Date(pt.updatedAt)
+    }));
+  } else {
+    const [freshPlayers, freshPoints] = await Promise.all([
+      db.player.findMany({
+        where: { workspaceId: team.id },
+        select: {
+          id: true,
+          name: true,
+          position: true,
+          jerseyNumber: true,
+        },
+        orderBy: {
+          lastName: "asc"
+        }
+      }),
+      db.winnerPoint.findMany({
+        where: { workspaceId: team.id },
+        orderBy: { awardedAt: "desc" },
+        take: 800
+      })
+    ]);
+
+    dbPlayers = freshPlayers;
+    dbPoints = freshPoints;
+
+    await Promise.all([
+      cacheSet(playersCacheKey, freshPlayers, 3600),
+      cacheSet(pointsCacheKey, freshPoints, 3600)
+    ]);
   }
 
-  if (pointsResult.error) {
-    throw new Error(pointsResult.error.message);
-  }
+  const players = dbPlayers.map((p) => ({
+    id: p.id,
+    name: p.name,
+    position: p.position,
+    jersey_number: p.jerseyNumber,
+    team_category: null
+  }));
 
-  const players = playersResult.data ?? [];
-  const points = pointsResult.data ?? [];
+  const points = dbPoints.map((pt) => ({
+    id: pt.id,
+    player_id: pt.playerId,
+    points: pt.points,
+    reason: pt.reason,
+    context_type: pt.contextType as WinnerPointContextType,
+    context_label: pt.contextLabel,
+    awarded_at: pt.awardedAt.toISOString().slice(0, 10)
+  }));
   const categories = [
     ...new Set(players.map((player) => player.team_category).filter(Boolean))
-  ] as string[];
+  ] as unknown as string[];
   const filteredPlayers =
     category === "all"
       ? players

@@ -1,0 +1,72 @@
+{
+  "common": {
+    "save": "Save",
+    "delete": "Delete",
+    "cancel": "Cancel",
+    "edit": "Edit",
+    "loading": "Loading...",
+    "no_data": "No data available",
+    "close": "Close"
+  },
+  "nav": {
+    "today": "Today",
+    "training": "Training",
+    "trainings": "Trainings",
+    "monday": "Monday Training",
+    "materials": "Materials",
+    "pitch": "Pitch",
+    "tactics": "Tactics Board",
+    "matches": "Matches",
+    "matches_item": "Matches",
+    "analysis": "Analysis",
+    "calendar": "Calendar",
+    "team": "Team",
+    "players": "Players",
+    "evaluations": "Evaluations",
+    "health": "Health",
+    "awards": "Hat System",
+    "winnerpoints": "Winner Points",
+    "club": "Club",
+    "clubcorner": "Clubcorner / Quali",
+    "playermode": "Player Mode",
+    "settings": "Settings",
+    "section": "Section"
+  },
+  "nav_desc": {
+    "trainings": "Plan and conduct training sessions",
+    "monday": "Plan the start of the week",
+    "materials": "Print templates & lists",
+    "pitch": "Setups and drills",
+    "tactics": "Tactics board with animation",
+    "matches": "Lineup, formation, results",
+    "analysis": "Match and trend analysis",
+    "calendar": "All dates at a glance",
+    "players": "Squad and profiles",
+    "evaluations": "Player rating per session",
+    "health": "Check-ins & physical load",
+    "awards": "Awards & rewards",
+    "winnerpoints": "Points for engagement",
+    "clubcorner": "Club links and qualification",
+    "playermode": "View for players & parents",
+    "settings": "Workspace and members"
+  },
+  "dashboard": {
+    "title": "Coach Dashboard",
+    "welcome": "Welcome back!",
+    "next_training": "Next Training",
+    "next_match": "Next Match",
+    "recent_activities": "Recent Activities"
+  },
+  "winnerpoints": {
+    "title": "Winner Points",
+    "subtitle": "Fast point allocation during training, match, or event with season leaderboard.",
+    "season_points": "Season Points",
+    "current_leader": "Currently Leading",
+    "leaderboard": "Leaderboard",
+    "total": "Total",
+    "period": "Period",
+    "week": "Week",
+    "month": "Month",
+    "season": "Season"
+  }
+}

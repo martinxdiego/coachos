@@ -1,14 +1,18 @@
 "use server";
 
-import Anthropic from "@anthropic-ai/sdk";
+import { generateTrainingPlan } from "@/lib/ai";
 import { randomUUID } from "crypto";
 import { cookies, headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { healthRisk } from "@/lib/coach-metrics";
 import { ACTIVE_TEAM_COOKIE, requireActiveTeam, requireUser } from "@/lib/auth";
+import { signIn as nextAuthSignIn, signOut as nextAuthSignOut } from "@/lib/auth";
+import bcrypt from "bcryptjs";
 import { getSiteUrl } from "@/lib/env";
 import { createClient } from "@/lib/supabase/server";
+import { db } from "@/lib/db";
+import { cacheDel } from "@/lib/redis";
 import type {
   AttendanceStatus,
   CoachMessageCategory,
@@ -26,9 +30,11 @@ import type {
   TrainingPhaseType,
   WinnerPointContextType
 } from "@/lib/types";
+import type { Role } from "@prisma/client";
 
 const phaseTypes: TrainingPhaseType[] = [
   "warmup",
+  "activation",
   "technique",
   "tactics",
   "game_form",
@@ -203,71 +209,73 @@ async function setActiveTeamCookie(teamId: string) {
   });
 }
 
-async function authRedirectUrl() {
-  const origin = (await headers()).get("origin") ?? getSiteUrl();
-  return `${origin}/auth/callback`;
-}
-
+// SIGN IN & AUTHENTICATION ACTIONS
 export async function signIn(formData: FormData) {
   const email = requiredString(formData, "email", "Email");
   const password = requiredString(formData, "password", "Password");
-  const supabase = await createClient();
 
-  const { error } = await supabase.auth.signInWithPassword({
-    email,
-    password
-  });
-
-  if (error) {
-    redirectWithMessage("/login", error.message);
+  try {
+    await nextAuthSignIn("credentials", {
+      email,
+      password,
+      redirectTo: "/"
+    });
+  } catch (error: any) {
+    if (error.digest?.startsWith("NEXT_REDIRECT")) {
+      throw error;
+    }
+    redirectWithMessage("/login", "Ungültige E-Mail-Adresse oder Passwort.");
   }
-
-  redirect("/");
 }
 
 export async function signUp(formData: FormData) {
-  const email = requiredString(formData, "email", "Email");
+  const email = requiredString(formData, "email", "Email").toLowerCase();
   const password = requiredString(formData, "password", "Password");
-  const supabase = await createClient();
 
-  const { data, error } = await supabase.auth.signUp({
-    email,
-    password,
-    options: {
-      emailRedirectTo: await authRedirectUrl()
+  if (password.length < 6) {
+    redirectWithMessage("/login", "Das Passwort muss mindestens 6 Zeichen lang sein.");
+  }
+
+  const existingUser = await db.user.findUnique({
+    where: { email }
+  });
+
+  if (existingUser) {
+    redirectWithMessage("/login", "Ein Benutzer mit dieser E-Mail existiert bereits.");
+  }
+
+  const passwordHash = await bcrypt.hash(password, 10);
+
+  await db.user.create({
+    data: {
+      email,
+      passwordHash,
+      role: "TRAINER"
     }
   });
 
-  if (error) {
-    redirectWithMessage("/login", error.message);
-  }
-
-  if (data.session) {
-    redirect("/workspaces");
-  }
-
-  redirectWithMessage("/login", "Check your email to confirm the account.");
+  redirectWithMessage("/login", "Registrierung erfolgreich. Bitte melde dich an.");
 }
 
 export async function signOut() {
-  const supabase = await createClient();
-  await supabase.auth.signOut();
-  redirect("/login");
+  await nextAuthSignOut({ redirectTo: "/login" });
 }
 
 export async function setActiveTeam(formData: FormData) {
-  const { supabase, user } = await requireUser();
+  const { user } = await requireUser();
   const teamId = requiredString(formData, "team_id", "Workspace");
 
-  const { error } = await supabase
-    .from("team_members")
-    .select("id")
-    .eq("team_id", teamId)
-    .eq("user_id", user.id)
-    .single();
+  const member = await db.workspaceMember.findUnique({
+    where: {
+      workspaceId_userId: {
+        workspaceId: teamId,
+        userId: user.id
+      }
+    }
+  });
 
-  if (error) {
-    throw new Error(error.message);
+  if (!member) {
+    throw new Error("Unauthorized to access this workspace.");
   }
 
   await setActiveTeamCookie(teamId);
@@ -276,64 +284,53 @@ export async function setActiveTeam(formData: FormData) {
 }
 
 export async function createTeam(formData: FormData) {
-  const { supabase, user } = await requireUser();
+  const { user } = await requireUser();
 
-  const { data: team, error: teamError } = await supabase
-    .from("teams")
-    .insert({
-      name: requiredString(formData, "name", "Workspace name"),
-      season: optionalString(formData, "season"),
-      age_group: optionalString(formData, "age_group"),
-      created_by: user.id
-    })
-    .select("id")
-    .single();
+  const name = requiredString(formData, "name", "Workspace name");
+  const season = optionalString(formData, "season");
+  const ageGroup = optionalString(formData, "age_group");
 
-  if (teamError) {
-    throw new Error(teamError.message);
-  }
-
-  const { error: membershipError } = await supabase.from("team_members").insert({
-    team_id: team.id,
-    user_id: user.id,
-    role: "owner"
+  const workspace = await db.workspace.create({
+    data: {
+      name,
+      season,
+      ageGroup,
+      members: {
+        create: {
+          userId: user.id,
+          role: "OWNER"
+        }
+      }
+    }
   });
 
-  if (membershipError) {
-    throw new Error(membershipError.message);
-  }
-
-  await setActiveTeamCookie(team.id);
+  await setActiveTeamCookie(workspace.id);
   revalidatePath("/");
   redirect("/");
 }
 
 export async function updateTeam(formData: FormData) {
-  const { supabase, team, membership } = await requireActiveTeam();
+  const { team, membership } = await requireActiveTeam();
 
   if (!canManageWorkspace(membership.role)) {
     throw new Error("Only lead coaches can update workspace settings.");
   }
 
-  const { error } = await supabase
-    .from("teams")
-    .update({
+  await db.workspace.update({
+    where: { id: team.id },
+    data: {
       name: requiredString(formData, "name", "Workspace name"),
       season: optionalString(formData, "season"),
-      age_group: optionalString(formData, "age_group")
-    })
-    .eq("id", team.id);
-
-  if (error) {
-    throw new Error(error.message);
-  }
+      ageGroup: optionalString(formData, "age_group")
+    }
+  });
 
   revalidatePath("/");
   revalidatePath("/workspaces");
 }
 
 export async function createTeamInvite(formData: FormData) {
-  const { supabase, user, team, membership } = await requireActiveTeam();
+  const { user, team, membership } = await requireActiveTeam();
 
   if (!canManageWorkspace(membership.role)) {
     throw new Error("Only lead coaches can invite staff members.");
@@ -345,60 +342,106 @@ export async function createTeamInvite(formData: FormData) {
   }
 
   const expiresAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
-  const { error } = await supabase.from("team_invites").insert({
-    team_id: team.id,
-    code: inviteCode(),
-    role,
-    created_by: user.id,
-    expires_at: expiresAt.toISOString()
+  await db.teamInvite.create({
+    data: {
+      workspaceId: team.id,
+      code: inviteCode(),
+      role,
+      createdBy: user.id,
+      expiresAt: expiresAt
+    }
   });
-
-  if (error) {
-    throw new Error(error.message);
-  }
 
   revalidatePath("/workspaces");
 }
 
 export async function joinTeamWithInvite(formData: FormData) {
-  const { supabase } = await requireUser();
+  const { user } = await requireUser();
   const code = requiredString(formData, "code", "Invite code").toUpperCase();
 
-  const { data: teamId, error } = await supabase.rpc("join_team_with_invite", {
-    invite_code: code
-  });
+  try {
+    const teamId = await db.$transaction(async (tx) => {
+      const invite = await tx.teamInvite.findUnique({
+        where: { code }
+      });
 
-  if (error) {
-    redirectWithMessage("/workspaces", error.message);
-  }
+      if (!invite) {
+        throw new Error("Ungültiger Einladungscode.");
+      }
 
-  if (teamId) {
-    await setActiveTeamCookie(teamId);
+      if (invite.expiresAt < new Date()) {
+        throw new Error("Dieser Einladungscode ist abgelaufen.");
+      }
+
+      if (invite.usedAt) {
+        throw new Error("Dieser Einladungscode wurde bereits verwendet.");
+      }
+
+      const existingMember = await tx.workspaceMember.findUnique({
+        where: {
+          workspaceId_userId: {
+            workspaceId: invite.workspaceId,
+            userId: user.id
+          }
+        }
+      });
+
+      if (existingMember) {
+        return invite.workspaceId;
+      }
+
+      let parsedRole: Role = "TRAINER";
+      if (invite.role === "head_coach") {
+        parsedRole = "HEAD_COACH";
+      } else if (invite.role === "coach") {
+        parsedRole = "COACH";
+      }
+
+      await tx.workspaceMember.create({
+        data: {
+          workspaceId: invite.workspaceId,
+          userId: user.id,
+          role: parsedRole
+        }
+      });
+
+      await tx.teamInvite.update({
+        where: { id: invite.id },
+        data: { usedAt: new Date() }
+      });
+
+      return invite.workspaceId;
+    });
+
+    if (teamId) {
+      await setActiveTeamCookie(teamId);
+    }
+  } catch (err: any) {
+    redirectWithMessage("/workspaces", err.message);
   }
 
   revalidatePath("/");
   redirect("/");
 }
 
+// PLAYER CRUD ACTIONS
 export async function createPlayer(formData: FormData) {
-  const { supabase, user, team } = await requireActiveTeam();
+  const { team } = await requireActiveTeam();
   const { firstName, lastName, name } = playerName(formData);
 
-  const { error } = await supabase.from("players").insert({
-    team_id: team.id,
-    user_id: user.id,
-    name,
-    first_name: firstName,
-    last_name: lastName,
-    position: optionalString(formData, "position"),
-    team_category: optionalString(formData, "team_category") ?? team.age_group,
-    birth_year: optionalNumber(formData, "birth_year"),
-    jersey_number: optionalNumber(formData, "jersey_number")
+  await db.player.create({
+    data: {
+      workspaceId: team.id,
+      name,
+      firstName,
+      lastName,
+      position: optionalString(formData, "position"),
+      birthYear: optionalNumber(formData, "birth_year"),
+      jerseyNumber: optionalNumber(formData, "jersey_number")
+    }
   });
 
-  if (error) {
-    throw new Error(error.message);
-  }
+  await cacheDel(`leaderboard:${team.id}:players`);
 
   revalidatePath("/");
   revalidatePath("/materials");
@@ -408,7 +451,7 @@ export async function createPlayer(formData: FormData) {
 }
 
 export async function importPlayers(formData: FormData) {
-  const { supabase, user, team } = await requireActiveTeam();
+  const { team } = await requireActiveTeam();
   const raw = requiredString(formData, "players_csv", "Player list");
   const lines = raw
     .split(/\r?\n/)
@@ -422,8 +465,7 @@ export async function importPlayers(formData: FormData) {
       return [];
     }
 
-    const [firstColumn, secondColumn, position, birthYear, jerseyNumber, teamCategory] =
-      columns;
+    const [firstColumn, secondColumn, position, birthYear, jerseyNumber] = columns;
     const fallbackParts = firstColumn.split(/\s+/).filter(Boolean);
     const firstName = secondColumn ? firstColumn : fallbackParts[0];
     const lastName = secondColumn
@@ -435,18 +477,16 @@ export async function importPlayers(formData: FormData) {
 
     return [
       {
-        team_id: team.id,
-        user_id: user.id,
+        workspaceId: team.id,
         name,
-        first_name: firstName,
-        last_name: lastName,
+        firstName,
+        lastName,
         position: position || null,
-        team_category: teamCategory || team.age_group,
-        birth_year:
+        birthYear:
           parsedBirthYear !== null && Number.isFinite(parsedBirthYear)
             ? parsedBirthYear
             : null,
-        jersey_number:
+        jerseyNumber:
           parsedJerseyNumber !== null && Number.isFinite(parsedJerseyNumber)
             ? parsedJerseyNumber
             : null
@@ -458,10 +498,11 @@ export async function importPlayers(formData: FormData) {
     throw new Error("No players found in import.");
   }
 
-  const { error } = await supabase.from("players").insert(rows);
-  if (error) {
-    throw new Error(error.message);
-  }
+  await db.player.createMany({
+    data: rows
+  });
+
+  await cacheDel(`leaderboard:${team.id}:players`);
 
   revalidatePath("/");
   revalidatePath("/materials");
@@ -471,7 +512,7 @@ export async function importPlayers(formData: FormData) {
 }
 
 export async function updatePlayer(formData: FormData) {
-  const { supabase, team } = await requireActiveTeam();
+  const { team } = await requireActiveTeam();
   const id = requiredString(formData, "id", "Player");
   const { firstName, lastName, name } = playerName(formData);
   const strongFoot = enumValue(formData, "strong_foot", [
@@ -486,59 +527,62 @@ export async function updatePlayer(formData: FormData) {
     "absent"
   ] as const) as PlayerStatus | null;
 
-  const { error } = await supabase
-    .from("players")
-    .update({
+  const player = await db.player.findFirst({
+    where: { id, workspaceId: team.id }
+  });
+  if (!player) {
+    throw new Error("Player not found or unauthorized.");
+  }
+
+  await db.player.update({
+    where: { id },
+    data: {
       name,
-      first_name: firstName,
-      last_name: lastName,
+      firstName,
+      lastName,
       position: optionalString(formData, "position"),
-      secondary_positions:
+      secondaryPositions:
         optionalString(formData, "secondary_positions")
           ?.split(",")
           .map((item) => item.trim())
-          .filter(Boolean) ?? null,
-      birth_date: optionalString(formData, "birth_date"),
-      birth_year: optionalNumber(formData, "birth_year"),
-      team_category: optionalString(formData, "team_category"),
-      jersey_number: optionalNumber(formData, "jersey_number"),
-      photo_url: optionalString(formData, "photo_url"),
-      strong_foot: strongFoot,
-      height_cm: optionalNumber(formData, "height_cm"),
-      weight_kg: optionalNumber(formData, "weight_kg"),
+          .filter(Boolean) ?? [],
+      birthDate: optionalString(formData, "birth_date") ? new Date(optionalString(formData, "birth_date")!) : null,
+      birthYear: optionalNumber(formData, "birth_year"),
+      jerseyNumber: optionalNumber(formData, "jersey_number"),
+      photoUrl: optionalString(formData, "photo_url"),
+      strongFoot,
+      height: optionalNumber(formData, "height_cm"),
+      weight: optionalNumber(formData, "weight_kg"),
       contact: optionalString(formData, "contact"),
-      parent_contact: optionalString(formData, "parent_contact"),
-      emergency_contact: optionalString(formData, "emergency_contact"),
-      player_account_email: optionalString(formData, "player_account_email")?.toLowerCase() ?? null,
-      favorite_team: optionalString(formData, "favorite_team"),
-      favorite_player: optionalString(formData, "favorite_player"),
-      football_goals: optionalString(formData, "football_goals"),
+      parentContact: optionalString(formData, "parent_contact"),
+      emergencyContact: optionalString(formData, "emergency_contact"),
+      playerAccountEmail: optionalString(formData, "player_account_email")?.toLowerCase() ?? null,
+      favoriteTeam: optionalString(formData, "favorite_team"),
+      favoritePlayer: optionalString(formData, "favorite_player"),
+      footballGoals: optionalString(formData, "football_goals"),
       motivation: optionalString(formData, "motivation"),
       allergies: optionalString(formData, "allergies"),
       injuries: optionalString(formData, "injuries"),
       limitations: optionalString(formData, "limitations"),
       medications: optionalString(formData, "medications"),
-      coach_alerts: optionalString(formData, "coach_alerts"),
-      season_form_completed_at:
+      coachAlerts: optionalString(formData, "coach_alerts"),
+      seasonFormCompletedAt:
         formData.get("season_form_completed") === "on"
-          ? new Date().toISOString()
+          ? new Date()
           : null,
-      medical_notes: optionalString(formData, "medical_notes"),
+      medicalNotes: optionalString(formData, "medical_notes"),
       strengths: optionalString(formData, "strengths"),
       weaknesses: optionalString(formData, "weaknesses"),
-      development_goals: optionalString(formData, "development_goals"),
-      training_notes: optionalString(formData, "training_notes"),
-      personal_notes: optionalString(formData, "personal_notes"),
+      developmentGoals: optionalString(formData, "development_goals"),
+      trainingNotes: optionalString(formData, "training_notes"),
+      personalNotes: optionalString(formData, "personal_notes"),
       notes: optionalString(formData, "notes"),
       status: status ?? "available",
       rating: optionalNumber(formData, "rating")
-    })
-    .eq("id", id)
-    .eq("team_id", team.id);
+    }
+  });
 
-  if (error) {
-    throw new Error(error.message);
-  }
+  await cacheDel(`leaderboard:${team.id}:players`);
 
   revalidatePath("/");
   revalidatePath("/materials");
@@ -549,18 +593,22 @@ export async function updatePlayer(formData: FormData) {
 }
 
 export async function deletePlayer(formData: FormData) {
-  const { supabase, team } = await requireActiveTeam();
+  const { team } = await requireActiveTeam();
   const id = requiredString(formData, "id", "Player");
 
-  const { error } = await supabase
-    .from("players")
-    .delete()
-    .eq("id", id)
-    .eq("team_id", team.id);
+  const player = await db.player.findFirst({
+    where: { id, workspaceId: team.id }
+  });
 
-  if (error) {
-    throw new Error(error.message);
+  if (!player) {
+    throw new Error("Player not found or unauthorized.");
   }
+
+  await db.player.delete({
+    where: { id }
+  });
+
+  await cacheDel(`leaderboard:${team.id}:players`);
 
   revalidatePath("/");
   revalidatePath("/materials");
@@ -589,7 +637,7 @@ function pathFromPublicUrl(url: string, bucket: string): string | null {
 }
 
 export async function uploadPlayerPhoto(formData: FormData) {
-  const { supabase, team } = await requireActiveTeam();
+  const { team } = await requireActiveTeam();
   const playerId = requiredString(formData, "player_id", "Player");
   const file = formData.get("photo");
 
@@ -603,16 +651,11 @@ export async function uploadPlayerPhoto(formData: FormData) {
     throw new Error("Nur JPG, PNG, WEBP oder HEIC sind erlaubt.");
   }
 
-  const { data: player, error: lookupError } = await supabase
-    .from("players")
-    .select("id,team_id,photo_url")
-    .eq("id", playerId)
-    .eq("team_id", team.id)
-    .maybeSingle();
+  const player = await db.player.findFirst({
+    where: { id: playerId, workspaceId: team.id },
+    select: { id: true, photoUrl: true }
+  });
 
-  if (lookupError) {
-    throw new Error(lookupError.message);
-  }
   if (!player) {
     throw new Error("Spieler nicht gefunden.");
   }
@@ -625,6 +668,7 @@ export async function uploadPlayerPhoto(formData: FormData) {
       : extFromMime;
   const path = `${team.id}/${playerId}-${Date.now()}.${ext}`;
 
+  const supabase = await createClient();
   const { error: uploadError } = await supabase.storage
     .from(PLAYER_PHOTO_BUCKET)
     .upload(path, file, {
@@ -641,21 +685,18 @@ export async function uploadPlayerPhoto(formData: FormData) {
     .from(PLAYER_PHOTO_BUCKET)
     .getPublicUrl(path);
 
-  const { error: updateError } = await supabase
-    .from("players")
-    .update({ photo_url: publicUrlData.publicUrl })
-    .eq("id", playerId)
-    .eq("team_id", team.id);
-
-  if (updateError) {
-    // Best effort cleanup of the uploaded blob if the row update fails.
+  try {
+    await db.player.update({
+      where: { id: playerId },
+      data: { photoUrl: publicUrlData.publicUrl }
+    });
+  } catch (updateError: any) {
     await supabase.storage.from(PLAYER_PHOTO_BUCKET).remove([path]);
     throw new Error(updateError.message);
   }
 
-  // Best effort cleanup of the previous photo when it lived in our bucket.
-  if (player.photo_url) {
-    const oldPath = pathFromPublicUrl(player.photo_url, PLAYER_PHOTO_BUCKET);
+  if (player.photoUrl) {
+    const oldPath = pathFromPublicUrl(player.photoUrl, PLAYER_PHOTO_BUCKET);
     if (oldPath && oldPath !== path) {
       await supabase.storage.from(PLAYER_PHOTO_BUCKET).remove([oldPath]);
     }
@@ -669,40 +710,31 @@ export async function uploadPlayerPhoto(formData: FormData) {
 }
 
 export async function removePlayerPhoto(formData: FormData) {
-  const { supabase, team } = await requireActiveTeam();
+  const { team } = await requireActiveTeam();
   const playerId = requiredString(formData, "player_id", "Player");
 
-  const { data: player, error: lookupError } = await supabase
-    .from("players")
-    .select("id,team_id,photo_url")
-    .eq("id", playerId)
-    .eq("team_id", team.id)
-    .maybeSingle();
+  const player = await db.player.findFirst({
+    where: { id: playerId, workspaceId: team.id },
+    select: { id: true, photoUrl: true }
+  });
 
-  if (lookupError) {
-    throw new Error(lookupError.message);
-  }
   if (!player) {
     throw new Error("Spieler nicht gefunden.");
   }
-  if (!player.photo_url) {
+  if (!player.photoUrl) {
     return;
   }
 
-  const oldPath = pathFromPublicUrl(player.photo_url, PLAYER_PHOTO_BUCKET);
+  const oldPath = pathFromPublicUrl(player.photoUrl, PLAYER_PHOTO_BUCKET);
+  const supabase = await createClient();
   if (oldPath) {
     await supabase.storage.from(PLAYER_PHOTO_BUCKET).remove([oldPath]);
   }
 
-  const { error: updateError } = await supabase
-    .from("players")
-    .update({ photo_url: null })
-    .eq("id", playerId)
-    .eq("team_id", team.id);
-
-  if (updateError) {
-    throw new Error(updateError.message);
-  }
+  await db.player.update({
+    where: { id: playerId },
+    data: { photoUrl: null }
+  });
 
   revalidatePath("/");
   revalidatePath("/players");
@@ -724,7 +756,7 @@ const TRAINING_IMAGE_MIME_TYPES = new Set([
 ]);
 
 export async function uploadPhaseImage(formData: FormData) {
-  const { supabase, team } = await requireActiveTeam();
+  const { team } = await requireActiveTeam();
   const phaseId = requiredString(formData, "phase_id", "Trainingsphase");
   const file = formData.get("image");
 
@@ -738,21 +770,16 @@ export async function uploadPhaseImage(formData: FormData) {
     throw new Error("Nur JPG, PNG, WEBP, GIF oder HEIC sind erlaubt.");
   }
 
-  const { data: phase, error: lookupError } = await supabase
-    .from("training_phases")
-    .select("id,team_id,training_id,image_urls")
-    .eq("id", phaseId)
-    .eq("team_id", team.id)
-    .maybeSingle();
+  const phase = await db.trainingPhase.findFirst({
+    where: { id: phaseId, training: { workspaceId: team.id } },
+    select: { id: true, trainingId: true, imageUrls: true }
+  });
 
-  if (lookupError) {
-    throw new Error(lookupError.message);
-  }
   if (!phase) {
     throw new Error("Trainingsphase nicht gefunden.");
   }
 
-  const currentImages = phase.image_urls ?? [];
+  const currentImages = phase.imageUrls ?? [];
   if (currentImages.length >= TRAINING_IMAGE_MAX_PER_PHASE) {
     throw new Error(
       `Maximal ${TRAINING_IMAGE_MAX_PER_PHASE} Bilder pro Phase.`
@@ -772,8 +799,9 @@ export async function uploadPhaseImage(formData: FormData) {
     extFromName && /^[a-z0-9]+$/.test(extFromName) && extFromName.length <= 5
       ? extFromName
       : extFromMime;
-  const path = `${team.id}/${phase.training_id}/${phaseId}-${Date.now()}.${ext}`;
+  const path = `${team.id}/${phase.trainingId}/${phaseId}-${Date.now()}.${ext}`;
 
+  const supabase = await createClient();
   const { error: uploadError } = await supabase.storage
     .from(TRAINING_IMAGE_BUCKET)
     .upload(path, file, {
@@ -792,14 +820,12 @@ export async function uploadPhaseImage(formData: FormData) {
 
   const nextImages = [...currentImages, publicUrlData.publicUrl];
 
-  const { error: updateError } = await supabase
-    .from("training_phases")
-    .update({ image_urls: nextImages })
-    .eq("id", phaseId)
-    .eq("team_id", team.id);
-
-  if (updateError) {
-    // Best effort cleanup of the uploaded blob if the row update fails.
+  try {
+    await db.trainingPhase.update({
+      where: { id: phaseId },
+      data: { imageUrls: nextImages }
+    });
+  } catch (updateError: any) {
     await supabase.storage.from(TRAINING_IMAGE_BUCKET).remove([path]);
     throw new Error(updateError.message);
   }
@@ -811,45 +837,33 @@ export async function uploadPhaseImage(formData: FormData) {
 }
 
 export async function removePhaseImage(formData: FormData) {
-  const { supabase, team } = await requireActiveTeam();
+  const { team } = await requireActiveTeam();
   const phaseId = requiredString(formData, "phase_id", "Trainingsphase");
   const imageUrl = requiredString(formData, "image_url", "Bild-URL");
 
-  const { data: phase, error: lookupError } = await supabase
-    .from("training_phases")
-    .select("id,team_id,image_urls")
-    .eq("id", phaseId)
-    .eq("team_id", team.id)
-    .maybeSingle();
+  const phase = await db.trainingPhase.findFirst({
+    where: { id: phaseId, training: { workspaceId: team.id } },
+    select: { id: true, imageUrls: true }
+  });
 
-  if (lookupError) {
-    throw new Error(lookupError.message);
-  }
   if (!phase) {
     throw new Error("Trainingsphase nicht gefunden.");
   }
 
-  const currentImages = phase.image_urls ?? [];
+  const currentImages = phase.imageUrls ?? [];
   if (!currentImages.includes(imageUrl)) {
     return;
   }
-  const nextImages = currentImages.filter((url) => url !== imageUrl);
+  const nextImages = currentImages.filter((url: string) => url !== imageUrl);
 
-  const { error: updateError } = await supabase
-    .from("training_phases")
-    .update({ image_urls: nextImages })
-    .eq("id", phaseId)
-    .eq("team_id", team.id);
+  await db.trainingPhase.update({
+    where: { id: phaseId },
+    data: { imageUrls: nextImages }
+  });
 
-  if (updateError) {
-    throw new Error(updateError.message);
-  }
-
-  // Best effort: lösche den Storage-Blob, wenn er aus unserem Bucket stammt.
-  // Bei duplizierten Trainings, die dieselbe URL referenzieren, wird der Link
-  // ggf. ungültig — bewusst akzeptiertes Trade-off (siehe duplicateTraining).
   const path = pathFromPublicUrl(imageUrl, TRAINING_IMAGE_BUCKET);
   if (path) {
+    const supabase = await createClient();
     await supabase.storage.from(TRAINING_IMAGE_BUCKET).remove([path]);
   }
 
@@ -860,7 +874,7 @@ export async function removePhaseImage(formData: FormData) {
 }
 
 export async function submitPlayerSeasonForm(formData: FormData) {
-  const { supabase, team } = await requireActiveTeam();
+  const { team } = await requireActiveTeam();
   const id = requiredString(formData, "player_id", "Player");
   const strongFoot = enumValue(formData, "strong_foot", [
     "left",
@@ -868,16 +882,24 @@ export async function submitPlayerSeasonForm(formData: FormData) {
     "both"
   ] as const) as StrongFoot | null;
 
-  const { error } = await supabase
-    .from("players")
-    .update({
-      strong_foot: strongFoot,
+  const player = await db.player.findFirst({
+    where: { id, workspaceId: team.id }
+  });
+
+  if (!player) {
+    throw new Error("Player not found or unauthorized.");
+  }
+
+  await db.player.update({
+    where: { id },
+    data: {
+      strongFoot,
       contact: optionalString(formData, "contact"),
-      parent_contact: optionalString(formData, "parent_contact"),
-      emergency_contact: optionalString(formData, "emergency_contact"),
-      favorite_team: optionalString(formData, "favorite_team"),
-      favorite_player: optionalString(formData, "favorite_player"),
-      football_goals: optionalString(formData, "football_goals"),
+      parentContact: optionalString(formData, "parent_contact"),
+      emergencyContact: optionalString(formData, "emergency_contact"),
+      favoriteTeam: optionalString(formData, "favorite_team"),
+      favoritePlayer: optionalString(formData, "favorite_player"),
+      footballGoals: optionalString(formData, "football_goals"),
       motivation: optionalString(formData, "motivation"),
       strengths: optionalString(formData, "strengths"),
       weaknesses: optionalString(formData, "weaknesses"),
@@ -885,14 +907,9 @@ export async function submitPlayerSeasonForm(formData: FormData) {
       injuries: optionalString(formData, "injuries"),
       limitations: optionalString(formData, "limitations"),
       medications: optionalString(formData, "medications"),
-      season_form_completed_at: new Date().toISOString()
-    })
-    .eq("id", id)
-    .eq("team_id", team.id);
-
-  if (error) {
-    throw new Error(error.message);
-  }
+      seasonFormCompletedAt: new Date()
+    }
+  });
 
   revalidatePath("/player-mode");
   revalidatePath("/players");
@@ -907,24 +924,24 @@ function trainingPayload(formData: FormData) {
   ] as const) as TrainingIntensity | null;
 
   return {
-    date: requiredString(formData, "date", "Training date"),
-    start_time: optionalString(formData, "start_time"),
-    duration_minutes: optionalNumber(formData, "duration_minutes"),
+    date: new Date(requiredString(formData, "date", "Training date")),
+    startTime: optionalString(formData, "start_time"),
+    durationMinutes: optionalNumber(formData, "duration_minutes") ?? 90,
+    duration: optionalNumber(formData, "duration_minutes") ?? 90,
     location: optionalString(formData, "location"),
     focus: optionalString(formData, "focus") ?? "",
     goal: optionalString(formData, "goal"),
-    age_group: optionalString(formData, "age_group"),
+    ageGroup: optionalString(formData, "age_group"),
     intensity,
     participants: optionalString(formData, "participants"),
     notes: optionalString(formData, "notes"),
-    is_template: formData.get("is_template") === "on",
-    template_name: optionalString(formData, "template_name")
+    isTemplate: formData.get("is_template") === "on",
+    templateName: optionalString(formData, "template_name")
   };
 }
 
 function phaseRows(
   formData: FormData,
-  teamId: string,
   trainingId: string,
   imagesByType?: Map<TrainingPhaseType, string[]>
 ) {
@@ -939,52 +956,43 @@ function phaseRows(
       }
 
       return {
-        team_id: teamId,
-        training_id: trainingId,
-        phase_type: phaseType,
+        trainingId: trainingId,
+        phaseType: phaseType as TrainingPhaseType,
         title: title ?? phaseType.replace("_", " "),
-        duration_minutes: duration,
+        durationMinutes: duration,
         description,
-        coaching_points: optionalString(formData, `${phaseType}_coaching`),
+        coachingPoints: optionalString(formData, `${phaseType}_coaching`),
         organization: optionalString(formData, `${phaseType}_organization`),
         material: optionalString(formData, `${phaseType}_material`),
-        player_count: optionalString(formData, `${phaseType}_players`),
-        field_size: optionalString(formData, `${phaseType}_field`),
+        playerCount: optionalString(formData, `${phaseType}_players`),
+        fieldSize: optionalString(formData, `${phaseType}_field`),
         variations: optionalString(formData, `${phaseType}_variations`),
-        load_management: optionalString(formData, `${phaseType}_load`),
-        image_urls: imagesByType?.get(phaseType) ?? [],
-        sort_order: index
+        loadManagement: optionalString(formData, `${phaseType}_load`),
+        imageUrls: imagesByType?.get(phaseType) ?? [],
+        sortOrder: index
       };
     })
     .filter((row): row is NonNullable<typeof row> => row !== null);
 }
 
 export async function createTraining(formData: FormData) {
-  const { supabase, user, team } = await requireActiveTeam();
+  const { user, team } = await requireActiveTeam();
+  const payload = trainingPayload(formData);
 
-  const { data: training, error } = await supabase
-    .from("training_sessions")
-    .insert({
-      team_id: team.id,
-      user_id: user.id,
-      ...trainingPayload(formData)
-    })
-    .select("id")
-    .single();
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  const rows = phaseRows(formData, team.id, training.id);
-  if (rows.length > 0) {
-    const { error: phaseError } = await supabase
-      .from("training_phases")
-      .insert(rows);
-
-    if (phaseError) {
-      throw new Error(phaseError.message);
+  const training = await db.training.create({
+    data: {
+      workspaceId: team.id,
+      userId: user.id,
+      title: payload.focus,
+      ...payload
     }
+  });
+
+  const rows = phaseRows(formData, training.id);
+  if (rows.length > 0) {
+    await db.trainingPhase.createMany({
+      data: rows
+    });
   }
 
   revalidatePath("/");
@@ -994,57 +1002,48 @@ export async function createTraining(formData: FormData) {
 }
 
 export async function updateTraining(formData: FormData) {
-  const { supabase, team } = await requireActiveTeam();
+  const { team } = await requireActiveTeam();
   const id = requiredString(formData, "id", "Training");
 
-  const { error } = await supabase
-    .from("training_sessions")
-    .update(trainingPayload(formData))
-    .eq("id", id)
-    .eq("team_id", team.id);
+  const existingTraining = await db.training.findFirst({
+    where: { id, workspaceId: team.id }
+  });
 
-  if (error) {
-    throw new Error(error.message);
+  if (!existingTraining) {
+    throw new Error("Training not found or unauthorized.");
   }
 
-  // Preserve uploaded phase images across the delete/insert cycle by snapshotting
-  // them keyed by phase_type, then re-injecting on the new rows below.
-  const { data: existingPhases, error: existingError } = await supabase
-    .from("training_phases")
-    .select("phase_type,image_urls")
-    .eq("training_id", id)
-    .eq("team_id", team.id);
+  const payload = trainingPayload(formData);
 
-  if (existingError) {
-    throw new Error(existingError.message);
-  }
+  await db.training.update({
+    where: { id },
+    data: {
+      title: payload.focus,
+      ...payload
+    }
+  });
+
+  const existingPhases = await db.trainingPhase.findMany({
+    where: { trainingId: id },
+    select: { phaseType: true, imageUrls: true }
+  });
 
   const imagesByType = new Map<TrainingPhaseType, string[]>();
   for (const row of existingPhases ?? []) {
-    if (row.image_urls && row.image_urls.length > 0) {
-      imagesByType.set(row.phase_type as TrainingPhaseType, row.image_urls);
+    if (row.imageUrls && row.imageUrls.length > 0) {
+      imagesByType.set(row.phaseType as TrainingPhaseType, row.imageUrls);
     }
   }
 
-  const { error: deleteError } = await supabase
-    .from("training_phases")
-    .delete()
-    .eq("training_id", id)
-    .eq("team_id", team.id);
+  await db.trainingPhase.deleteMany({
+    where: { trainingId: id }
+  });
 
-  if (deleteError) {
-    throw new Error(deleteError.message);
-  }
-
-  const rows = phaseRows(formData, team.id, id, imagesByType);
+  const rows = phaseRows(formData, id, imagesByType);
   if (rows.length > 0) {
-    const { error: phaseError } = await supabase
-      .from("training_phases")
-      .insert(rows);
-
-    if (phaseError) {
-      throw new Error(phaseError.message);
-    }
+    await db.trainingPhase.createMany({
+      data: rows
+    });
   }
 
   revalidatePath("/");
@@ -1054,34 +1053,43 @@ export async function updateTraining(formData: FormData) {
 }
 
 export async function deleteTacticBoard(formData: FormData) {
-  const { supabase, team } = await requireActiveTeam();
+  const { team } = await requireActiveTeam();
   const id = requiredString(formData, "id", "Taktikboard");
-  const { error } = await supabase
-    .from("tactic_boards")
-    .delete()
-    .eq("id", id)
-    .eq("team_id", team.id);
-  if (error) throw new Error(error.message);
+
+  const board = await db.tacticBoard.findFirst({
+    where: { id, workspaceId: team.id }
+  });
+
+  if (!board) {
+    throw new Error("Tactic board not found or unauthorized.");
+  }
+
+  await db.tacticBoard.delete({
+    where: { id }
+  });
+
   revalidatePath("/tactics");
 }
 
 export async function deleteTrainingWeek(formData: FormData) {
-  const { supabase, team } = await requireActiveTeam();
+  const { team } = await requireActiveTeam();
   const ids = formData.getAll("training_id") as string[];
   if (ids.length === 0) return;
-  const { error } = await supabase
-    .from("training_sessions")
-    .delete()
-    .in("id", ids)
-    .eq("team_id", team.id);
-  if (error) throw new Error(error.message);
+
+  await db.training.deleteMany({
+    where: {
+      id: { in: ids },
+      workspaceId: team.id
+    }
+  });
+
   revalidatePath("/");
   revalidatePath("/calendar");
   revalidatePath("/trainings");
 }
 
 export async function updatePhaseDiagram(formData: FormData) {
-  const { supabase, team } = await requireActiveTeam();
+  const { team } = await requireActiveTeam();
   const phaseId = requiredString(formData, "phase_id", "Phase");
   const diagramJson = requiredString(formData, "diagram", "Diagramm");
   let diagram: unknown;
@@ -1090,158 +1098,149 @@ export async function updatePhaseDiagram(formData: FormData) {
   } catch {
     throw new Error("Ungültiges Diagramm-Format");
   }
-  const { error } = await supabase
-    .from("training_phases")
-    .update({ diagram: diagram as Json })
-    .eq("id", phaseId)
-    .eq("team_id", team.id);
-  if (error) throw new Error(error.message);
+
+  const phase = await db.trainingPhase.findFirst({
+    where: { id: phaseId, training: { workspaceId: team.id } }
+  });
+
+  if (!phase) {
+    throw new Error("Phase nicht gefunden oder unauthorized");
+  }
+
+  await db.trainingPhase.update({
+    where: { id: phaseId },
+    data: { diagram: diagram as any }
+  });
+
   revalidatePath("/trainings");
 }
 
 export async function updateTrainingPhase(formData: FormData) {
-  const { supabase, team } = await requireActiveTeam();
+  const { team } = await requireActiveTeam();
   const phaseId = requiredString(formData, "phase_id", "Phase");
 
-  const { error } = await supabase
-    .from("training_phases")
-    .update({
+  const phase = await db.trainingPhase.findFirst({
+    where: { id: phaseId, training: { workspaceId: team.id } }
+  });
+
+  if (!phase) {
+    throw new Error("Phase nicht gefunden oder unauthorized");
+  }
+
+  await db.trainingPhase.update({
+    where: { id: phaseId },
+    data: {
       title: optionalString(formData, "title") ?? undefined,
-      duration_minutes: optionalNumber(formData, "duration_minutes"),
+      durationMinutes: optionalNumber(formData, "duration_minutes"),
       description: optionalString(formData, "description"),
-      coaching_points: optionalString(formData, "coaching_points"),
+      coachingPoints: optionalString(formData, "coaching_points"),
       organization: optionalString(formData, "organization"),
       material: optionalString(formData, "material"),
-      player_count: optionalString(formData, "player_count"),
-      field_size: optionalString(formData, "field_size"),
+      playerCount: optionalString(formData, "player_count"),
+      fieldSize: optionalString(formData, "field_size"),
       variations: optionalString(formData, "variations"),
-      load_management: optionalString(formData, "load_management"),
-    })
-    .eq("id", phaseId)
-    .eq("team_id", team.id);
-
-  if (error) {
-    throw new Error(error.message);
-  }
+      loadManagement: optionalString(formData, "load_management")
+    }
+  });
 
   revalidatePath("/trainings");
 }
 
 export async function reorderPhase(formData: FormData) {
-  const { supabase, team } = await requireActiveTeam();
+  const { team } = await requireActiveTeam();
   const phaseId = requiredString(formData, "phase_id", "Phase");
   const direction = formData.get("direction") as "up" | "down";
 
-  const { data: phase } = await supabase
-    .from("training_phases")
-    .select("id, sort_order, training_id")
-    .eq("id", phaseId)
-    .eq("team_id", team.id)
-    .single();
+  const phase = await db.trainingPhase.findFirst({
+    where: { id: phaseId, training: { workspaceId: team.id } },
+    select: { id: true, sortOrder: true, trainingId: true }
+  });
   if (!phase) throw new Error("Phase nicht gefunden");
 
-  const { data: siblings } = await supabase
-    .from("training_phases")
-    .select("id, sort_order")
-    .eq("training_id", phase.training_id)
-    .eq("team_id", team.id)
-    .order("sort_order", { ascending: true });
+  const siblings = await db.trainingPhase.findMany({
+    where: { trainingId: phase.trainingId },
+    select: { id: true, sortOrder: true },
+    orderBy: { sortOrder: "asc" }
+  });
   if (!siblings || siblings.length < 2) return;
 
-  const idx = siblings.findIndex((s) => s.id === phaseId);
+  const idx = siblings.findIndex((s: { id: string }) => s.id === phaseId);
   const swapIdx = direction === "up" ? idx - 1 : idx + 1;
   if (swapIdx < 0 || swapIdx >= siblings.length) return;
 
   const swapWith = siblings[swapIdx];
-  await Promise.all([
-    supabase.from("training_phases").update({ sort_order: swapWith.sort_order }).eq("id", phaseId).eq("team_id", team.id),
-    supabase.from("training_phases").update({ sort_order: phase.sort_order }).eq("id", swapWith.id).eq("team_id", team.id),
+
+  await db.$transaction([
+    db.trainingPhase.update({
+      where: { id: phaseId },
+      data: { sortOrder: swapWith.sortOrder }
+    }),
+    db.trainingPhase.update({
+      where: { id: swapWith.id },
+      data: { sortOrder: phase.sortOrder }
+    })
   ]);
+
   revalidatePath("/trainings");
 }
 
 export async function duplicateTraining(formData: FormData) {
-  const { supabase, user, team } = await requireActiveTeam();
+  const { user, team } = await requireActiveTeam();
   const id = requiredString(formData, "id", "Training");
 
-  const [trainingResult, phasesResult] = await Promise.all([
-    supabase
-      .from("training_sessions")
-      .select("*")
-      .eq("id", id)
-      .eq("team_id", team.id)
-      .single(),
-    supabase
-      .from("training_phases")
-      .select("*")
-      .eq("training_id", id)
-      .eq("team_id", team.id)
-      .order("sort_order", { ascending: true })
-  ]);
+  const training = await db.training.findFirst({
+    where: { id, workspaceId: team.id },
+    include: {
+      phases: {
+        orderBy: { sortOrder: "asc" }
+      }
+    }
+  });
 
-  if (trainingResult.error) {
-    throw new Error(trainingResult.error.message);
+  if (!training) {
+    throw new Error("Training not found or unauthorized.");
   }
 
-  if (phasesResult.error) {
-    throw new Error(phasesResult.error.message);
-  }
-
-  const training = trainingResult.data;
-  const { data: clone, error } = await supabase
-    .from("training_sessions")
-    .insert({
-      team_id: team.id,
-      user_id: user.id,
+  const clone = await db.training.create({
+    data: {
+      workspaceId: team.id,
+      userId: user.id,
+      title: `${training.focus} copy`,
       date: training.date,
-      start_time: training.start_time,
-      duration_minutes: training.duration_minutes,
+      startTime: training.startTime,
+      durationMinutes: training.durationMinutes,
+      duration: training.duration,
       location: training.location,
       focus: `${training.focus} copy`,
       goal: training.goal,
-      age_group: training.age_group,
       intensity: training.intensity,
       participants: training.participants,
       notes: training.notes,
-      is_template: false
-    })
-    .select("id")
-    .single();
+      isTemplate: false
+    }
+  });
 
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  const phaseClones =
-    phasesResult.data?.map((phase) => ({
-      team_id: team.id,
-      training_id: clone.id,
-      phase_type: phase.phase_type,
-      title: phase.title,
-      duration_minutes: phase.duration_minutes,
-      description: phase.description,
-      coaching_points: phase.coaching_points,
-      organization: phase.organization,
-      material: phase.material,
-      player_count: phase.player_count,
-      field_size: phase.field_size,
-      variations: phase.variations,
-      load_management: phase.load_management,
-      // Bilder werden referenziert (nicht neu hochgeladen) — die öffentlichen
-      // URLs bleiben gültig. Lösche ein Bild im Original ⇒ es bleibt im Storage,
-      // bis das Duplikat es ebenfalls entfernt.
-      image_urls: phase.image_urls ?? [],
-      sort_order: phase.sort_order
-    })) ?? [];
+  const phaseClones = (training.phases ?? []).map((phase: any) => ({
+    trainingId: clone.id,
+    phaseType: phase.phaseType,
+    title: phase.title,
+    durationMinutes: phase.durationMinutes,
+    description: phase.description,
+    coachingPoints: phase.coachingPoints,
+    organization: phase.organization,
+    material: phase.material,
+    playerCount: phase.playerCount,
+    fieldSize: phase.fieldSize,
+    variations: phase.variations,
+    loadManagement: phase.loadManagement,
+    imageUrls: phase.imageUrls ?? [],
+    sortOrder: phase.sortOrder
+  }));
 
   if (phaseClones.length > 0) {
-    const { error: phaseError } = await supabase
-      .from("training_phases")
-      .insert(phaseClones);
-
-    if (phaseError) {
-      throw new Error(phaseError.message);
-    }
+    await db.trainingPhase.createMany({
+      data: phaseClones
+    });
   }
 
   revalidatePath("/calendar");
@@ -1250,18 +1249,20 @@ export async function duplicateTraining(formData: FormData) {
 }
 
 export async function deleteTraining(formData: FormData) {
-  const { supabase, team } = await requireActiveTeam();
+  const { team } = await requireActiveTeam();
   const id = requiredString(formData, "id", "Training");
 
-  const { error } = await supabase
-    .from("training_sessions")
-    .delete()
-    .eq("id", id)
-    .eq("team_id", team.id);
+  const training = await db.training.findFirst({
+    where: { id, workspaceId: team.id }
+  });
 
-  if (error) {
-    throw new Error(error.message);
+  if (!training) {
+    throw new Error("Training not found or unauthorized.");
   }
+
+  await db.training.delete({
+    where: { id }
+  });
 
   revalidatePath("/");
   revalidatePath("/calendar");
@@ -1270,7 +1271,7 @@ export async function deleteTraining(formData: FormData) {
 }
 
 export async function createAiTrainingDraft(formData: FormData) {
-  const { supabase, user, team } = await requireActiveTeam();
+  const { user, team } = await requireActiveTeam();
   const focus = requiredString(formData, "focus", "Schwerpunkt");
   const duration = optionalNumber(formData, "duration_minutes") ?? 90;
   const ageGroup = optionalString(formData, "age_group") ?? team.age_group;
@@ -1281,231 +1282,146 @@ export async function createAiTrainingDraft(formData: FormData) {
     throw new Error("ANTHROPIC_API_KEY ist nicht konfiguriert. Bitte in .env.local setzen.");
   }
 
-  const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
+  const sevenDaysAgo = new Date(Date.now() - 7 * 86400000);
 
-  const [playersResult, checkinsResult, recentTrainingsResult, nextMatchResult] = await Promise.all([
-    supabase.from("players").select("id,name,status").eq("team_id", team.id).order("name"),
-    supabase
-      .from("health_checkins")
-      .select("player_id,checkin_date,fatigue,sleep_quality,soreness,pain,stress,motivation,energy,injury_feeling,wellbeing")
-      .eq("team_id", team.id)
-      .gte("checkin_date", sevenDaysAgo)
-      .order("checkin_date", { ascending: false }),
-    supabase
-      .from("training_sessions")
-      .select("date,focus,intensity")
-      .eq("team_id", team.id)
-      .lt("date", date)
-      .order("date", { ascending: false })
-      .limit(4),
-    supabase
-      .from("matches")
-      .select("date,opponent,kickoff_time")
-      .eq("team_id", team.id)
-      .gte("date", date)
-      .order("date", { ascending: true })
-      .limit(1)
-      .maybeSingle()
+  const [players, checkins, recentTrainings, nextMatch] = await Promise.all([
+    db.player.findMany({
+      where: { workspaceId: team.id },
+      orderBy: { name: "asc" }
+    }),
+    db.healthCheck.findMany({
+      where: {
+        player: { workspaceId: team.id },
+        date: { gte: sevenDaysAgo }
+      },
+      orderBy: { date: "desc" }
+    }),
+    db.training.findMany({
+      where: {
+        workspaceId: team.id,
+        date: { lt: new Date(date) }
+      },
+      orderBy: { date: "desc" },
+      take: 4
+    }),
+    db.match.findFirst({
+      where: {
+        workspaceId: team.id,
+        date: { gte: new Date(date) }
+      },
+      orderBy: { date: "asc" }
+    })
   ]);
 
-  const players = playersResult.data ?? [];
-  const checkins = checkinsResult.data ?? [];
-  const recentTrainings = recentTrainingsResult.data ?? [];
-  const nextMatch = nextMatchResult.data;
-
-  const latestByPlayer = new Map<string, (typeof checkins)[number]>();
+  const latestByPlayer = new Map<string, typeof checkins[number]>();
   for (const c of checkins) {
-    if (!latestByPlayer.has(c.player_id)) latestByPlayer.set(c.player_id, c);
+    if (!latestByPlayer.has(c.playerId)) {
+      latestByPlayer.set(c.playerId, c);
+    }
   }
 
-  const available = players.filter((p) => p.status === "available" || !p.status);
-  const limited = players.filter((p) => p.status === "limited");
-  const injured = players.filter((p) => p.status === "injured");
+  const available = players.filter((p: any) => p.status === "available" || !p.status);
+  const limited = players.filter((p: any) => p.status === "limited");
+  const injured = players.filter((p: any) => p.status === "injured");
 
   const wellnessLines = players
-    .map((player) => {
+    .map((player: any) => {
       const c = latestByPlayer.get(player.id);
       if (!c) return `- ${player.name}: Kein aktueller Check-in`;
-      const risk = healthRisk(c);
+
+      const snakeCaseCheckin = {
+        player_id: c.playerId,
+        checkin_date: c.date.toISOString().slice(0, 10),
+        fatigue: c.fatigue,
+        sleep_quality: c.sleepQuality ?? 3,
+        soreness: c.soreness,
+        pain: c.pain,
+        stress: c.stress,
+        motivation: c.motivation,
+        energy: c.energy ?? 3,
+        injury_feeling: c.injuryFeeling ?? 3,
+        wellbeing: c.wellbeing ?? 3,
+      };
+
+      const risk = healthRisk(snakeCaseCheckin);
       const label =
         risk === "red"
           ? "🔴 ROT – unbedingt schonen!"
           : risk === "yellow"
             ? "🟡 GELB – beobachten"
             : "✅ GUT";
-      return `- ${player.name}: Müdigkeit ${c.fatigue}/5, Schmerzen ${c.pain}/5, Energie ${c.energy}/5, Stress ${c.stress}/5, Schlaf ${c.sleep_quality}/5 → ${label}`;
+      return `- ${player.name}: Müdigkeit ${c.fatigue}/5, Schmerzen ${c.pain}/5, Energie ${c.energy ?? 3}/5, Stress ${c.stress}/5, Schlaf ${c.sleepQuality ?? 3}/5 → ${label}`;
     })
     .join("\n");
 
   const recentLines =
     recentTrainings.length > 0
-      ? recentTrainings.map((t) => `- ${t.date}: ${t.focus} (${t.intensity ?? "?"} Intensität)`).join("\n")
+      ? recentTrainings.map((t: any) => `- ${t.date.toISOString().slice(0, 10)}: ${t.focus} (${t.intensity ?? "?"} Intensität)`).join("\n")
       : "- Noch keine Trainings erfasst";
 
   const daysToMatch = nextMatch
-    ? Math.round((new Date(`${nextMatch.date}T00:00`).getTime() - new Date(`${date}T00:00`).getTime()) / 86400000)
+    ? Math.round((new Date(nextMatch.date).getTime() - new Date(date).getTime()) / 86400000)
     : null;
   const matchLine = nextMatch
-    ? `${nextMatch.date} gegen ${nextMatch.opponent}${nextMatch.kickoff_time ? ` · Anpfiff ${nextMatch.kickoff_time.slice(0, 5)} Uhr` : ""} — ${daysToMatch} Tag(e) bis zum Spiel`
+    ? `${nextMatch.date.toISOString().slice(0, 10)} gegen ${nextMatch.opponent}${nextMatch.kickoffTime ? ` · Anpfiff ${nextMatch.kickoffTime.slice(0, 5)} Uhr` : ""} — ${daysToMatch} Tag(e) bis zum Spiel`
     : "Kein Spiel in den nächsten 14 Tagen geplant";
 
-  const prompt = `Du bist ein professioneller Fußballtrainer-Assistent mit tiefer Expertise in modernem Fußball-Training, Trainingslehre und Belastungssteuerung.
-
-Erstelle einen vollständigen, praxisorientierten Trainingsplan für folgendes Team.
-
-## TEAM
-Name: ${team.name}
-Altersstufe: ${ageGroup ?? "nicht angegeben"}
-Kader: ${players.length} Spieler (${available.length} fit, ${limited.length} eingeschränkt, ${injured.length} verletzt)
-Trainingsdatum: ${date}
-Geplante Dauer: ${duration} Minuten
-
-## TRAINER-VORGABE
-Schwerpunkt: "${focus}"${additionalContext ? `\nZusätzliche Anweisungen: "${additionalContext}"` : ""}
-
-## WELLNESS-STATUS ALLER SPIELER (letzte 7 Tage)
-${wellnessLines || "Keine Check-in-Daten vorhanden — Standardbelastung ansetzen"}
-
-## LETZTE TRAININGS
-${recentLines}
-
-## NÄCHSTES SPIEL
-${matchLine}
-
-## AUFGABE
-Erstelle einen detaillierten Trainingsplan als JSON-Objekt. Antworte AUSSCHLIESSLICH mit gültigem JSON — kein Markdown, kein Fließtext.
-
-KOORDINATENSYSTEM für diagram:
-- x=0 linke Auslinie, x=100 rechte Auslinie
-- y=0 gegnerisches Tor (Angriffsziel), y=100 eigenes Tor
-- Team A = angreifendes/pressendes Team (blau), Team B = verteidigende/aufbauendes Team (rot)
-- Neutrale Spieler = Joker/Anspielstation (gelb)
-- Alle x/y-Koordinaten zwischen 0 und 100
-
-{
-  "focus": "Präziser, eingängiger Trainingstitel (max 60 Zeichen)",
-  "goal": "Konkretes, messbares Trainingsziel — WAS wird trainiert und WARUM heute (2-3 präzise Sätze)",
-  "intensity": "low" | "medium" | "high",
-  "notes": "Trainer-Notizen: Welche Spieler heute namentlich schonen? Welche Belastungsanpassungen? Worauf besonders achten? (3-5 Sätze, sehr konkret)",
-  "phases": [
-    {
-      "phase_type": "warmup" | "activation" | "technique" | "tactics" | "game_form" | "finish" | "cooldown",
-      "title": "Phasentitel (3-5 Wörter)",
-      "duration_minutes": Zahl,
-      "description": "Detaillierte Übungsbeschreibung: Aufbau, Ablauf, Spielerpositionierung (3-6 Sätze)",
-      "coaching_points": "3-5 konkrete Coachingpunkte die der Trainer aktiv einfordert — eine Zeile je Punkt",
-      "organization": "Feldgröße, Gruppenaufteilung, Wechselregeln",
-      "material": "Konkretes Material z.B. '6 Bälle, 8 Hütchen, 4 Leibchen, 2 Kleintore'",
-      "variations": "Leichtere Variante / Schwierigere Variante (je eine Zeile)",
-      "load_management": "Wie absolvieren eingeschränkte Spieler diese Phase konkret?",
-      "diagram": {
-        "field": "half | full | third | box",
-        "players": [
-          { "id": "A1", "team": "A", "role": "ST", "label": "ST", "x": 50, "y": 25 },
-          { "id": "B1", "team": "B", "role": "IV", "label": "IV", "x": 50, "y": 40 },
-          { "id": "N1", "team": "neutral", "role": "Joker", "label": "J", "x": 15, "y": 50 }
-        ],
-        "movements": [
-          { "from": "A1", "to_x": 60, "to_y": 15, "type": "run | pass | dribble | shot", "label": "Tiefenlauf", "sequence": 1 }
-        ],
-        "zones": [
-          { "label": "Presszone", "x": 20, "y": 15, "w": 60, "h": 25, "color": "red | orange | blue | green" }
-        ],
-        "goals": [
-          { "type": "big_goal | mini_goal", "label": "Tor", "x": 50, "y": 0, "width": 15 }
-        ]
-      }
-    }
-  ]
-}
-
-QUALITÄTSREGELN:
-- 4-6 Phasen die zusammen exakt ${duration} Minuten ergeben
-- Intensität: Viele 🔴/🟡 Spieler → "low", gemischtes Team → "medium", frisches Team → "high"
-- Coachingpunkte sind KONKRET (nicht 'Kommunikation' sondern 'Spieler ruft den Namen vor dem Pass')
-- 🔴-Spieler werden namentlich in notes UND load_management erwähnt
-- Übungen sind altersgruppengerecht für ${ageGroup ?? "die Altersgruppe"}
-- Das Trainingsziel passt exakt zum Schwerpunkt
-- DIAGRAM-REGELN: Spieler nie alle auf einer Linie. Koordinaten taktisch sinnvoll. Warmup/Cooldown: Kreis- oder Reihenformation. Taktik/Spielform: realistische Abstände, erkennbare Struktur. movements.from muss eine existierende player id sein. Alle x/y zwischen 0 und 100.`;
-
-  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-  const message = await client.messages.create({
-    model: "claude-opus-4-7",
-    max_tokens: 16000,
-    messages: [{ role: "user", content: prompt }],
+  const plan = await generateTrainingPlan({
+    teamName: team.name,
+    ageGroup,
+    totalPlayers: players.length,
+    availableCount: available.length,
+    limitedCount: limited.length,
+    injuredCount: injured.length,
+    date,
+    durationMinutes: duration,
+    focus,
+    additionalContext,
+    wellnessLines,
+    recentLines,
+    matchLine
   });
-
-  const rawText = message.content[0].type === "text" ? message.content[0].text : "";
-  const jsonText = rawText.replace(/^```(?:json)?\n?/m, "").replace(/\n?```$/m, "").trim();
-
-  type AiPhase = {
-    phase_type: string;
-    title: string;
-    duration_minutes: number;
-    description: string;
-    coaching_points: string;
-    organization: string;
-    material: string;
-    variations: string;
-    load_management: string;
-    diagram?: object | null;
-  };
-  type AiPlan = {
-    focus: string;
-    goal: string;
-    intensity: string;
-    notes: string;
-    phases: AiPhase[];
-  };
-
-  let plan: AiPlan;
-  try {
-    plan = JSON.parse(jsonText);
-  } catch {
-    throw new Error("Die KI hat ein ungültiges Format zurückgegeben. Bitte erneut versuchen.");
-  }
 
   const validIntensities: TrainingIntensity[] = ["low", "medium", "high"];
   const intensity: TrainingIntensity = validIntensities.includes(plan.intensity as TrainingIntensity)
     ? (plan.intensity as TrainingIntensity)
     : "medium";
 
-  const { data: training, error } = await supabase
-    .from("training_sessions")
-    .insert({
-      team_id: team.id,
-      user_id: user.id,
-      date,
-      duration_minutes: duration,
+  const training = await db.training.create({
+    data: {
+      workspaceId: team.id,
+      userId: user.id,
+      title: plan.focus || focus,
+      date: new Date(date),
+      durationMinutes: duration,
+      duration: duration,
       focus: plan.focus || focus,
       goal: plan.goal,
-      age_group: ageGroup,
       intensity,
-      notes: plan.notes,
-    })
-    .select("id")
-    .single();
+      notes: plan.notes
+    }
+  });
 
-  if (error) throw new Error(error.message);
-
-  const phaseRows = (plan.phases ?? []).map((phase, index) => ({
-    team_id: team.id,
-    training_id: training.id,
-    phase_type: (phase.phase_type ?? "technique") as TrainingPhaseType,
+  const phaseRows = (plan.phases ?? []).map((phase: any, index: number) => ({
+    trainingId: training.id,
+    phaseType: (phase.phase_type ?? "technique") as TrainingPhaseType,
     title: phase.title ?? "",
-    duration_minutes: phase.duration_minutes ?? null,
+    durationMinutes: phase.duration_minutes ?? null,
     description: phase.description ?? null,
-    coaching_points: phase.coaching_points ?? null,
+    coachingPoints: phase.coaching_points ?? null,
     organization: phase.organization ?? null,
     material: phase.material ?? null,
     variations: phase.variations ?? null,
-    load_management: phase.load_management ?? null,
-    diagram: (phase.diagram ?? null) as import("@/lib/types").Json | null,
-    sort_order: index,
+    loadManagement: phase.load_management ?? null,
+    diagram: (phase.diagram ?? null) as any,
+    sortOrder: index
   }));
 
-  const { error: phaseError } = await supabase.from("training_phases").insert(phaseRows);
-  if (phaseError) throw new Error(phaseError.message);
+  if (phaseRows.length > 0) {
+    await db.trainingPhase.createMany({
+      data: phaseRows
+    });
+  }
 
   revalidatePath("/");
   revalidatePath("/calendar");
@@ -1514,7 +1430,7 @@ QUALITÄTSREGELN:
 }
 
 export async function createPresetTraining(formData: FormData) {
-  const { supabase, user, team } = await requireActiveTeam();
+  const { user, team } = await requireActiveTeam();
   const presetKey = requiredString(formData, "preset", "Preset");
   const preset = trainingPresets[presetKey as keyof typeof trainingPresets];
 
@@ -1526,55 +1442,49 @@ export async function createPresetTraining(formData: FormData) {
   const duration = optionalNumber(formData, "duration_minutes") ?? 90;
   const phaseTotal = preset.phases.reduce((sum, phase) => sum + phase[2], 0);
 
-  const { data: training, error } = await supabase
-    .from("training_sessions")
-    .insert({
-      team_id: team.id,
-      user_id: user.id,
-      date,
-      start_time: optionalString(formData, "start_time"),
-      duration_minutes: duration,
+  const training = await db.training.create({
+    data: {
+      workspaceId: team.id,
+      userId: user.id,
+      title: preset.focus,
+      date: new Date(date),
+      durationMinutes: duration,
+      duration: duration,
       location: optionalString(formData, "location"),
       focus: preset.focus,
       goal: preset.goal,
-      age_group: team.age_group,
       intensity: preset.intensity,
       notes:
         "Vorlage aus der CoachOS-Bibliothek. Passe Phasen, Belastung und Coachingpunkte an dein Team an."
-    })
-    .select("id")
-    .single();
-
-  if (error) {
-    throw new Error(error.message);
-  }
+    }
+  });
 
   const rows = preset.phases.map(([phaseType, title, minutes, description], index) => ({
-    team_id: team.id,
-    training_id: training.id,
-    phase_type: phaseType,
+    trainingId: training.id,
+    phaseType: phaseType as TrainingPhaseType,
     title,
-    duration_minutes: Math.max(5, Math.round((minutes / phaseTotal) * duration)),
+    durationMinutes: Math.max(5, Math.round((minutes / phaseTotal) * duration)),
     description,
-    coaching_points:
+    coachingPoints:
       "Timing, Abstände, Kommunikation und Entscheidungsqualität aktiv coachen.",
     organization:
       "Feldgröße und Spielerzahl an Kadergröße anpassen; klare Wechsel- und Pausenregeln setzen.",
     material: "Bälle, Hütchen, Markierungsteller, Leibchen, Tore",
-    player_count: "12-18",
-    field_size: "Variabel",
+    playerCount: "12-18",
+    fieldSize: "Variabel",
     variations:
       "Leichter: mehr Raum und freie Kontakte. Schwerer: Kontaktlimit, Zeitdruck oder kleinere Zonen.",
-    load_management:
+    loadManagement:
       preset.intensity === "high"
         ? "Kurze intensive Blöcke mit klaren Pausen."
         : "Mittlere Belastung mit fließenden Übergängen.",
-    sort_order: index
+    sortOrder: index
   }));
 
-  const { error: phaseError } = await supabase.from("training_phases").insert(rows);
-  if (phaseError) {
-    throw new Error(phaseError.message);
+  if (rows.length > 0) {
+    await db.trainingPhase.createMany({
+      data: rows
+    });
   }
 
   revalidatePath("/");
@@ -1584,44 +1494,48 @@ export async function createPresetTraining(formData: FormData) {
 }
 
 export async function saveAttendance(formData: FormData) {
-  const { supabase, user, team } = await requireActiveTeam();
+  const { team } = await requireActiveTeam();
   const trainingId = requiredString(formData, "training_id", "Training");
   const playerIds = formData.getAll("player_id").map(String);
   const presentIds = new Set(formData.getAll("present_player_id").map(String));
 
-  const { data: players, error: playerError } = await supabase
-    .from("players")
-    .select("id")
-    .eq("team_id", team.id)
-    .in("id", playerIds);
+  const players = await db.player.findMany({
+    where: {
+      workspaceId: team.id,
+      id: { in: playerIds }
+    },
+    select: { id: true }
+  });
 
-  if (playerError) {
-    throw new Error(playerError.message);
-  }
+  const rows = players.map((player) => {
+    const status: AttendanceStatus = presentIds.has(player.id)
+      ? "present"
+      : "absent";
 
-  const rows =
-    players?.map((player) => {
-      const status: AttendanceStatus = presentIds.has(player.id)
-        ? "present"
-        : "absent";
+    return {
+      trainingId,
+      playerId: player.id,
+      status
+    };
+  });
 
-      return {
-        team_id: team.id,
-        user_id: user.id,
-        training_id: trainingId,
-        player_id: player.id,
-        status
-      };
-    }) ?? [];
-
-  if (rows.length > 0) {
-    const { error } = await supabase
-      .from("attendance")
-      .upsert(rows, { onConflict: "training_id,player_id" });
-
-    if (error) {
-      throw new Error(error.message);
-    }
+  for (const row of rows) {
+    await db.attendance.upsert({
+      where: {
+        trainingId_playerId: {
+          trainingId: row.trainingId,
+          playerId: row.playerId
+        }
+      },
+      create: {
+        trainingId: row.trainingId,
+        playerId: row.playerId,
+        status: row.status
+      },
+      update: {
+        status: row.status
+      }
+    });
   }
 
   revalidatePath("/");
@@ -1662,19 +1576,38 @@ function matchPayload(formData: FormData) {
 }
 
 export async function createMatch(formData: FormData) {
-  const { supabase, user, team } = await requireActiveTeam();
+  const { user, team } = await requireActiveTeam();
   const payload = matchPayload(formData);
 
-  const { error } = await supabase.from("matches").insert({
-    team_id: team.id,
-    user_id: user.id,
-    ...payload,
-    team_category: payload.team_category ?? team.age_group
+  await db.match.create({
+    data: {
+      workspaceId: team.id,
+      userId: user.id,
+      opponent: payload.opponent,
+      date: new Date(payload.date),
+      competition: payload.competition,
+      kickoffTime: payload.kickoff_time,
+      location: payload.location,
+      home: payload.home_away === "home",
+      homeAway: payload.home_away,
+      meetingPoint: payload.meeting_point,
+      squadNotes: payload.squad_notes,
+      startingLineup: payload.starting_lineup,
+      substitutes: payload.substitutes,
+      formation: payload.formation,
+      tacticalInstructions: payload.tactical_instructions,
+      matchGoals: payload.match_goals,
+      preMatchNotes: payload.pre_match_notes,
+      halftimeNotes: payload.halftime_notes,
+      postMatchNotes: payload.post_match_notes,
+      result: payload.result,
+      scorers: payload.scorers,
+      assists: payload.assists,
+      cards: payload.cards,
+      conclusion: payload.conclusion,
+      notes: payload.notes
+    }
   });
-
-  if (error) {
-    throw new Error(error.message);
-  }
 
   revalidatePath("/");
   revalidatePath("/calendar");
@@ -1683,18 +1616,47 @@ export async function createMatch(formData: FormData) {
 }
 
 export async function updateMatch(formData: FormData) {
-  const { supabase, team } = await requireActiveTeam();
+  const { team } = await requireActiveTeam();
   const id = requiredString(formData, "id", "Match");
 
-  const { error } = await supabase
-    .from("matches")
-    .update(matchPayload(formData))
-    .eq("id", id)
-    .eq("team_id", team.id);
+  const match = await db.match.findFirst({
+    where: { id, workspaceId: team.id }
+  });
 
-  if (error) {
-    throw new Error(error.message);
+  if (!match) {
+    throw new Error("Match not found or unauthorized.");
   }
+
+  const payload = matchPayload(formData);
+
+  await db.match.update({
+    where: { id },
+    data: {
+      opponent: payload.opponent,
+      date: new Date(payload.date),
+      competition: payload.competition,
+      kickoffTime: payload.kickoff_time,
+      location: payload.location,
+      home: payload.home_away === "home",
+      homeAway: payload.home_away,
+      meetingPoint: payload.meeting_point,
+      squadNotes: payload.squad_notes,
+      startingLineup: payload.starting_lineup,
+      substitutes: payload.substitutes,
+      formation: payload.formation,
+      tacticalInstructions: payload.tactical_instructions,
+      matchGoals: payload.match_goals,
+      preMatchNotes: payload.pre_match_notes,
+      halftimeNotes: payload.halftime_notes,
+      postMatchNotes: payload.post_match_notes,
+      result: payload.result,
+      scorers: payload.scorers,
+      assists: payload.assists,
+      cards: payload.cards,
+      conclusion: payload.conclusion,
+      notes: payload.notes
+    }
+  });
 
   revalidatePath("/");
   revalidatePath("/calendar");
@@ -1703,18 +1665,20 @@ export async function updateMatch(formData: FormData) {
 }
 
 export async function deleteMatch(formData: FormData) {
-  const { supabase, team } = await requireActiveTeam();
+  const { team } = await requireActiveTeam();
   const id = requiredString(formData, "id", "Match");
 
-  const { error } = await supabase
-    .from("matches")
-    .delete()
-    .eq("id", id)
-    .eq("team_id", team.id);
+  const match = await db.match.findFirst({
+    where: { id, workspaceId: team.id }
+  });
 
-  if (error) {
-    throw new Error(error.message);
+  if (!match) {
+    throw new Error("Match not found or unauthorized.");
   }
+
+  await db.match.delete({
+    where: { id }
+  });
 
   revalidatePath("/");
   revalidatePath("/calendar");
@@ -1723,7 +1687,6 @@ export async function deleteMatch(formData: FormData) {
 }
 
 async function buildMaterialContent(
-  supabase: Awaited<ReturnType<typeof createClient>>,
   teamId: string,
   type: MaterialType,
   customContent: string | null
@@ -1733,27 +1696,34 @@ async function buildMaterialContent(
   }
 
   if (type === "player_list" || type === "attendance_list") {
-    const { data: players, error } = await supabase
-      .from("players")
-      .select("name,position,birth_year,jersey_number,status")
-      .eq("team_id", teamId)
-      .order("name", { ascending: true });
-
-    if (error) {
-      throw new Error(error.message);
-    }
+    const players = await db.player.findMany({
+      where: { workspaceId: teamId },
+      select: {
+        name: true,
+        position: true,
+        birthYear: true,
+        jerseyNumber: true,
+        status: true
+      },
+      orderBy: { name: "asc" }
+    });
 
     if (!players || players.length === 0) {
       return "Noch keine Spieler im Workspace.";
     }
 
+    const mappedPlayers = players.map((player) => ({
+      ...player,
+      status: player.status === "FIT" ? "available" : player.status === "INJURED" ? "injured" : player.status === "REHAB" ? "limited" : player.status.toLowerCase()
+    }));
+
     if (type === "attendance_list") {
       return [
         "Anwesenheitsliste",
         "",
-        ...players.map(
+        ...mappedPlayers.map(
           (player, index) =>
-            `[ ] ${index + 1}. ${player.name} | ${player.position ?? "-"} | #${player.jersey_number ?? "-"}`
+            `[ ] ${index + 1}. ${player.name} | ${player.position ?? "-"} | #${player.jerseyNumber ?? "-"}`
         )
       ].join("\n");
     }
@@ -1763,25 +1733,23 @@ async function buildMaterialContent(
       "",
       "Nr. | Name | Position | Jahrgang | Status",
       "--- | --- | --- | --- | ---",
-      ...players.map(
+      ...mappedPlayers.map(
         (player) =>
-          `${player.jersey_number ?? "-"} | ${player.name} | ${player.position ?? "-"} | ${player.birth_year ?? "-"} | ${player.status}`
+          `${player.jerseyNumber ?? "-"} | ${player.name} | ${player.position ?? "-"} | ${player.birthYear ?? "-"} | ${player.status}`
       )
     ].join("\n");
   }
 
   if (type === "training_plan") {
-    const { data: training, error } = await supabase
-      .from("training_sessions")
-      .select("id,date,start_time,duration_minutes,focus,goal,location,intensity")
-      .eq("team_id", teamId)
-      .order("date", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    if (error) {
-      throw new Error(error.message);
-    }
+    const training = await db.training.findFirst({
+      where: { workspaceId: teamId },
+      orderBy: { date: "desc" },
+      include: {
+        phases: {
+          orderBy: { sortOrder: "asc" }
+        }
+      }
+    });
 
     if (!training) {
       return [
@@ -1800,103 +1768,95 @@ async function buildMaterialContent(
       ].join("\n");
     }
 
-    const { data: phases, error: phaseError } = await supabase
-      .from("training_phases")
-      .select("phase_type,title,duration_minutes,description,coaching_points,material")
-      .eq("team_id", teamId)
-      .eq("training_id", training.id)
-      .order("sort_order", { ascending: true });
-
-    if (phaseError) {
-      throw new Error(phaseError.message);
-    }
-
+    const dateStr = training.date.toISOString().slice(0, 10);
     return [
       `Trainingsplan: ${training.focus}`,
-      `Datum: ${training.date}${training.start_time ? ` ${training.start_time.slice(0, 5)}` : ""}`,
+      `Datum: ${dateStr}${training.startTime ? ` ${training.startTime.slice(0, 5)}` : ""}`,
       `Ort: ${training.location ?? "-"}`,
-      `Dauer: ${training.duration_minutes ?? "-"} Minuten`,
+      `Dauer: ${training.durationMinutes ?? "-"} Minuten`,
       `Intensität: ${training.intensity ?? "-"}`,
       "",
       `Ziel: ${training.goal ?? "-"}`,
       "",
-      ...(phases ?? []).map(
+      ...(training.phases ?? []).map(
         (phase) =>
-          `${phase.title} (${phase.duration_minutes ?? "-"} Min)\n${phase.description ?? ""}\nCoaching: ${phase.coaching_points ?? "-"}\nMaterial: ${phase.material ?? "-"}\n`
+          `${phase.title} (${phase.durationMinutes ?? "-"} Min)\n${phase.description ?? ""}\nCoaching: ${phase.coachingPoints ?? "-"}\nMaterial: ${phase.material ?? "-"}\n`
       )
     ].join("\n");
   }
 
   if (type === "match_plan") {
-    const today = new Date().toISOString().slice(0, 10);
-    const { data: match, error } = await supabase
-      .from("matches")
-      .select("opponent,date,kickoff_time,location,meeting_point,formation,starting_lineup,substitutes,tactical_instructions,match_goals")
-      .eq("team_id", teamId)
-      .gte("date", today)
-      .order("date", { ascending: true })
-      .limit(1)
-      .maybeSingle();
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const today = new Date(todayStr);
+    const match = await db.match.findFirst({
+      where: {
+        workspaceId: teamId,
+        date: { gte: today }
+      },
+      orderBy: { date: "asc" }
+    });
 
-    if (error) {
-      throw new Error(error.message);
+    if (!match) {
+      return "Matchplan\n\nGegner:\nDatum:\nTreffpunkt:\nFormation:\nStartelf:\nTaktik:\nMatchziele:";
     }
 
-    return match
-      ? [
-          `Matchplan: ${match.opponent}`,
-          `Datum: ${match.date}${match.kickoff_time ? ` ${match.kickoff_time.slice(0, 5)}` : ""}`,
-          `Ort: ${match.location ?? "-"}`,
-          `Treffpunkt: ${match.meeting_point ?? "-"}`,
-          `Formation: ${match.formation ?? "-"}`,
-          "",
-          "Startelf:",
-          match.starting_lineup ?? "-",
-          "",
-          "Ersatzspieler:",
-          match.substitutes ?? "-",
-          "",
-          "Taktik:",
-          match.tactical_instructions ?? "-",
-          "",
-          "Matchziele:",
-          match.match_goals ?? "-"
-        ].join("\n")
-      : "Matchplan\n\nGegner:\nDatum:\nTreffpunkt:\nFormation:\nStartelf:\nTaktik:\nMatchziele:";
+    const matchDateStr = match.date.toISOString().slice(0, 10);
+    return [
+      `Matchplan: ${match.opponent}`,
+      `Datum: ${matchDateStr}${match.kickoffTime ? ` ${match.kickoffTime.slice(0, 5)}` : ""}`,
+      `Ort: ${match.location ?? "-"}`,
+      `Treffpunkt: ${match.meetingPoint ?? "-"}`,
+      `Formation: ${match.formation ?? "-"}`,
+      "",
+      "Startelf:",
+      match.startingLineup ?? "-",
+      "",
+      "Ersatzspieler:",
+      match.substitutes ?? "-",
+      "",
+      "Taktik:",
+      match.tacticalInstructions ?? "-",
+      "",
+      "Matchziele:",
+      match.matchGoals ?? "-"
+    ].join("\n");
   }
 
   if (type === "week_plan" || type === "month_plan") {
-    const [trainingsResult, matchesResult] = await Promise.all([
-      supabase
-        .from("training_sessions")
-        .select("date,start_time,focus,location")
-        .eq("team_id", teamId)
-        .order("date", { ascending: true })
-        .limit(type === "week_plan" ? 10 : 40),
-      supabase
-        .from("matches")
-        .select("date,kickoff_time,opponent,location")
-        .eq("team_id", teamId)
-        .order("date", { ascending: true })
-        .limit(type === "week_plan" ? 10 : 40)
+    const limit = type === "week_plan" ? 10 : 40;
+    const [trainings, matches] = await Promise.all([
+      db.training.findMany({
+        where: { workspaceId: teamId },
+        select: {
+          date: true,
+          startTime: true,
+          focus: true,
+          location: true
+        },
+        orderBy: { date: "asc" },
+        take: limit
+      }),
+      db.match.findMany({
+        where: { workspaceId: teamId },
+        select: {
+          date: true,
+          kickoffTime: true,
+          opponent: true,
+          location: true
+        },
+        orderBy: { date: "asc" },
+        take: limit
+      })
     ]);
 
-    if (trainingsResult.error) {
-      throw new Error(trainingsResult.error.message);
-    }
-
-    if (matchesResult.error) {
-      throw new Error(matchesResult.error.message);
-    }
-
     const events = [
-      ...(trainingsResult.data ?? []).map(
+      ...trainings.map(
         (event) =>
-          `${event.date} ${event.start_time?.slice(0, 5) ?? ""} | Training | ${event.focus} | ${event.location ?? "-"}`
+          `${event.date.toISOString().slice(0, 10)} ${event.startTime?.slice(0, 5) ?? ""} | Training | ${event.focus} | ${event.location ?? "-"}`
       ),
-      ...(matchesResult.data ?? []).map(
+      ...matches.map(
         (event) =>
-          `${event.date} ${event.kickoff_time?.slice(0, 5) ?? ""} | Spiel | ${event.opponent} | ${event.location ?? "-"}`
+          `${event.date.toISOString().slice(0, 10)} ${event.kickoffTime?.slice(0, 5) ?? ""} | Spiel | ${event.opponent} | ${event.location ?? "-"}`
       )
     ].sort();
 
@@ -1933,7 +1893,7 @@ async function buildMaterialContent(
 }
 
 export async function createMaterial(formData: FormData) {
-  const { supabase, user, team } = await requireActiveTeam();
+  const { team, user } = await requireActiveTeam();
   const type = enumValue(formData, "type", [
     "exercise_sheet",
     "training_plan",
@@ -1950,63 +1910,71 @@ export async function createMaterial(formData: FormData) {
   }
 
   const content = await buildMaterialContent(
-    supabase,
     team.id,
     type,
     optionalString(formData, "content")
   );
 
-  const { error } = await supabase.from("materials").insert({
-    team_id: team.id,
-    user_id: user.id,
-    type,
-    title: requiredString(formData, "title", "Title"),
-    description: optionalString(formData, "description"),
-    content
+  await db.material.create({
+    data: {
+      workspaceId: team.id,
+      userId: user.id,
+      type,
+      title: requiredString(formData, "title", "Title"),
+      description: optionalString(formData, "description"),
+      content
+    }
   });
-
-  if (error) {
-    throw new Error(error.message);
-  }
 
   revalidatePath("/");
   revalidatePath("/materials");
 }
 
 export async function updateMaterial(formData: FormData) {
-  const { supabase, team } = await requireActiveTeam();
+  const { team } = await requireActiveTeam();
   const id = requiredString(formData, "id", "Material");
 
-  const { error } = await supabase
-    .from("materials")
-    .update({
+  const material = await db.material.findFirst({
+    where: {
+      id,
+      workspaceId: team.id
+    }
+  });
+
+  if (!material) {
+    throw new Error("Material not found or unauthorized");
+  }
+
+  await db.material.update({
+    where: { id },
+    data: {
       title: requiredString(formData, "title", "Title"),
       description: optionalString(formData, "description"),
       content: optionalString(formData, "content")
-    })
-    .eq("id", id)
-    .eq("team_id", team.id);
-
-  if (error) {
-    throw new Error(error.message);
-  }
+    }
+  });
 
   revalidatePath("/materials");
 }
 
 export async function deleteMaterial(formData: FormData) {
-  const { supabase, team } = await requireActiveTeam();
+  const { team } = await requireActiveTeam();
   const id = requiredString(formData, "id", "Material");
 
-  const { error } = await supabase
-    .from("materials")
-    .delete()
-    .eq("id", id)
-    .eq("team_id", team.id);
+  const material = await db.material.findFirst({
+    where: {
+      id,
+      workspaceId: team.id
+    }
+  });
 
-  if (error) {
-    throw new Error(error.message);
+  if (!material) {
+    throw new Error("Material not found or unauthorized");
   }
+
+  await db.material.delete({
+    where: { id }
+  });
 
   revalidatePath("/materials");
 }
@@ -2074,48 +2042,51 @@ function tacticRosterElements(players: TacticRosterPlayer[]) {
 }
 
 export async function createTacticBoard(formData: FormData) {
-  const { supabase, user, team } = await requireActiveTeam();
+  const { user, team } = await requireActiveTeam();
 
-  const { data: players, error: playersError } = await supabase
-    .from("players")
-    .select("id,name,position,jersey_number")
-    .eq("team_id", team.id)
-    .order("jersey_number", { ascending: true, nullsFirst: false })
-    .order("name", { ascending: true });
-
-  if (playersError) {
-    throw new Error(playersError.message);
-  }
-
-  const { error } = await supabase.from("tactic_boards").insert({
-    team_id: team.id,
-    user_id: user.id,
-    title: requiredString(formData, "title", "Board title"),
-    description: optionalString(formData, "description"),
-    elements: {
-      version: 2,
-      scenes: [
-        {
-          id: "scene-1",
-          name: "Grundformation",
-          elements: [
-            ...tacticRosterElements(players ?? []),
-            { id: "ball", type: "ball", label: "", x: 53, y: 58 }
-          ]
-        }
-      ]
-    }
+  const players = await db.player.findMany({
+    where: { workspaceId: team.id },
+    select: { id: true, name: true, position: true, jerseyNumber: true },
+    orderBy: [
+      { jerseyNumber: "asc" },
+      { name: "asc" }
+    ]
   });
 
-  if (error) {
-    throw new Error(error.message);
-  }
+  const mappedPlayers = players.map(p => ({
+    id: p.id,
+    name: p.name,
+    position: p.position,
+    jersey_number: p.jerseyNumber
+  }));
+
+  await db.tacticBoard.create({
+    data: {
+      workspaceId: team.id,
+      userId: user.id,
+      title: requiredString(formData, "title", "Board title"),
+      description: optionalString(formData, "description"),
+      elements: {
+        version: 2,
+        scenes: [
+          {
+            id: "scene-1",
+            name: "Grundformation",
+            elements: [
+              ...tacticRosterElements(mappedPlayers),
+              { id: "ball", type: "ball", label: "", x: 53, y: 58 }
+            ]
+          }
+        ]
+      }
+    }
+  });
 
   revalidatePath("/tactics");
 }
 
 export async function saveTacticBoard(formData: FormData) {
-  const { supabase, team } = await requireActiveTeam();
+  const { team } = await requireActiveTeam();
   const id = requiredString(formData, "id", "Tactic board");
   const elementsRaw = requiredString(formData, "elements", "Board elements");
 
@@ -2126,76 +2097,86 @@ export async function saveTacticBoard(formData: FormData) {
     throw new Error("Board elements are invalid.");
   }
 
-  const { error } = await supabase
-    .from("tactic_boards")
-    .update({
+  const board = await db.tacticBoard.findFirst({
+    where: { id, workspaceId: team.id }
+  });
+
+  if (!board) {
+    throw new Error("Tactic board not found or unauthorized.");
+  }
+
+  await db.tacticBoard.update({
+    where: { id },
+    data: {
       title: requiredString(formData, "title", "Board title"),
       description: optionalString(formData, "description"),
-      elements: elements as Json
-    })
-    .eq("id", id)
-    .eq("team_id", team.id);
-
-  if (error) {
-    throw new Error(error.message);
-  }
+      elements: elements as any
+    }
+  });
 
   revalidatePath("/tactics");
 }
 
 export async function createTask(formData: FormData) {
-  const { supabase, user, team } = await requireActiveTeam();
+  const { user, team } = await requireActiveTeam();
+  const dueDateStr = optionalString(formData, "due_date");
 
-  const { error } = await supabase.from("tasks").insert({
-    team_id: team.id,
-    user_id: user.id,
-    title: requiredString(formData, "title", "Task"),
-    due_date: optionalString(formData, "due_date"),
-    related_type: optionalString(formData, "related_type")
+  await db.task.create({
+    data: {
+      workspaceId: team.id,
+      userId: user.id,
+      title: requiredString(formData, "title", "Task"),
+      dueDate: dueDateStr ? new Date(dueDateStr) : null,
+      relatedType: optionalString(formData, "related_type")
+    }
   });
-
-  if (error) {
-    throw new Error(error.message);
-  }
 
   revalidatePath("/");
   revalidatePath("/pitch");
 }
 
 export async function toggleTask(formData: FormData) {
-  const { supabase, team } = await requireActiveTeam();
+  const { team } = await requireActiveTeam();
   const id = requiredString(formData, "id", "Task");
   const status = enumValue(formData, "status", ["open", "done"] as const);
 
-  const { error } = await supabase
-    .from("tasks")
-    .update({ status: status === "done" ? "open" : "done" })
-    .eq("id", id)
-    .eq("team_id", team.id);
+  const task = await db.task.findFirst({
+    where: { id, workspaceId: team.id }
+  });
 
-  if (error) {
-    throw new Error(error.message);
+  if (!task) {
+    throw new Error("Task not found or unauthorized.");
   }
+
+  await db.task.update({
+    where: { id },
+    data: { status: status === "done" ? "open" : "done" }
+  });
 
   revalidatePath("/");
   revalidatePath("/pitch");
 }
 
 export async function addFeedback(formData: FormData) {
-  const { supabase, user, team } = await requireActiveTeam();
+  const { team } = await requireActiveTeam();
   const playerId = requiredString(formData, "player_id", "Player");
 
-  const { error } = await supabase.from("player_feedback").insert({
-    team_id: team.id,
-    user_id: user.id,
-    player_id: playerId,
-    rating: requiredRating(formData),
-    notes: optionalString(formData, "notes")
+  const player = await db.player.findFirst({
+    where: { id: playerId, workspaceId: team.id }
   });
 
-  if (error) {
-    throw new Error(error.message);
+  if (!player) {
+    throw new Error("Player not found or unauthorized.");
   }
+
+  await db.playerFeedback.create({
+    data: {
+      workspaceId: team.id,
+      playerId: playerId,
+      rating: requiredRating(formData),
+      notes: optionalString(formData, "notes")
+    }
+  });
 
   revalidatePath("/");
   revalidatePath("/players");
@@ -2203,7 +2184,7 @@ export async function addFeedback(formData: FormData) {
 }
 
 export async function addWinnerPoints(formData: FormData) {
-  const { supabase, user, team } = await requireActiveTeam();
+  const { team } = await requireActiveTeam();
   const playerId = requiredString(formData, "player_id", "Player");
   const contextType = enumValue(formData, "context_type", [
     "training",
@@ -2222,21 +2203,33 @@ export async function addWinnerPoints(formData: FormData) {
     throw new Error("Winnerpunkte must be between 1 and 50.");
   }
 
-  const { error } = await supabase.from("winner_points").insert({
-    team_id: team.id,
-    user_id: user.id,
-    player_id: playerId,
-    context_type: contextType,
-    context_id: optionalString(formData, "context_id"),
-    context_label: optionalString(formData, "context_label"),
-    points,
-    reason: optionalString(formData, "reason"),
-    awarded_at: optionalString(formData, "awarded_at") ?? new Date().toISOString().slice(0, 10)
+  const awardedAtStr = optionalString(formData, "awarded_at") ?? new Date().toISOString().slice(0, 10);
+  const dateObj = new Date(`${awardedAtStr}T00:00:00`);
+
+  const contextMap: Record<WinnerPointContextType, "TRAINING" | "MATCH" | "EVENT"> = {
+    training: "TRAINING",
+    monday_training: "TRAINING",
+    match: "MATCH",
+    event: "EVENT",
+    other: "EVENT"
+  };
+
+  await db.winnerPoint.create({
+    data: {
+      workspaceId: team.id,
+      playerId,
+      context: contextMap[contextType] ?? "TRAINING",
+      contextType,
+      contextId: optionalString(formData, "context_id"),
+      contextLabel: optionalString(formData, "context_label"),
+      points,
+      reason: optionalString(formData, "reason"),
+      date: dateObj,
+      awardedAt: dateObj
+    }
   });
 
-  if (error) {
-    throw new Error(error.message);
-  }
+  await cacheDel(`leaderboard:${team.id}:points`);
 
   revalidatePath("/");
   revalidatePath("/winnerpunkte");
@@ -2246,7 +2239,7 @@ export async function addWinnerPoints(formData: FormData) {
 }
 
 export async function updateWinnerPoints(formData: FormData) {
-  const { supabase, team } = await requireActiveTeam();
+  const { team } = await requireActiveTeam();
   const id = requiredString(formData, "id", "Winnerpunkte");
   const playerId = requiredString(formData, "player_id", "Player");
   const contextType = enumValue(formData, "context_type", [
@@ -2266,25 +2259,44 @@ export async function updateWinnerPoints(formData: FormData) {
     throw new Error("Winnerpunkte must be between 1 and 50.");
   }
 
-  const { error } = await supabase
-    .from("winner_points")
-    .update({
-      player_id: playerId,
-      context_type: contextType,
-      context_id: optionalString(formData, "context_id"),
-      context_label: optionalString(formData, "context_label"),
+  const awardedAtStr = optionalString(formData, "awarded_at") ?? new Date().toISOString().slice(0, 10);
+  const dateObj = new Date(`${awardedAtStr}T00:00:00`);
+
+  const contextMap: Record<WinnerPointContextType, "TRAINING" | "MATCH" | "EVENT"> = {
+    training: "TRAINING",
+    monday_training: "TRAINING",
+    match: "MATCH",
+    event: "EVENT",
+    other: "EVENT"
+  };
+
+  const wp = await db.winnerPoint.findFirst({
+    where: {
+      id,
+      workspaceId: team.id
+    }
+  });
+
+  if (!wp) {
+    throw new Error("WinnerPoint not found.");
+  }
+
+  await db.winnerPoint.update({
+    where: { id },
+    data: {
+      playerId,
+      context: contextMap[contextType] ?? "TRAINING",
+      contextType,
+      contextId: optionalString(formData, "context_id"),
+      contextLabel: optionalString(formData, "context_label"),
       points,
       reason: optionalString(formData, "reason"),
-      awarded_at:
-        optionalString(formData, "awarded_at") ??
-        new Date().toISOString().slice(0, 10)
-    })
-    .eq("id", id)
-    .eq("team_id", team.id);
+      date: dateObj,
+      awardedAt: dateObj
+    }
+  });
 
-  if (error) {
-    throw new Error(error.message);
-  }
+  await cacheDel(`leaderboard:${team.id}:points`);
 
   revalidatePath("/");
   revalidatePath("/winnerpunkte");
@@ -2294,19 +2306,26 @@ export async function updateWinnerPoints(formData: FormData) {
 }
 
 export async function deleteWinnerPoints(formData: FormData) {
-  const { supabase, team } = await requireActiveTeam();
+  const { team } = await requireActiveTeam();
   const id = requiredString(formData, "id", "Winnerpunkte");
   const playerId = optionalString(formData, "player_id");
 
-  const { error } = await supabase
-    .from("winner_points")
-    .delete()
-    .eq("id", id)
-    .eq("team_id", team.id);
+  const wp = await db.winnerPoint.findFirst({
+    where: {
+      id,
+      workspaceId: team.id
+    }
+  });
 
-  if (error) {
-    throw new Error(error.message);
+  if (!wp) {
+    throw new Error("WinnerPoint not found.");
   }
+
+  await db.winnerPoint.delete({
+    where: { id }
+  });
+
+  await cacheDel(`leaderboard:${team.id}:points`);
 
   revalidatePath("/");
   revalidatePath("/winnerpunkte");
@@ -2318,7 +2337,7 @@ export async function deleteWinnerPoints(formData: FormData) {
 }
 
 export async function createExternalLink(formData: FormData) {
-  const { supabase, user, team } = await requireActiveTeam();
+  const { user, team } = await requireActiveTeam();
   const linkType = enumValue(formData, "link_type", [
     "clubcorner",
     "player_stats",
@@ -2336,19 +2355,17 @@ export async function createExternalLink(formData: FormData) {
   const url = normalizeExternalUrl(rawUrl);
   const playerId = optionalString(formData, "player_id");
 
-  const { error } = await supabase.from("external_links").insert({
-    team_id: team.id,
-    user_id: user.id,
-    player_id: playerId,
-    link_type: linkType,
-    title: requiredString(formData, "title", "Title"),
-    url,
-    notes: optionalString(formData, "notes")
+  await db.externalLink.create({
+    data: {
+      workspaceId: team.id,
+      userId: user.id,
+      playerId: playerId || null,
+      linkType: linkType,
+      title: requiredString(formData, "title", "Title"),
+      url,
+      notes: optionalString(formData, "notes")
+    }
   });
-
-  if (error) {
-    throw new Error(error.message);
-  }
 
   revalidatePath("/clubcorner");
   revalidatePath("/players");
@@ -2358,7 +2375,7 @@ export async function createExternalLink(formData: FormData) {
 }
 
 export async function updateExternalLink(formData: FormData) {
-  const { supabase, team } = await requireActiveTeam();
+  const { team } = await requireActiveTeam();
   const id = requiredString(formData, "id", "Link");
   const linkType = enumValue(formData, "link_type", [
     "clubcorner",
@@ -2374,21 +2391,24 @@ export async function updateExternalLink(formData: FormData) {
     throw new Error("Link type is required.");
   }
 
-  const { error } = await supabase
-    .from("external_links")
-    .update({
-      player_id: playerId,
-      link_type: linkType,
+  const existing = await db.externalLink.findFirst({
+    where: { id, workspaceId: team.id }
+  });
+
+  if (!existing) {
+    throw new Error("Link not found or unauthorized.");
+  }
+
+  await db.externalLink.update({
+    where: { id },
+    data: {
+      playerId: playerId || null,
+      linkType: linkType,
       title: requiredString(formData, "title", "Title"),
       url: normalizeExternalUrl(requiredString(formData, "url", "URL")),
       notes: optionalString(formData, "notes")
-    })
-    .eq("id", id)
-    .eq("team_id", team.id);
-
-  if (error) {
-    throw new Error(error.message);
-  }
+    }
+  });
 
   revalidatePath("/clubcorner");
   revalidatePath("/players");
@@ -2398,19 +2418,21 @@ export async function updateExternalLink(formData: FormData) {
 }
 
 export async function deleteExternalLink(formData: FormData) {
-  const { supabase, team } = await requireActiveTeam();
+  const { team } = await requireActiveTeam();
   const id = requiredString(formData, "id", "Link");
   const playerId = optionalString(formData, "player_id");
 
-  const { error } = await supabase
-    .from("external_links")
-    .delete()
-    .eq("id", id)
-    .eq("team_id", team.id);
+  const existing = await db.externalLink.findFirst({
+    where: { id, workspaceId: team.id }
+  });
 
-  if (error) {
-    throw new Error(error.message);
+  if (!existing) {
+    throw new Error("Link not found or unauthorized.");
   }
+
+  await db.externalLink.delete({
+    where: { id }
+  });
 
   revalidatePath("/clubcorner");
   revalidatePath("/players");
@@ -2420,7 +2442,7 @@ export async function deleteExternalLink(formData: FormData) {
 }
 
 export async function savePlayerEvaluation(formData: FormData) {
-  const { supabase, user, team } = await requireActiveTeam();
+  const { user, team } = await requireActiveTeam();
   const playerId = requiredString(formData, "player_id", "Player");
   const contextType = enumValue(formData, "context_type", [
     "training",
@@ -2465,11 +2487,44 @@ export async function savePlayerEvaluation(formData: FormData) {
     throw new Error("At least one score is required.");
   }
 
-  const { error } = await supabase.from("player_evaluations").insert(row);
+  const scores = [
+    row.participation,
+    row.motivation,
+    row.training_quality,
+    row.match_quality,
+    row.behavior,
+    row.effort,
+    row.concentration
+  ].filter((v): v is number => v !== null);
+  const average = scores.length > 0 ? scores.reduce((sum, v) => sum + v, 0) / scores.length : null;
 
-  if (error) {
-    throw new Error(error.message);
+  let contextEnum: "TRAINING" | "MATCH" | "EVENT" = "TRAINING";
+  if (contextType === "match") {
+    contextEnum = "MATCH";
+  } else if (contextType === "event") {
+    contextEnum = "EVENT";
   }
+
+  await db.rating.create({
+    data: {
+      playerId: row.player_id,
+      raterId: row.user_id,
+      date: new Date(row.evaluation_date),
+      context: contextEnum,
+      contextType: row.context_type,
+      contextId: row.context_id,
+      contextLabel: row.context_label,
+      participation: row.participation,
+      motivation: row.motivation,
+      trainingQuality: row.training_quality,
+      matchQuality: row.match_quality,
+      behavior: row.behavior,
+      effort: row.effort,
+      concentration: row.concentration,
+      notes: row.notes,
+      average: average,
+    }
+  });
 
   revalidatePath("/");
   revalidatePath("/evaluations");
@@ -2480,7 +2535,7 @@ export async function savePlayerEvaluation(formData: FormData) {
 }
 
 export async function updatePlayerEvaluation(formData: FormData) {
-  const { supabase, team } = await requireActiveTeam();
+  const { team } = await requireActiveTeam();
   const id = requiredString(formData, "id", "Evaluation");
   const playerId = requiredString(formData, "player_id", "Player");
   const contextType = enumValue(formData, "context_type", [
@@ -2526,15 +2581,57 @@ export async function updatePlayerEvaluation(formData: FormData) {
     throw new Error("At least one score is required.");
   }
 
-  const { error } = await supabase
-    .from("player_evaluations")
-    .update(row)
-    .eq("id", id)
-    .eq("team_id", team.id);
+  const rating = await db.rating.findFirst({
+    where: {
+      id,
+      player: {
+        workspaceId: team.id
+      }
+    }
+  });
 
-  if (error) {
-    throw new Error(error.message);
+  if (!rating) {
+    throw new Error("Evaluation not found or unauthorized");
   }
+
+  const scores = [
+    row.participation,
+    row.motivation,
+    row.training_quality,
+    row.match_quality,
+    row.behavior,
+    row.effort,
+    row.concentration
+  ].filter((v): v is number => v !== null);
+  const average = scores.length > 0 ? scores.reduce((sum, v) => sum + v, 0) / scores.length : null;
+
+  let contextEnum: "TRAINING" | "MATCH" | "EVENT" = "TRAINING";
+  if (contextType === "match") {
+    contextEnum = "MATCH";
+  } else if (contextType === "event") {
+    contextEnum = "EVENT";
+  }
+
+  await db.rating.update({
+    where: { id },
+    data: {
+      playerId: row.player_id,
+      date: new Date(row.evaluation_date),
+      context: contextEnum,
+      contextType: row.context_type,
+      contextId: row.context_id,
+      contextLabel: row.context_label,
+      participation: row.participation,
+      motivation: row.motivation,
+      trainingQuality: row.training_quality,
+      matchQuality: row.match_quality,
+      behavior: row.behavior,
+      effort: row.effort,
+      concentration: row.concentration,
+      notes: row.notes,
+      average: average,
+    }
+  });
 
   revalidatePath("/");
   revalidatePath("/evaluations");
@@ -2545,19 +2642,26 @@ export async function updatePlayerEvaluation(formData: FormData) {
 }
 
 export async function deletePlayerEvaluation(formData: FormData) {
-  const { supabase, team } = await requireActiveTeam();
+  const { team } = await requireActiveTeam();
   const id = requiredString(formData, "id", "Evaluation");
   const playerId = optionalString(formData, "player_id");
 
-  const { error } = await supabase
-    .from("player_evaluations")
-    .delete()
-    .eq("id", id)
-    .eq("team_id", team.id);
+  const rating = await db.rating.findFirst({
+    where: {
+      id,
+      player: {
+        workspaceId: team.id
+      }
+    }
+  });
 
-  if (error) {
-    throw new Error(error.message);
+  if (!rating) {
+    throw new Error("Evaluation not found or unauthorized");
   }
+
+  await db.rating.delete({
+    where: { id }
+  });
 
   revalidatePath("/");
   revalidatePath("/evaluations");
@@ -2570,7 +2674,7 @@ export async function deletePlayerEvaluation(formData: FormData) {
 }
 
 export async function saveHealthCheckin(formData: FormData) {
-  const { supabase, user, team } = await requireActiveTeam();
+  const { team } = await requireActiveTeam();
   const playerId = requiredString(formData, "player_id", "Player");
   const contextType = enumValue(formData, "context_type", [
     "training",
@@ -2578,30 +2682,72 @@ export async function saveHealthCheckin(formData: FormData) {
     "free"
   ] as const) as HealthContextType | null;
 
-  const row = {
-    team_id: team.id,
-    user_id: user.id,
-    player_id: playerId,
-    checkin_date: optionalString(formData, "checkin_date") ?? new Date().toISOString().slice(0, 10),
-    context_type: contextType ?? "training",
-    fatigue: scaleFive(formData, "fatigue", "Fatigue"),
-    sleep_quality: scaleFive(formData, "sleep_quality", "Sleep quality"),
-    soreness: scaleFive(formData, "soreness", "Soreness"),
-    pain: scaleFive(formData, "pain", "Pain"),
-    stress: scaleFive(formData, "stress", "Stress"),
-    motivation: scaleFive(formData, "motivation", "Motivation"),
-    energy: scaleFive(formData, "energy", "Energy"),
-    injury_feeling: scaleFive(formData, "injury_feeling", "Injury feeling"),
-    wellbeing: scaleFive(formData, "wellbeing", "Wellbeing"),
-    notes: optionalString(formData, "notes")
-  };
+  const checkinDateStr = optionalString(formData, "checkin_date") ?? new Date().toISOString().slice(0, 10);
+  const parsedDate = new Date(checkinDateStr);
+  const typeStr = contextType ?? "training";
 
-  const { error } = await supabase
-    .from("health_checkins")
-    .upsert(row, { onConflict: "player_id,checkin_date,context_type" });
+  const fatigue = scaleFive(formData, "fatigue", "Fatigue");
+  const sleep_quality = scaleFive(formData, "sleep_quality", "Sleep quality");
+  const soreness = scaleFive(formData, "soreness", "Soreness");
+  const pain = scaleFive(formData, "pain", "Pain");
+  const stress = scaleFive(formData, "stress", "Stress");
+  const motivation = scaleFive(formData, "motivation", "Motivation");
+  const energy = scaleFive(formData, "energy", "Energy");
+  const injury_feeling = scaleFive(formData, "injury_feeling", "Injury feeling");
+  const wellbeing = scaleFive(formData, "wellbeing", "Wellbeing");
+  const notes = optionalString(formData, "notes");
 
-  if (error) {
-    throw new Error(error.message);
+  const contextEnum =
+    typeStr === "match"
+      ? "PRE_MATCH"
+      : typeStr === "training"
+      ? "PRE_TRAINING"
+      : "PRE_TRAINING";
+
+  const existing = await db.healthCheck.findFirst({
+    where: {
+      playerId,
+      date: parsedDate,
+      contextType: typeStr
+    }
+  });
+
+  if (existing) {
+    await db.healthCheck.update({
+      where: { id: existing.id },
+      data: {
+        fatigue,
+        sleepQuality: sleep_quality,
+        soreness,
+        pain,
+        stress,
+        motivation,
+        energy,
+        injuryFeeling: injury_feeling,
+        wellbeing,
+        notes,
+        context: contextEnum
+      }
+    });
+  } else {
+    await db.healthCheck.create({
+      data: {
+        playerId,
+        date: parsedDate,
+        contextType: typeStr,
+        fatigue,
+        sleepQuality: sleep_quality,
+        soreness,
+        pain,
+        stress,
+        motivation,
+        energy,
+        injuryFeeling: injury_feeling,
+        wellbeing,
+        notes,
+        context: contextEnum
+      }
+    });
   }
 
   revalidatePath("/");
@@ -2611,7 +2757,7 @@ export async function saveHealthCheckin(formData: FormData) {
 }
 
 export async function updateHealthCheckin(formData: FormData) {
-  const { supabase, team } = await requireActiveTeam();
+  const { team } = await requireActiveTeam();
   const id = requiredString(formData, "id", "Health check-in");
   const playerId = requiredString(formData, "player_id", "Player");
   const contextType = enumValue(formData, "context_type", [
@@ -2620,31 +2766,60 @@ export async function updateHealthCheckin(formData: FormData) {
     "free"
   ] as const) as HealthContextType | null;
 
-  const { error } = await supabase
-    .from("health_checkins")
-    .update({
-      player_id: playerId,
-      checkin_date:
-        optionalString(formData, "checkin_date") ??
-        new Date().toISOString().slice(0, 10),
-      context_type: contextType ?? "training",
-      fatigue: scaleFive(formData, "fatigue", "Fatigue"),
-      sleep_quality: scaleFive(formData, "sleep_quality", "Sleep quality"),
-      soreness: scaleFive(formData, "soreness", "Soreness"),
-      pain: scaleFive(formData, "pain", "Pain"),
-      stress: scaleFive(formData, "stress", "Stress"),
-      motivation: scaleFive(formData, "motivation", "Motivation"),
-      energy: scaleFive(formData, "energy", "Energy"),
-      injury_feeling: scaleFive(formData, "injury_feeling", "Injury feeling"),
-      wellbeing: scaleFive(formData, "wellbeing", "Wellbeing"),
-      notes: optionalString(formData, "notes")
-    })
-    .eq("id", id)
-    .eq("team_id", team.id);
+  const checkinDateStr = optionalString(formData, "checkin_date") ?? new Date().toISOString().slice(0, 10);
+  const parsedDate = new Date(checkinDateStr);
+  const typeStr = contextType ?? "training";
 
-  if (error) {
-    throw new Error(error.message);
+  const checkin = await db.healthCheck.findFirst({
+    where: {
+      id,
+      player: {
+        workspaceId: team.id
+      }
+    }
+  });
+
+  if (!checkin) {
+    throw new Error("Health check-in not found or unauthorized");
   }
+
+  const fatigue = scaleFive(formData, "fatigue", "Fatigue");
+  const sleep_quality = scaleFive(formData, "sleep_quality", "Sleep quality");
+  const soreness = scaleFive(formData, "soreness", "Soreness");
+  const pain = scaleFive(formData, "pain", "Pain");
+  const stress = scaleFive(formData, "stress", "Stress");
+  const motivation = scaleFive(formData, "motivation", "Motivation");
+  const energy = scaleFive(formData, "energy", "Energy");
+  const injury_feeling = scaleFive(formData, "injury_feeling", "Injury feeling");
+  const wellbeing = scaleFive(formData, "wellbeing", "Wellbeing");
+  const notes = optionalString(formData, "notes");
+
+  const contextEnum =
+    typeStr === "match"
+      ? "PRE_MATCH"
+      : typeStr === "training"
+      ? "PRE_TRAINING"
+      : "PRE_TRAINING";
+
+  await db.healthCheck.update({
+    where: { id },
+    data: {
+      playerId,
+      date: parsedDate,
+      contextType: typeStr,
+      fatigue,
+      sleepQuality: sleep_quality,
+      soreness,
+      pain,
+      stress,
+      motivation,
+      energy,
+      injuryFeeling: injury_feeling,
+      wellbeing,
+      notes,
+      context: contextEnum
+    }
+  });
 
   revalidatePath("/");
   revalidatePath("/health");
@@ -2653,19 +2828,26 @@ export async function updateHealthCheckin(formData: FormData) {
 }
 
 export async function deleteHealthCheckin(formData: FormData) {
-  const { supabase, team } = await requireActiveTeam();
+  const { team } = await requireActiveTeam();
   const id = requiredString(formData, "id", "Health check-in");
   const playerId = optionalString(formData, "player_id");
 
-  const { error } = await supabase
-    .from("health_checkins")
-    .delete()
-    .eq("id", id)
-    .eq("team_id", team.id);
+  const checkin = await db.healthCheck.findFirst({
+    where: {
+      id,
+      player: {
+        workspaceId: team.id
+      }
+    }
+  });
 
-  if (error) {
-    throw new Error(error.message);
+  if (!checkin) {
+    throw new Error("Health check-in not found or unauthorized");
   }
+
+  await db.healthCheck.delete({
+    where: { id }
+  });
 
   revalidatePath("/");
   revalidatePath("/health");
@@ -2676,7 +2858,7 @@ export async function deleteHealthCheckin(formData: FormData) {
 }
 
 export async function createCoachMessage(formData: FormData) {
-  const { supabase, user, team } = await requireActiveTeam();
+  const { user, team } = await requireActiveTeam();
   const playerId = requiredString(formData, "player_id", "Player");
   const body = requiredString(formData, "body", "Body");
   const title = optionalString(formData, "title");
@@ -2687,37 +2869,38 @@ export async function createCoachMessage(formData: FormData) {
     "praise"
   ] as const) ?? "note") as CoachMessageCategory;
 
-  const { error } = await supabase.from("coach_messages").insert({
-    team_id: team.id,
-    player_id: playerId,
-    created_by: user.id,
-    category,
-    title,
-    body
-  });
+  const fullBody = title ? `**${title}**\n\n${body}` : body;
 
-  if (error) {
-    throw new Error(error.message);
-  }
+  await db.coachMessage.create({
+    data: {
+      workspaceId: team.id,
+      playerId,
+      userId: user.id,
+      category,
+      body: fullBody
+    }
+  });
 
   revalidatePath(`/players/${playerId}`);
   revalidatePath("/");
 }
 
 export async function deleteCoachMessage(formData: FormData) {
-  const { supabase, team } = await requireActiveTeam();
+  const { team } = await requireActiveTeam();
   const id = requiredString(formData, "id", "Message");
   const playerId = optionalString(formData, "player_id");
 
-  const { error } = await supabase
-    .from("coach_messages")
-    .delete()
-    .eq("id", id)
-    .eq("team_id", team.id);
+  const message = await db.coachMessage.findFirst({
+    where: { id, workspaceId: team.id }
+  });
 
-  if (error) {
-    throw new Error(error.message);
+  if (!message) {
+    throw new Error("Message not found or unauthorized.");
   }
+
+  await db.coachMessage.delete({
+    where: { id }
+  });
 
   if (playerId) {
     revalidatePath(`/players/${playerId}`);
@@ -2726,32 +2909,59 @@ export async function deleteCoachMessage(formData: FormData) {
 }
 
 export async function saveMatchAnalysis(formData: FormData) {
-  const { supabase, user, team } = await requireActiveTeam();
+  const { team } = await requireActiveTeam();
   const matchId = requiredString(formData, "match_id", "Match");
 
-  const { error } = await supabase.from("match_analyses").upsert(
-    {
-      team_id: team.id,
-      user_id: user.id,
-      match_id: matchId,
-      opponent_analysis: optionalString(formData, "opponent_analysis"),
-      match_preparation: optionalString(formData, "match_preparation"),
-      match_targets: optionalString(formData, "match_targets"),
-      lineup_notes: optionalString(formData, "lineup_notes"),
-      went_well: optionalString(formData, "went_well"),
-      needs_work: optionalString(formData, "needs_work"),
-      key_moments: optionalString(formData, "key_moments"),
-      individual_performances: optionalString(formData, "individual_performances"),
-      team_performance: optionalString(formData, "team_performance"),
-      tactical_lessons: optionalString(formData, "tactical_lessons"),
-      next_training_focus: optionalString(formData, "next_training_focus")
-    },
-    { onConflict: "match_id" }
-  );
+  const match = await db.match.findFirst({
+    where: { id: matchId, workspaceId: team.id }
+  });
 
-  if (error) {
-    throw new Error(error.message);
+  if (!match) {
+    throw new Error("Match not found or unauthorized.");
   }
+
+  const opponentAnalysis = optionalString(formData, "opponent_analysis");
+  const preparation = optionalString(formData, "match_preparation");
+  const matchTargets = optionalString(formData, "match_targets");
+  const lineupNotes = optionalString(formData, "lineup_notes");
+  const wentWell = optionalString(formData, "went_well");
+  const needsWork = optionalString(formData, "needs_work");
+  const keyMoments = optionalString(formData, "key_moments");
+  const individualPerformances = optionalString(formData, "individual_performances");
+  const teamPerformance = optionalString(formData, "team_performance");
+  const tacticalLessons = optionalString(formData, "tactical_lessons");
+  const nextTrainingFocus = optionalString(formData, "next_training_focus");
+
+  await db.matchAnalysis.upsert({
+    where: { matchId },
+    create: {
+      matchId,
+      opponentAnalysis,
+      preparation,
+      matchTargets,
+      lineupNotes,
+      wentWell,
+      needsWork,
+      keyMoments,
+      individualPerformances,
+      teamPerformance,
+      tacticalLessons,
+      nextTrainingFocus
+    },
+    update: {
+      opponentAnalysis,
+      preparation,
+      matchTargets,
+      lineupNotes,
+      wentWell,
+      needsWork,
+      keyMoments,
+      individualPerformances,
+      teamPerformance,
+      tacticalLessons,
+      nextTrainingFocus
+    }
+  });
 
   revalidatePath("/analysis");
   revalidatePath("/matches");
@@ -2772,7 +2982,7 @@ function looksLikeMatchImportHeader(line: string) {
 }
 
 export async function importMatches(formData: FormData) {
-  const { supabase, user, team } = await requireActiveTeam();
+  const { user, team } = await requireActiveTeam();
   const uploaded = formData.get("matches_file");
   let raw = optionalString(formData, "matches_csv") ?? "";
 
@@ -2804,19 +3014,18 @@ export async function importMatches(formData: FormData) {
 
     return [
       {
-        team_id: team.id,
-        user_id: user.id,
-        date,
+        workspaceId: team.id,
+        userId: user.id,
+        date: new Date(date),
         opponent,
-        kickoff_time: kickoffTime || null,
+        kickoffTime: kickoffTime || null,
         location: location || null,
-        home_away: (["home", "away", "neutral"].includes(homeAway)
+        home: homeAway === "home",
+        homeAway: (["home", "away", "neutral"].includes(homeAway)
           ? homeAway
-          : null) as HomeAway | null,
+          : null),
         competition: competition || null,
-        result: result || null,
-        team_category: category || team.age_group,
-        upload_source: "manual_import"
+        result: result || null
       }
     ];
   });
@@ -2825,11 +3034,9 @@ export async function importMatches(formData: FormData) {
     throw new Error("No valid matches found in import.");
   }
 
-  const { error } = await supabase.from("matches").insert(rows);
-
-  if (error) {
-    throw new Error(error.message);
-  }
+  await db.match.createMany({
+    data: rows
+  });
 
   revalidatePath("/");
   revalidatePath("/calendar");
@@ -2838,73 +3045,84 @@ export async function importMatches(formData: FormData) {
 }
 
 export async function createMondayTraining(formData: FormData) {
-  const { supabase, user, team } = await requireActiveTeam();
+  const { user, team } = await requireActiveTeam();
 
-  const { error } = await supabase.from("monday_trainings").insert({
-    team_id: team.id,
-    user_id: user.id,
-    date: requiredString(formData, "date", "Date"),
-    topic: requiredString(formData, "topic", "Topic"),
-    goal: optionalString(formData, "goal"),
-    duration_minutes: optionalNumber(formData, "duration_minutes"),
-    staff_notes: optionalString(formData, "staff_notes"),
-    sandu_notes: optionalString(formData, "sandu_notes")
+  await db.mondayTraining.create({
+    data: {
+      workspaceId: team.id,
+      userId: user.id,
+      date: new Date(requiredString(formData, "date", "Date")),
+      topic: requiredString(formData, "topic", "Topic"),
+      goal: optionalString(formData, "goal"),
+      durationMinutes: optionalNumber(formData, "duration_minutes"),
+      staffNotes: optionalString(formData, "staff_notes"),
+      sanduNotes: optionalString(formData, "sandu_notes")
+    }
   });
-
-  if (error) {
-    throw new Error(error.message);
-  }
 
   revalidatePath("/monday");
 }
 
 export async function updateMondayTraining(formData: FormData) {
-  const { supabase, team } = await requireActiveTeam();
+  const { team } = await requireActiveTeam();
   const id = requiredString(formData, "id", "Monday training");
 
-  const { error } = await supabase
-    .from("monday_trainings")
-    .update({
-      date: requiredString(formData, "date", "Date"),
+  const training = await db.mondayTraining.findFirst({
+    where: { id, workspaceId: team.id }
+  });
+
+  if (!training) {
+    throw new Error("Monday training not found or unauthorized.");
+  }
+
+  await db.mondayTraining.update({
+    where: { id },
+    data: {
+      date: new Date(requiredString(formData, "date", "Date")),
       topic: requiredString(formData, "topic", "Topic"),
       goal: optionalString(formData, "goal"),
-      duration_minutes: optionalNumber(formData, "duration_minutes"),
-      staff_notes: optionalString(formData, "staff_notes"),
-      sandu_notes: optionalString(formData, "sandu_notes")
-    })
-    .eq("id", id)
-    .eq("team_id", team.id);
-
-  if (error) {
-    throw new Error(error.message);
-  }
+      durationMinutes: optionalNumber(formData, "duration_minutes"),
+      staffNotes: optionalString(formData, "staff_notes"),
+      sanduNotes: optionalString(formData, "sandu_notes")
+    }
+  });
 
   revalidatePath("/monday");
 }
 
 export async function deleteMondayTraining(formData: FormData) {
-  const { supabase, team } = await requireActiveTeam();
+  const { team } = await requireActiveTeam();
   const id = requiredString(formData, "id", "Monday training");
 
-  const { error } = await supabase
-    .from("monday_trainings")
-    .delete()
-    .eq("id", id)
-    .eq("team_id", team.id);
+  const training = await db.mondayTraining.findFirst({
+    where: { id, workspaceId: team.id }
+  });
 
-  if (error) {
-    throw new Error(error.message);
+  if (!training) {
+    throw new Error("Monday training not found or unauthorized.");
   }
+
+  await db.mondayTraining.delete({
+    where: { id }
+  });
 
   revalidatePath("/monday");
 }
 
 export async function saveMondayAttendance(formData: FormData) {
-  const { supabase, user, team } = await requireActiveTeam();
+  const { team } = await requireActiveTeam();
   const mondayTrainingId = requiredString(formData, "monday_training_id", "Monday training");
   const playerIds = formData.getAll("player_id").map(String);
   const presentIds = new Set(formData.getAll("present_player_id").map(String));
   const injuredIds = new Set(formData.getAll("injured_player_id").map(String));
+
+  const training = await db.mondayTraining.findFirst({
+    where: { id: mondayTrainingId, workspaceId: team.id }
+  });
+
+  if (!training) {
+    throw new Error("Monday training not found or unauthorized.");
+  }
 
   const rows = playerIds.map((playerId) => {
     const status: MondayAttendanceStatus = injuredIds.has(playerId)
@@ -2914,59 +3132,62 @@ export async function saveMondayAttendance(formData: FormData) {
         : "absent";
 
     return {
-      team_id: team.id,
-      user_id: user.id,
-      monday_training_id: mondayTrainingId,
-      player_id: playerId,
+      mondayTrainingId,
+      playerId,
       status,
       note: optionalString(formData, `note_${playerId}`)
     };
   });
 
-  if (rows.length > 0) {
-    const { error } = await supabase
-      .from("monday_attendance")
-      .upsert(rows, { onConflict: "monday_training_id,player_id" });
-
-    if (error) {
-      throw new Error(error.message);
-    }
+  for (const row of rows) {
+    await db.mondayAttendance.upsert({
+      where: {
+        mondayTrainingId_playerId: {
+          mondayTrainingId: row.mondayTrainingId,
+          playerId: row.playerId
+        }
+      },
+      create: {
+        mondayTrainingId: row.mondayTrainingId,
+        playerId: row.playerId,
+        status: row.status,
+        note: row.note
+      },
+      update: {
+        status: row.status,
+        note: row.note
+      }
+    });
   }
 
   revalidatePath("/monday");
 }
 
 export async function createPlayerAward(formData: FormData) {
-  const { supabase, user, team } = await requireActiveTeam();
+  const { team } = await requireActiveTeam();
   const playerId = requiredString(formData, "player_id", "Player");
 
-  const { data: latest, error: latestError } = await supabase
-    .from("player_awards")
-    .select("player_id")
-    .eq("team_id", team.id)
-    .order("award_date", { ascending: false })
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (latestError) {
-    throw new Error(latestError.message);
-  }
-
-  const { error } = await supabase.from("player_awards").insert({
-    team_id: team.id,
-    user_id: user.id,
-    player_id: playerId,
-    previous_player_id: optionalString(formData, "previous_player_id") ?? latest?.player_id ?? null,
-    match_id: optionalString(formData, "match_id"),
-    event_label: optionalString(formData, "event_label"),
-    award_date: optionalString(formData, "award_date") ?? new Date().toISOString().slice(0, 10),
-    reason: optionalString(formData, "reason")
+  const latest = await db.award.findFirst({
+    where: { workspaceId: team.id },
+    orderBy: [
+      { date: "desc" },
+      { createdAt: "desc" }
+    ],
+    select: { playerId: true }
   });
 
-  if (error) {
-    throw new Error(error.message);
-  }
+  await db.award.create({
+    data: {
+      workspaceId: team.id,
+      playerId,
+      previousPlayerId: optionalString(formData, "previous_player_id") ?? latest?.playerId ?? null,
+      matchId: optionalString(formData, "match_id") || null,
+      eventLabel: optionalString(formData, "event_label"),
+      event: optionalString(formData, "event_label") ?? "Man of the Week",
+      date: new Date(optionalString(formData, "award_date") ?? new Date().toISOString().slice(0, 10)),
+      reason: optionalString(formData, "reason")
+    }
+  });
 
   revalidatePath("/");
   revalidatePath("/awards");
@@ -2975,28 +3196,30 @@ export async function createPlayerAward(formData: FormData) {
 }
 
 export async function updatePlayerAward(formData: FormData) {
-  const { supabase, team } = await requireActiveTeam();
+  const { team } = await requireActiveTeam();
   const id = requiredString(formData, "id", "Award");
   const playerId = requiredString(formData, "player_id", "Player");
 
-  const { error } = await supabase
-    .from("player_awards")
-    .update({
-      player_id: playerId,
-      previous_player_id: optionalString(formData, "previous_player_id"),
-      match_id: optionalString(formData, "match_id"),
-      event_label: optionalString(formData, "event_label"),
-      award_date:
-        optionalString(formData, "award_date") ??
-        new Date().toISOString().slice(0, 10),
-      reason: optionalString(formData, "reason")
-    })
-    .eq("id", id)
-    .eq("team_id", team.id);
+  const award = await db.award.findFirst({
+    where: { id, workspaceId: team.id }
+  });
 
-  if (error) {
-    throw new Error(error.message);
+  if (!award) {
+    throw new Error("Award not found or unauthorized.");
   }
+
+  await db.award.update({
+    where: { id },
+    data: {
+      playerId,
+      previousPlayerId: optionalString(formData, "previous_player_id") || null,
+      matchId: optionalString(formData, "match_id") || null,
+      eventLabel: optionalString(formData, "event_label"),
+      event: optionalString(formData, "event_label") ?? "Man of the Week",
+      date: new Date(optionalString(formData, "award_date") ?? new Date().toISOString().slice(0, 10)),
+      reason: optionalString(formData, "reason")
+    }
+  });
 
   revalidatePath("/");
   revalidatePath("/awards");
@@ -3005,19 +3228,21 @@ export async function updatePlayerAward(formData: FormData) {
 }
 
 export async function deletePlayerAward(formData: FormData) {
-  const { supabase, team } = await requireActiveTeam();
+  const { team } = await requireActiveTeam();
   const id = requiredString(formData, "id", "Award");
   const playerId = optionalString(formData, "player_id");
 
-  const { error } = await supabase
-    .from("player_awards")
-    .delete()
-    .eq("id", id)
-    .eq("team_id", team.id);
+  const award = await db.award.findFirst({
+    where: { id, workspaceId: team.id }
+  });
 
-  if (error) {
-    throw new Error(error.message);
+  if (!award) {
+    throw new Error("Award not found or unauthorized.");
   }
+
+  await db.award.delete({
+    where: { id }
+  });
 
   revalidatePath("/awards");
   if (playerId) {

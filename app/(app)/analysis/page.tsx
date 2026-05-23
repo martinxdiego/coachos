@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { db } from "@/lib/db";
 import { requireActiveTeam } from "@/lib/auth";
 import { formatDate } from "@/lib/utils";
 
@@ -40,32 +41,63 @@ const fields = [
 ] as const;
 
 export default async function AnalysisPage({ searchParams }: AnalysisPageProps) {
-  const { supabase, team } = await requireActiveTeam();
+  const { team } = await requireActiveTeam();
   const resolvedSearchParams = await searchParams;
-  const [matchesResult, analysesResult] = await Promise.all([
-    supabase
-      .from("matches")
-      .select("id,date,kickoff_time,opponent,result,competition,formation,match_goals,tactical_instructions")
-      .eq("team_id", team.id)
-      .order("date", { ascending: false })
-      .limit(50),
-    supabase
-      .from("match_analyses")
-      .select("*")
-      .eq("team_id", team.id)
-      .order("updated_at", { ascending: false })
+
+  const [matchesData, analysesData] = await Promise.all([
+    db.match.findMany({
+      where: { workspaceId: team.id },
+      select: {
+        id: true,
+        date: true,
+        kickoffTime: true,
+        opponent: true,
+        result: true,
+        competition: true,
+        formation: true,
+        matchGoals: true,
+        tacticalInstructions: true
+      },
+      orderBy: { date: "desc" },
+      take: 50
+    }),
+    db.matchAnalysis.findMany({
+      where: {
+        match: {
+          workspaceId: team.id
+        }
+      }
+    })
   ]);
 
-  if (matchesResult.error) {
-    throw new Error(matchesResult.error.message);
-  }
+  const matches = matchesData.map((m) => ({
+    id: m.id,
+    date: m.date.toISOString().slice(0, 10),
+    kickoff_time: m.kickoffTime,
+    opponent: m.opponent,
+    result: m.result,
+    competition: m.competition,
+    formation: m.formation,
+    match_goals: m.matchGoals,
+    tactical_instructions: m.tacticalInstructions
+  }));
 
-  if (analysesResult.error) {
-    throw new Error(analysesResult.error.message);
-  }
+  const analyses = analysesData.map((a) => ({
+    id: a.id,
+    match_id: a.matchId,
+    opponent_analysis: a.opponentAnalysis,
+    match_preparation: a.preparation,
+    match_targets: a.matchTargets,
+    lineup_notes: a.lineupNotes,
+    went_well: a.wentWell,
+    needs_work: a.needsWork,
+    key_moments: a.keyMoments,
+    individual_performances: a.individualPerformances,
+    team_performance: a.teamPerformance,
+    tactical_lessons: a.tacticalLessons,
+    next_training_focus: a.nextTrainingFocus
+  }));
 
-  const matches = matchesResult.data ?? [];
-  const analyses = analysesResult.data ?? [];
   const selectedMatch =
     matches.find((match) => match.id === resolvedSearchParams?.match) ??
     matches[0] ??
@@ -73,6 +105,7 @@ export default async function AnalysisPage({ searchParams }: AnalysisPageProps) 
   const selectedAnalysis = selectedMatch
     ? analyses.find((analysis) => analysis.match_id === selectedMatch.id) ?? null
     : null;
+
 
   return (
     <div className="space-y-6">

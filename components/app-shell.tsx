@@ -3,6 +3,7 @@ import Image from "next/image";
 import { LogOut, Plus } from "lucide-react";
 import { signOut } from "@/app/actions";
 import { AppNav } from "@/components/app-nav";
+import { LanguageSwitcher } from "@/components/language-switcher";
 import { AppToaster } from "@/components/app-toaster";
 import { ConfirmProvider } from "@/components/confirm-dialog";
 import { MobileBottomNav } from "@/components/mobile-bottom-nav";
@@ -77,6 +78,7 @@ export function AppShell({
                   Workspace
                 </Link>
               </Button>
+              <LanguageSwitcher />
               <form action={signOut}>
                 <Button
                   aria-label="Abmelden"

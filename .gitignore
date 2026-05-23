@@ -6,3 +6,6 @@ coverage
 dist
 *.tsbuildinfo
 vercel
+test-results/
+.claude/
+playwright-report/

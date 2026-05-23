@@ -23,7 +23,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { healthRisk } from "@/lib/coach-metrics";
 import { requireActiveTeam } from "@/lib/auth";
-import { createClient } from "@/lib/supabase/server";
+import { db } from "@/lib/db";
 import type { Team } from "@/lib/types";
 import { formatDate, formatDateTime, todayIsoDate } from "@/lib/utils";
 
@@ -76,32 +76,68 @@ function MetricCard({
 }
 
 async function HeroFocus({ teamId }: { teamId: string }) {
-  const supabase = await createClient();
   const today = todayIsoDate();
-  const [trainingResult, matchResult] = await Promise.all([
-    supabase
-      .from("training_sessions")
-      .select("id,date,start_time,focus")
-      .eq("team_id", teamId)
-      .gte("date", today)
-      .order("date", { ascending: true })
-      .limit(1)
-      .maybeSingle(),
-    supabase
-      .from("matches")
-      .select("id,date,kickoff_time,opponent,formation")
-      .eq("team_id", teamId)
-      .gte("date", today)
-      .order("date", { ascending: true })
-      .limit(1)
-      .maybeSingle()
+  const startOfToday = new Date(`${today}T00:00:00.000Z`);
+
+  const [training, match] = await Promise.all([
+    db.training.findFirst({
+      where: {
+        workspaceId: teamId,
+        date: { gte: startOfToday },
+      },
+      select: {
+        id: true,
+        date: true,
+        startTime: true,
+        focus: true,
+      },
+      orderBy: {
+        date: "asc",
+      },
+    }),
+    db.match.findFirst({
+      where: {
+        workspaceId: teamId,
+        date: { gte: startOfToday },
+      },
+      select: {
+        id: true,
+        date: true,
+        kickoffTime: true,
+        opponent: true,
+        formation: true,
+      },
+      orderBy: {
+        date: "asc",
+      },
+    }),
   ]);
 
-  const training = trainingResult.data;
-  const match = matchResult.data;
+  const todayTraining = training && training.date.toISOString().slice(0, 10) === today ? {
+    ...training,
+    date: training.date.toISOString().slice(0, 10),
+    start_time: training.startTime,
+  } : null;
 
-  const todayTraining = training && training.date === today ? training : null;
-  const todayMatch = match && match.date === today ? match : null;
+  const todayMatch = match && match.date.toISOString().slice(0, 10) === today ? {
+    ...match,
+    date: match.date.toISOString().slice(0, 10),
+    kickoff_time: match.kickoffTime,
+  } : null;
+
+  const nextTraining = training ? {
+    ...training,
+    date: training.date.toISOString().slice(0, 10),
+    start_time: training.startTime,
+  } : null;
+
+  const nextMatch = match ? {
+    ...match,
+    date: match.date.toISOString().slice(0, 10),
+    kickoff_time: match.kickoffTime,
+  } : null;
+
+
 
   if (todayTraining || todayMatch) {
     return (
@@ -152,22 +188,22 @@ async function HeroFocus({ teamId }: { teamId: string }) {
     );
   }
 
-  const focus = training
+  const focus = nextTraining
     ? {
         kind: "Training",
-        title: training.focus,
-        subtitle: `${formatDate(training.date)}${
-          training.start_time ? ` · ${training.start_time.slice(0, 5)}` : ""
+        title: nextTraining.focus,
+        subtitle: `${formatDate(nextTraining.date)}${
+          nextTraining.start_time ? ` · ${nextTraining.start_time.slice(0, 5)}` : ""
         }`,
         href: "/trainings"
       }
-    : match
+    : nextMatch
     ? {
         kind: "Spiel",
-        title: `vs. ${match.opponent}`,
-        subtitle: `${formatDate(match.date)}${
-          match.kickoff_time ? ` · ${match.kickoff_time.slice(0, 5)}` : ""
-        }${match.formation ? ` · ${match.formation}` : ""}`,
+        title: `vs. ${nextMatch.opponent}`,
+        subtitle: `${formatDate(nextMatch.date)}${
+          nextMatch.kickoff_time ? ` · ${nextMatch.kickoff_time.slice(0, 5)}` : ""
+        }${nextMatch.formation ? ` · ${nextMatch.formation}` : ""}`,
         href: "/matches"
       }
     : null;
@@ -289,113 +325,241 @@ function DashboardSectionsSkeleton() {
 }
 
 async function DashboardSections({ teamId }: { teamId: string }) {
-  const supabase = await createClient();
   const today = todayIsoDate();
+  const startOfToday = new Date(`${today}T00:00:00.000Z`);
 
   const [
-    playersResult,
-    nextTrainingResult,
-    nextMatchResult,
-    trainingsResult,
-    matchesResult,
-    materialsResult,
-    boardsResult,
-    tasksResult,
-    healthResult,
-    feedbackResult
+    dbPlayers,
+    nextTraining,
+    nextMatch,
+    dbTrainings,
+    dbMatches,
+    dbMaterials,
+    dbBoards,
+    dbTasks,
+    dbHealth,
+    dbFeedback
   ] = await Promise.all([
-    supabase
-      .from("players")
-      .select("id,name,position,status,rating,jersey_number,birth_year")
-      .eq("team_id", teamId)
-      .order("created_at", { ascending: false }),
-    supabase
-      .from("training_sessions")
-      .select("id,date,start_time,duration_minutes,focus,goal,location,intensity")
-      .eq("team_id", teamId)
-      .gte("date", today)
-      .order("date", { ascending: true })
-      .limit(1)
-      .maybeSingle(),
-    supabase
-      .from("matches")
-      .select("id,date,kickoff_time,opponent,location,home_away,formation,result")
-      .eq("team_id", teamId)
-      .gte("date", today)
-      .order("date", { ascending: true })
-      .limit(1)
-      .maybeSingle(),
-    supabase
-      .from("training_sessions")
-      .select("id,date,focus,intensity,created_at")
-      .eq("team_id", teamId)
-      .order("date", { ascending: false })
-      .limit(5),
-    supabase
-      .from("matches")
-      .select("id,date,opponent,result,formation,created_at")
-      .eq("team_id", teamId)
-      .order("date", { ascending: false })
-      .limit(5),
-    supabase
-      .from("materials")
-      .select("id,title,type,created_at")
-      .eq("team_id", teamId)
-      .order("created_at", { ascending: false })
-      .limit(5),
-    supabase
-      .from("tactic_boards")
-      .select("id,title,created_at")
-      .eq("team_id", teamId)
-      .order("created_at", { ascending: false })
-      .limit(3),
-    supabase
-      .from("tasks")
-      .select("id,title,status,due_date,created_at")
-      .eq("team_id", teamId)
-      .order("status", { ascending: false })
-      .order("due_date", { ascending: true, nullsFirst: false })
-      .limit(6),
-    supabase
-      .from("health_checkins")
-      .select("player_id,checkin_date,fatigue,sleep_quality,soreness,pain,stress,motivation,energy,injury_feeling,wellbeing")
-      .eq("team_id", teamId)
-      .order("checkin_date", { ascending: false })
-      .limit(200),
-    supabase
-      .from("player_feedback")
-      .select("id,player_id,rating,notes,created_at")
-      .eq("team_id", teamId)
-      .gte("created_at", new Date(Date.now() - 48 * 3600000).toISOString())
-      .order("created_at", { ascending: false })
-      .limit(10)
+    db.player.findMany({
+      where: { workspaceId: teamId },
+      select: {
+        id: true,
+        name: true,
+        position: true,
+        status: true,
+        rating: true,
+        jerseyNumber: true,
+        birthYear: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: "desc" },
+    }),
+    db.training.findFirst({
+      where: {
+        workspaceId: teamId,
+        date: { gte: startOfToday },
+      },
+      select: {
+        id: true,
+        date: true,
+        startTime: true,
+        durationMinutes: true,
+        focus: true,
+        goal: true,
+        location: true,
+        intensity: true,
+      },
+      orderBy: { date: "asc" },
+    }),
+    db.match.findFirst({
+      where: {
+        workspaceId: teamId,
+        date: { gte: startOfToday },
+      },
+      select: {
+        id: true,
+        date: true,
+        kickoffTime: true,
+        opponent: true,
+        location: true,
+        homeAway: true,
+        formation: true,
+        result: true,
+      },
+      orderBy: { date: "asc" },
+    }),
+    db.training.findMany({
+      where: { workspaceId: teamId },
+      select: {
+        id: true,
+        date: true,
+        focus: true,
+        intensity: true,
+        createdAt: true,
+      },
+      orderBy: { date: "desc" },
+      take: 5,
+    }),
+    db.match.findMany({
+      where: { workspaceId: teamId },
+      select: {
+        id: true,
+        date: true,
+        opponent: true,
+        result: true,
+        formation: true,
+        createdAt: true,
+      },
+      orderBy: { date: "desc" },
+      take: 5,
+    }),
+    db.material.findMany({
+      where: { workspaceId: teamId },
+      select: {
+        id: true,
+        title: true,
+        type: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: "desc" },
+      take: 5,
+    }),
+    db.tacticBoard.findMany({
+      where: { workspaceId: teamId },
+      select: {
+        id: true,
+        title: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: "desc" },
+      take: 3,
+    }),
+    db.task.findMany({
+      where: { workspaceId: teamId },
+      select: {
+        id: true,
+        title: true,
+        status: true,
+        dueDate: true,
+        createdAt: true,
+      },
+      orderBy: [
+        { status: "desc" },
+        { dueDate: "asc" },
+      ],
+      take: 6,
+    }),
+    db.healthCheck.findMany({
+      where: {
+        player: {
+          workspaceId: teamId,
+        },
+      },
+      select: {
+        playerId: true,
+        date: true,
+        fatigue: true,
+        sleepQuality: true,
+        soreness: true,
+        pain: true,
+        stress: true,
+        motivation: true,
+        energy: true,
+        injuryFeeling: true,
+        wellbeing: true,
+      },
+      orderBy: { date: "desc" },
+      take: 200,
+    }),
+    db.playerFeedback.findMany({
+      where: {
+        workspaceId: teamId,
+        createdAt: {
+          gte: new Date(Date.now() - 48 * 3600000),
+        },
+      },
+      select: {
+        id: true,
+        playerId: true,
+        rating: true,
+        notes: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: "desc" },
+      take: 10,
+    }),
   ]);
 
-  for (const result of [
-    playersResult,
-    nextTrainingResult,
-    nextMatchResult,
-    trainingsResult,
-    matchesResult,
-    materialsResult,
-    boardsResult,
-    tasksResult,
-    healthResult,
-    feedbackResult
-  ]) {
-    if (result.error) {
-      throw new Error(result.error.message);
-    }
-  }
+  const players = dbPlayers.map(p => ({
+    id: p.id,
+    name: p.name,
+    position: p.position,
+    status: p.status === "FIT" ? "available" : p.status === "INJURED" ? "injured" : p.status === "REHAB" ? "limited" : p.status.toLowerCase(),
+    rating: p.rating,
+    jersey_number: p.jerseyNumber,
+    birth_year: p.birthYear,
+    created_at: p.createdAt.toISOString(),
+  }));
 
-  const players = playersResult.data ?? [];
-  const trainings = trainingsResult.data ?? [];
-  const matches = matchesResult.data ?? [];
-  const materials = materialsResult.data ?? [];
-  const boards = boardsResult.data ?? [];
-  const tasks = tasksResult.data ?? [];
-  const healthCheckins = healthResult.data ?? [];
-  const recentFeedback = feedbackResult.data ?? [];
+  const trainings = dbTrainings.map(t => ({
+    id: t.id,
+    date: t.date.toISOString().slice(0, 10),
+    focus: t.focus,
+    intensity: t.intensity,
+    created_at: t.createdAt.toISOString(),
+  }));
+
+  const matches = dbMatches.map(m => ({
+    id: m.id,
+    date: m.date.toISOString().slice(0, 10),
+    opponent: m.opponent,
+    result: m.result,
+    formation: m.formation,
+    created_at: m.createdAt.toISOString(),
+  }));
+
+  const materials = dbMaterials.map(m => ({
+    id: m.id,
+    title: m.title,
+    type: m.type,
+    created_at: m.createdAt.toISOString(),
+  }));
+
+  const boards = dbBoards.map(b => ({
+    id: b.id,
+    title: b.title,
+    created_at: b.createdAt.toISOString(),
+  }));
+
+  const tasks = dbTasks.map(t => ({
+    id: t.id,
+    title: t.title,
+    status: t.status === "done" ? "done" : "open",
+    due_date: t.dueDate ? t.dueDate.toISOString().slice(0, 10) : null,
+    created_at: t.createdAt.toISOString(),
+  }));
+
+  const healthCheckins = dbHealth.map(h => ({
+    player_id: h.playerId,
+    checkin_date: h.date.toISOString().slice(0, 10),
+    fatigue: h.fatigue,
+    sleep_quality: h.sleepQuality ?? 3,
+    soreness: h.soreness,
+    pain: h.pain,
+    stress: h.stress,
+    motivation: h.motivation,
+    energy: h.energy ?? 3,
+    injury_feeling: h.injuryFeeling ?? 1,
+    wellbeing: h.wellbeing ?? 3,
+  }));
+
+  const recentFeedback = dbFeedback.map(f => ({
+    id: f.id,
+    player_id: f.playerId,
+    rating: f.rating,
+    notes: f.notes,
+    created_at: f.createdAt.toISOString(),
+  }));
 
   const latestCheckinsByPlayer = new Map<string, (typeof healthCheckins)[number]>();
   for (const checkin of healthCheckins) {
@@ -462,8 +626,6 @@ async function DashboardSections({ teamId }: { teamId: string }) {
     )
     .slice(0, 6);
 
-  const nextTraining = nextTrainingResult.data;
-  const nextMatch = nextMatchResult.data;
   const openTasks = tasks.filter((task) => task.status === "open");
   const playersWithoutNumbers = players.filter(
     (player) => !player.jersey_number
@@ -532,16 +694,16 @@ async function DashboardSections({ teamId }: { teamId: string }) {
 
   const checkinPct = players.length > 0 ? Math.round((checkedInToday / players.length) * 100) : 0;
 
-  const todayTraining = nextTraining?.date === today ? nextTraining : null;
-  const todayMatch = nextMatch?.date === today ? nextMatch : null;
+  const todayTraining = nextTraining && nextTraining.date.toISOString().slice(0, 10) === today ? nextTraining : null;
+  const todayMatch = nextMatch && nextMatch.date.toISOString().slice(0, 10) === today ? nextMatch : null;
   const nextEventLabel = todayTraining
-    ? `Training${todayTraining.start_time ? ` · ${todayTraining.start_time.slice(0, 5)}` : ""}`
+    ? `Training${todayTraining.startTime ? ` · ${todayTraining.startTime.slice(0, 5)}` : ""}`
     : todayMatch
-    ? `Spiel vs. ${todayMatch.opponent}${todayMatch.kickoff_time ? ` · ${todayMatch.kickoff_time.slice(0, 5)}` : ""}`
+    ? `Spiel vs. ${todayMatch.opponent}${todayMatch.kickoffTime ? ` · ${todayMatch.kickoffTime.slice(0, 5)}` : ""}`
     : nextTraining
-    ? `Nächstes Training · ${formatDate(nextTraining.date)}`
+    ? `Nächstes Training · ${formatDate(nextTraining.date.toISOString().slice(0, 10))}`
     : nextMatch
-    ? `Nächstes Spiel · ${formatDate(nextMatch.date)}`
+    ? `Nächstes Spiel · ${formatDate(nextMatch.date.toISOString().slice(0, 10))}`
     : null;
 
   return (
@@ -803,9 +965,9 @@ async function DashboardSections({ teamId }: { teamId: string }) {
                     {nextTraining.focus}
                   </p>
                   <p className="mt-1 text-[13px] text-muted-foreground">
-                    {formatDate(nextTraining.date)}
-                    {nextTraining.start_time
-                      ? ` · ${nextTraining.start_time.slice(0, 5)}`
+                    {formatDate(nextTraining.date.toISOString().slice(0, 10))}
+                    {nextTraining.startTime
+                      ? ` · ${nextTraining.startTime.slice(0, 5)}`
                       : ""}
                     {nextTraining.location ? ` · ${nextTraining.location}` : ""}
                   </p>
@@ -862,9 +1024,9 @@ async function DashboardSections({ teamId }: { teamId: string }) {
                     />
                   </div>
                   <p className="relative mt-3 text-[13px] text-slate-300">
-                    {formatDate(nextMatch.date)}
-                    {nextMatch.kickoff_time
-                      ? ` · ${nextMatch.kickoff_time.slice(0, 5)}`
+                    {formatDate(nextMatch.date.toISOString().slice(0, 10))}
+                    {nextMatch.kickoffTime
+                      ? ` · ${nextMatch.kickoffTime.slice(0, 5)}`
                       : ""}
                     {nextMatch.formation ? ` · ${nextMatch.formation}` : ""}
                   </p>

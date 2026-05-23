@@ -1,7 +1,45 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { db } from "@/lib/db";
 import type { Team, TeamMember } from "@/lib/types";
+import NextAuth from "next-auth";
+import Credentials from "next-auth/providers/credentials";
+import { PrismaAdapter } from "@auth/prisma-adapter";
+import { authConfig } from "./auth.config";
+import bcrypt from "bcryptjs";
+import { z } from "zod";
+
+export const { handlers, auth, signIn, signOut } = NextAuth({
+  ...authConfig,
+  adapter: PrismaAdapter(db),
+  providers: [
+    Credentials({
+      name: "Credentials",
+      credentials: {
+        email: { label: "Email", type: "email" },
+        password: { label: "Password", type: "password" },
+      },
+      async authorize(credentials) {
+        const parsedCredentials = z
+          .object({ email: z.string().email(), password: z.string().min(6) })
+          .safeParse(credentials);
+
+        if (parsedCredentials.success) {
+          const { email, password } = parsedCredentials.data;
+          const user = await db.user.findUnique({
+            where: { email },
+          });
+          if (!user) return null;
+          const passwordsMatch = await bcrypt.compare(password, user.passwordHash);
+
+          if (passwordsMatch) return { id: user.id, email: user.email, name: user.name, role: user.role };
+        }
+
+        return null;
+      },
+    }),
+  ],
+});
 
 export const ACTIVE_TEAM_COOKIE = "coachos-active-team";
 
@@ -21,65 +59,82 @@ export interface TeamOption {
 }
 
 export async function requireUser() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-    error
-  } = await supabase.auth.getUser();
-
-  if (error || !user) {
+  const session = await auth();
+  if (!session?.user) {
     redirect("/login");
   }
 
-  return { supabase, user };
+  // Create a mock supabase object to prevent destructuring crash on legacy pages
+  const dummySupabase = {
+    auth: {
+      getUser: async () => ({ data: { user: session.user }, error: null }),
+      signOut: async () => ({ error: null }),
+    },
+    from: () => ({
+      select: () => ({
+        eq: () => ({
+          order: () => Promise.resolve({ data: [], error: null }),
+        }),
+      }),
+    }),
+  } as any;
+
+  return {
+    supabase: dummySupabase,
+    user: {
+      id: session.user.id!,
+      email: session.user.email!,
+      role: (session.user as any).role,
+    },
+  };
 }
 
-async function getTeamOptionsForUser(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  userId: string
-): Promise<TeamOption[]> {
-  const { data: memberships, error: membershipError } = await supabase
-    .from("team_members")
-    .select("id,team_id,user_id,role,created_at")
-    .eq("user_id", userId)
-    .order("created_at", { ascending: true });
+// Map Workspace to Supabase Team structure for compatibility
+function mapWorkspaceToTeam(workspace: any) {
+  if (!workspace) return null;
+  return {
+    id: workspace.id,
+    name: workspace.name,
+    season: workspace.season || null,
+    age_group: workspace.ageGroup || null,
+    created_at: workspace.createdAt.toISOString(),
+    updated_at: workspace.updatedAt.toISOString(),
+    player_signup_token: workspace.id, // simple fallback
+    created_by: "",
+  } as unknown as Team;
+}
 
-  if (membershipError) {
-    throw new Error(membershipError.message);
-  }
+// Map WorkspaceMember to Supabase TeamMember structure for compatibility
+function mapMemberToMembership(member: any) {
+  if (!member) return null;
+  return {
+    id: member.id,
+    team_id: member.workspaceId,
+    user_id: member.userId,
+    role: member.role.toLowerCase() as any, // In Supabase, role was lowercase e.g., 'owner', 'head_coach'
+    created_at: member.workspace?.createdAt?.toISOString() || new Date().toISOString(),
+  } as unknown as TeamMembership;
+}
 
-  if (!memberships || memberships.length === 0) {
-    return [];
-  }
+export async function getTeamOptionsForUser(userId: string): Promise<TeamOption[]> {
+  const members = await db.workspaceMember.findMany({
+    where: { userId },
+    include: {
+      workspace: true,
+    },
+  });
 
-  const { data: teams, error: teamError } = await supabase
-    .from("teams")
-    .select("*")
-    .in(
-      "id",
-      memberships.map((membership) => membership.team_id)
-    )
-    .order("created_at", { ascending: true });
-
-  if (teamError) {
-    throw new Error(teamError.message);
-  }
-
-  const teamById = new Map((teams ?? []).map((team) => [team.id, team]));
-
-  return memberships
-    .map((membership) => {
-      const team = teamById.get(membership.team_id);
-      return team ? { team, membership } : null;
+  return members
+    .map((m) => {
+      const team = mapWorkspaceToTeam(m.workspace);
+      const membership = mapMemberToMembership(m);
+      return team && membership ? { team, membership } : null;
     })
     .filter((option): option is TeamOption => option !== null);
 }
 
-async function getActiveTeamForUser(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  userId: string
-) {
-  const teamOptions = await getTeamOptionsForUser(supabase, userId);
+export async function getActiveTeamForUser(userId: string) {
+  const teamOptions = await getTeamOptionsForUser(userId);
 
   if (teamOptions.length === 0) {
     return { activeTeam: null, teamOptions };
@@ -95,21 +150,15 @@ async function getActiveTeamForUser(
 }
 
 export async function getOptionalActiveTeam() {
-  const { supabase, user } = await requireUser();
-  const { activeTeam, teamOptions } = await getActiveTeamForUser(
-    supabase,
-    user.id
-  );
+  const { user, supabase } = await requireUser();
+  const { activeTeam, teamOptions } = await getActiveTeamForUser(user.id);
 
   return { supabase, user, activeTeam, teamOptions };
 }
 
 export async function requireActiveTeam() {
-  const { supabase, user } = await requireUser();
-  const { activeTeam, teamOptions } = await getActiveTeamForUser(
-    supabase,
-    user.id
-  );
+  const { user, supabase } = await requireUser();
+  const { activeTeam, teamOptions } = await getActiveTeamForUser(user.id);
 
   if (!activeTeam) {
     redirect("/workspaces");
@@ -120,6 +169,6 @@ export async function requireActiveTeam() {
     user,
     team: activeTeam.team,
     membership: activeTeam.membership,
-    teamOptions
+    teamOptions,
   };
 }

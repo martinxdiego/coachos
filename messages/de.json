@@ -1,0 +1,72 @@
+{
+  "common": {
+    "save": "Speichern",
+    "delete": "Löschen",
+    "cancel": "Abbrechen",
+    "edit": "Bearbeiten",
+    "loading": "Laden...",
+    "no_data": "Keine Daten vorhanden",
+    "close": "Schließen"
+  },
+  "nav": {
+    "today": "Heute",
+    "training": "Training",
+    "trainings": "Trainings",
+    "monday": "Montagstraining",
+    "materials": "Material",
+    "pitch": "Platz",
+    "tactics": "Taktikboard",
+    "matches": "Spiele",
+    "matches_item": "Spiele",
+    "analysis": "Analyse",
+    "calendar": "Kalender",
+    "team": "Team",
+    "players": "Spieler",
+    "evaluations": "Bewertungen",
+    "health": "Gesundheit",
+    "awards": "Hut-System",
+    "winnerpoints": "Winnerpunkte",
+    "club": "Verein",
+    "clubcorner": "Clubcorner / Quali",
+    "playermode": "Spieler-Modus",
+    "settings": "Einstellungen",
+    "section": "Bereich"
+  },
+  "nav_desc": {
+    "trainings": "Einheiten planen und durchführen",
+    "monday": "Wochenstart fix planen",
+    "materials": "Druckvorlagen & Listen",
+    "pitch": "Aufbauten und Stationen",
+    "tactics": "Spielzüge mit Animation",
+    "matches": "Aufstellung, Formation, Ergebnis",
+    "analysis": "Spiel- und Trendauswertung",
+    "calendar": "Alle Termine im Überblick",
+    "players": "Kader und Profile",
+    "evaluations": "Spielerbewertung pro Einheit",
+    "health": "Check-ins & Belastung",
+    "awards": "Auszeichnungen & Belohnungen",
+    "winnerpoints": "Punkte für Engagement",
+    "clubcorner": "Vereinslinks und Qualifikation",
+    "playermode": "Sicht für Spieler & Eltern",
+    "settings": "Workspace und Mitglieder"
+  },
+  "dashboard": {
+    "title": "Trainer Dashboard",
+    "welcome": "Willkommen zurück!",
+    "next_training": "Nächstes Training",
+    "next_match": "Nächstes Spiel",
+    "recent_activities": "Letzte Aktivitäten"
+  },
+  "winnerpoints": {
+    "title": "Winnerpunkte",
+    "subtitle": "Schnelle Punktevergabe während Training, Spiel oder Event mit Saison-Leaderboard.",
+    "season_points": "Saisonpunkte",
+    "current_leader": "Aktuell vorne",
+    "leaderboard": "Leaderboard",
+    "total": "Gesamt",
+    "period": "Zeitraum",
+    "week": "Woche",
+    "month": "Monat",
+    "season": "Saison"
+  }
+}

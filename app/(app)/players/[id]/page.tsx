@@ -46,7 +46,9 @@ import {
   winnerPointTotal
 } from "@/lib/coach-metrics";
 import { requireActiveTeam } from "@/lib/auth";
+import { db } from "@/lib/db";
 import { formatDate, formatDateTime, todayIsoDate } from "@/lib/utils";
+import type { EvaluationContextType } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -84,106 +86,210 @@ export default async function PlayerProfilePage({
   params
 }: PlayerProfilePageProps) {
   const { id } = await params;
-  const { supabase, team } = await requireActiveTeam();
+  const { team } = await requireActiveTeam();
+
   const [
-    playerResult,
-    feedbackResult,
-    attendanceResult,
-    pointsResult,
-    evaluationsResult,
-    healthResult,
-    linksResult,
-    awardsResult,
-    coachMessagesResult
+    dbPlayer,
+    dbFeedback,
+    dbAttendance,
+    dbPoints,
+    dbEvaluations,
+    dbHealth,
+    dbLinks,
+    dbAwards,
+    dbCoachMessages
   ] = await Promise.all([
-    supabase
-      .from("players")
-      .select("*")
-      .eq("id", id)
-      .eq("team_id", team.id)
-      .single(),
-    supabase
-      .from("player_feedback")
-      .select("*")
-      .eq("player_id", id)
-      .eq("team_id", team.id)
-      .order("created_at", { ascending: false })
-      .limit(8),
-    supabase
-      .from("attendance")
-      .select("status")
-      .eq("player_id", id)
-      .eq("team_id", team.id),
-    supabase
-      .from("winner_points")
-      .select("*")
-      .eq("player_id", id)
-      .eq("team_id", team.id)
-      .order("awarded_at", { ascending: false })
-      .limit(80),
-    supabase
-      .from("player_evaluations")
-      .select("*")
-      .eq("player_id", id)
-      .eq("team_id", team.id)
-      .order("evaluation_date", { ascending: false })
-      .limit(30),
-    supabase
-      .from("health_checkins")
-      .select("*")
-      .eq("player_id", id)
-      .eq("team_id", team.id)
-      .order("checkin_date", { ascending: false })
-      .limit(12),
-    supabase
-      .from("external_links")
-      .select("*")
-      .eq("player_id", id)
-      .eq("team_id", team.id)
-      .order("created_at", { ascending: false }),
-    supabase
-      .from("player_awards")
-      .select("*")
-      .eq("player_id", id)
-      .eq("team_id", team.id)
-      .order("award_date", { ascending: false }),
-    supabase
-      .from("coach_messages")
-      .select("*")
-      .eq("player_id", id)
-      .eq("team_id", team.id)
-      .order("created_at", { ascending: false })
-      .limit(50)
+    db.player.findFirst({
+      where: {
+        id,
+        workspaceId: team.id
+      }
+    }),
+    db.playerFeedback.findMany({
+      where: {
+        playerId: id,
+        workspaceId: team.id
+      },
+      orderBy: { createdAt: "desc" },
+      take: 8
+    }),
+    db.attendance.findMany({
+      where: {
+        playerId: id,
+        training: {
+          workspaceId: team.id
+        }
+      },
+      select: {
+        status: true
+      }
+    }),
+    db.winnerPoint.findMany({
+      where: {
+        playerId: id,
+        workspaceId: team.id
+      },
+      orderBy: { awardedAt: "desc" },
+      take: 80
+    }),
+    db.rating.findMany({
+      where: {
+        playerId: id,
+        player: {
+          workspaceId: team.id
+        }
+      },
+      orderBy: { date: "desc" },
+      take: 30
+    }),
+    db.healthCheck.findMany({
+      where: {
+        playerId: id,
+        player: {
+          workspaceId: team.id
+        }
+      },
+      orderBy: { date: "desc" },
+      take: 12
+    }),
+    db.externalLink.findMany({
+      where: {
+        playerId: id,
+        workspaceId: team.id
+      },
+      orderBy: { createdAt: "desc" }
+    }),
+    db.award.findMany({
+      where: {
+        playerId: id,
+        workspaceId: team.id
+      },
+      orderBy: { date: "desc" }
+    }),
+    db.coachMessage.findMany({
+      where: {
+        playerId: id,
+        workspaceId: team.id
+      },
+      orderBy: { createdAt: "desc" },
+      take: 50
+    })
   ]);
 
-  if (playerResult.error) {
+  if (!dbPlayer) {
     notFound();
   }
 
-  for (const result of [
-    feedbackResult,
-    attendanceResult,
-    pointsResult,
-    evaluationsResult,
-    healthResult,
-    linksResult,
-    awardsResult,
-    coachMessagesResult
-  ]) {
-    if (result.error) {
-      throw new Error(result.error.message);
-    }
-  }
+  const player = {
+    ...dbPlayer,
+    first_name: dbPlayer.firstName,
+    last_name: dbPlayer.lastName,
+    photo_url: dbPlayer.photoUrl,
+    jersey_number: dbPlayer.jerseyNumber ?? dbPlayer.number,
+    birth_date: dbPlayer.birthDate ? dbPlayer.birthDate.toISOString().slice(0, 10) : null,
+    birth_year: dbPlayer.birthYear,
+    preferred_foot: dbPlayer.preferredFoot,
+    strong_foot: dbPlayer.strongFoot,
+    height_cm: dbPlayer.height,
+    weight_kg: dbPlayer.weight,
+    coach_alerts: dbPlayer.coachAlerts,
+    medical_notes: dbPlayer.medicalNotes,
+    training_notes: dbPlayer.trainingNotes,
+    personal_notes: dbPlayer.personalNotes,
+    season_form_completed_at: dbPlayer.seasonFormCompletedAt ? dbPlayer.seasonFormCompletedAt.toISOString() : null,
+    favorite_team: dbPlayer.favoriteTeam,
+    favorite_player: dbPlayer.favoritePlayer,
+    football_goals: dbPlayer.footballGoals,
+    development_goals: dbPlayer.developmentGoals,
+    parent_contact: dbPlayer.parentContact,
+    emergency_contact: dbPlayer.emergencyContact,
+    player_account_email: dbPlayer.playerAccountEmail,
+    access_token: dbPlayer.accessToken,
+    self_registered_at: dbPlayer.selfRegisteredAt ? dbPlayer.selfRegisteredAt.toISOString() : null,
+    team_category: null as string | null,
+    status: dbPlayer.status === "FIT" ? "available" : dbPlayer.status === "INJURED" ? "injured" : "limited"
+  };
 
-  const player = playerResult.data;
-  const feedback = feedbackResult.data ?? [];
-  const attendance = attendanceResult.data ?? [];
-  const points = pointsResult.data ?? [];
-  const evaluations = evaluationsResult.data ?? [];
-  const health = healthResult.data ?? [];
-  const links = linksResult.data ?? [];
-  const awards = awardsResult.data ?? [];
-  const coachMessages = coachMessagesResult.data ?? [];
+  const feedback = dbFeedback.map((f) => ({
+    id: f.id,
+    rating: f.rating,
+    notes: f.notes,
+    created_at: f.createdAt.toISOString()
+  }));
+
+  const attendance = dbAttendance.map((a) => ({
+    status: a.status
+  }));
+
+  const points = dbPoints.map((p) => ({
+    id: p.id,
+    points: p.points,
+    awarded_at: p.awardedAt.toISOString(),
+    context_type: p.contextType,
+    context_label: p.contextLabel,
+    reason: p.reason
+  }));
+
+  const evaluations = dbEvaluations.map((e) => ({
+    id: e.id,
+    evaluation_date: e.date.toISOString().slice(0, 10),
+    context_type: e.contextType as EvaluationContextType,
+    context_label: e.contextLabel,
+    participation: e.participation,
+    motivation: e.motivation,
+    training_quality: e.trainingQuality,
+    match_quality: e.matchQuality ?? e.playingQuality,
+    behavior: e.behavior ?? e.behaviour,
+    effort: e.effort,
+    concentration: e.concentration,
+    notes: e.notes ?? e.comment
+  }));
+
+  const health = dbHealth.map((h) => ({
+    id: h.id,
+    checkin_date: h.date.toISOString().slice(0, 10),
+    fatigue: h.fatigue,
+    sleep_quality: h.sleepQuality ?? h.sleep ?? 3,
+    soreness: h.soreness,
+    pain: h.pain,
+    stress: h.stress,
+    motivation: h.motivation,
+    energy: h.energy ?? 3,
+    injury_feeling: h.injuryFeeling ?? 3,
+    wellbeing: h.wellbeing ?? 3,
+    notes: h.notes
+  }));
+
+  const links = dbLinks.map((l) => ({
+    id: l.id,
+    link_type: l.linkType,
+    title: l.title,
+    url: l.url,
+    notes: l.notes,
+    created_at: l.createdAt.toISOString()
+  }));
+
+  const awards = dbAwards.map((a) => ({
+    id: a.id,
+    award_date: a.date.toISOString().slice(0, 10),
+    event: a.event,
+    reason: a.reason,
+    created_at: a.createdAt.toISOString()
+  }));
+
+  const coachMessages = dbCoachMessages.map((m) => ({
+    id: m.id,
+    team_id: m.workspaceId,
+    player_id: m.playerId,
+    created_by: m.userId,
+    category: m.category,
+    title: null as string | null,
+    body: m.body,
+    read_at: null as string | null,
+    created_at: m.createdAt.toISOString(),
+    updated_at: m.updatedAt.toISOString()
+  }));
+
   const presentCount = attendance.filter((item) => item.status === "present").length;
   const attendanceRate =
     attendance.length > 0

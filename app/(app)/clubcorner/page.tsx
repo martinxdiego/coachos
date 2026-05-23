@@ -27,7 +27,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { evaluationAverage, winnerPointTotal } from "@/lib/coach-metrics";
 import { requireActiveTeam } from "@/lib/auth";
 import { formatDateTime } from "@/lib/utils";
-import type { ExternalLinkType } from "@/lib/types";
+import type { ExternalLinkType, EvaluationContextType } from "@/lib/types";
+import { db } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
@@ -41,66 +42,125 @@ const linkLabels: Record<ExternalLinkType, string> = {
 };
 
 export default async function ClubcornerPage() {
-  const { supabase, team } = await requireActiveTeam();
+  const { team } = await requireActiveTeam();
+
   const [
-    playersResult,
-    linksResult,
-    attendanceResult,
-    feedbackResult,
-    evaluationsResult,
-    pointsResult
+    dbPlayers,
+    dbLinks,
+    dbAttendance,
+    dbFeedback,
+    dbRatings,
+    dbWinnerPoints
   ] = await Promise.all([
-    supabase
-      .from("players")
-      .select(
-        "id,name,position,team_category,development_goals,training_notes,personal_notes,notes"
-      )
-      .eq("team_id", team.id)
-      .order("last_name", { ascending: true }),
-    supabase
-      .from("external_links")
-      .select("*")
-      .eq("team_id", team.id)
-      .order("created_at", { ascending: false }),
-    supabase
-      .from("attendance")
-      .select("player_id,status")
-      .eq("team_id", team.id),
-    supabase
-      .from("player_feedback")
-      .select("player_id,rating")
-      .eq("team_id", team.id),
-    supabase
-      .from("player_evaluations")
-      .select("*")
-      .eq("team_id", team.id)
-      .order("evaluation_date", { ascending: false })
-      .limit(500),
-    supabase
-      .from("winner_points")
-      .select("player_id,points")
-      .eq("team_id", team.id)
+    db.player.findMany({
+      where: { workspaceId: team.id },
+      select: {
+        id: true,
+        name: true,
+        position: true,
+        developmentGoals: true,
+        trainingNotes: true,
+        personalNotes: true,
+        notes: true
+      },
+      orderBy: { lastName: "asc" }
+    }),
+    db.externalLink.findMany({
+      where: { workspaceId: team.id },
+      orderBy: { createdAt: "desc" }
+    }),
+    db.attendance.findMany({
+      where: {
+        player: {
+          workspaceId: team.id
+        }
+      },
+      select: {
+        playerId: true,
+        status: true
+      }
+    }),
+    db.playerFeedback.findMany({
+      where: { workspaceId: team.id },
+      select: {
+        playerId: true,
+        rating: true
+      }
+    }),
+    db.rating.findMany({
+      where: {
+        player: {
+          workspaceId: team.id
+        }
+      },
+      orderBy: { date: "desc" },
+      take: 500
+    }),
+    db.winnerPoint.findMany({
+      where: { workspaceId: team.id },
+      select: {
+        playerId: true,
+        points: true
+      }
+    })
   ]);
 
-  for (const result of [
-    playersResult,
-    linksResult,
-    attendanceResult,
-    feedbackResult,
-    evaluationsResult,
-    pointsResult
-  ]) {
-    if (result.error) {
-      throw new Error(result.error.message);
-    }
-  }
+  const players = dbPlayers.map(p => ({
+    id: p.id,
+    name: p.name,
+    position: p.position,
+    team_category: null,
+    development_goals: p.developmentGoals,
+    training_notes: p.trainingNotes,
+    personal_notes: p.personalNotes,
+    notes: p.notes
+  }));
 
-  const players = playersResult.data ?? [];
-  const links = linksResult.data ?? [];
-  const attendance = attendanceResult.data ?? [];
-  const feedback = feedbackResult.data ?? [];
-  const evaluations = evaluationsResult.data ?? [];
-  const points = pointsResult.data ?? [];
+  const links = dbLinks.map(l => ({
+    id: l.id,
+    player_id: l.playerId,
+    link_type: l.linkType as ExternalLinkType,
+    title: l.title,
+    url: l.url,
+    notes: l.notes,
+    created_at: l.createdAt.toISOString()
+  }));
+
+  const attendance = dbAttendance.map(a => ({
+    player_id: a.playerId,
+    status: a.status
+  }));
+
+  const feedback = dbFeedback.map(f => ({
+    player_id: f.playerId,
+    rating: f.rating
+  }));
+
+  const evaluations = dbRatings.map((e) => ({
+    id: e.id,
+    player_id: e.playerId,
+    user_id: e.raterId,
+    context_type: e.contextType as EvaluationContextType,
+    context_id: e.contextId,
+    context_label: e.contextLabel,
+    evaluation_date: e.date.toISOString().slice(0, 10),
+    participation: e.participation,
+    motivation: e.motivation,
+    training_quality: e.trainingQuality,
+    match_quality: e.matchQuality,
+    behavior: e.behavior ?? e.behaviour,
+    effort: e.effort,
+    concentration: e.concentration,
+    average: e.average,
+    notes: e.notes ?? e.comment,
+    created_at: e.createdAt.toISOString()
+  }));
+
+  const points = dbWinnerPoints.map(wp => ({
+    player_id: wp.playerId,
+    points: wp.points
+  }));
+
   const globalLinks = links.filter((link) => !link.player_id);
   const playerById = new Map(players.map((player) => [player.id, player]));
 

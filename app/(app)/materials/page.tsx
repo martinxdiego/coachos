@@ -19,7 +19,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { requireActiveTeam } from "@/lib/auth";
 import { formatDateTime } from "@/lib/utils";
-import type { MaterialType, Player } from "@/lib/types";
+import type { MaterialType, Player, PlayerStatus } from "@/lib/types";
+import { db } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
@@ -171,31 +172,44 @@ function MaterialBody({
 }
 
 export default async function MaterialsPage() {
-  const { supabase, team } = await requireActiveTeam();
-  const [materialsResult, playersResult] = await Promise.all([
-    supabase
-      .from("materials")
-      .select("*")
-      .eq("team_id", team.id)
-      .order("created_at", { ascending: false })
-      .limit(20),
-    supabase
-      .from("players")
-      .select("id,name,position,birth_year,jersey_number,status")
-      .eq("team_id", team.id)
-      .order("name", { ascending: true })
+  const { team } = await requireActiveTeam();
+  const [materialsData, playersData] = await Promise.all([
+    db.material.findMany({
+      where: { workspaceId: team.id },
+      orderBy: { createdAt: "desc" },
+      take: 20
+    }),
+    db.player.findMany({
+      where: { workspaceId: team.id },
+      select: {
+        id: true,
+        name: true,
+        position: true,
+        birthYear: true,
+        jerseyNumber: true,
+        status: true
+      },
+      orderBy: { name: "asc" }
+    })
   ]);
 
-  if (materialsResult.error) {
-    throw new Error(materialsResult.error.message);
-  }
+  const materials = materialsData.map((m) => ({
+    id: m.id,
+    title: m.title,
+    type: m.type as MaterialType,
+    description: m.description,
+    content: m.content,
+    created_at: m.createdAt.toISOString()
+  }));
 
-  if (playersResult.error) {
-    throw new Error(playersResult.error.message);
-  }
-
-  const materials = materialsResult.data ?? [];
-  const players = playersResult.data ?? [];
+  const players = playersData.map((p) => ({
+    id: p.id,
+    name: p.name,
+    position: p.position,
+    birth_year: p.birthYear,
+    jersey_number: p.jerseyNumber,
+    status: (p.status === "FIT" ? "available" : p.status === "INJURED" ? "injured" : p.status === "REHAB" ? "limited" : p.status.toLowerCase()) as PlayerStatus
+  }));
 
   return (
     <div className="space-y-6">

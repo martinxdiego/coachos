@@ -183,3 +183,24 @@ export function isClusterActive(
   }
   return cluster.items?.some((item) => isActiveHref(pathname, item.href)) ?? false;
 }
+
+export function getNavKey(id: string): string {
+  return `nav.${id}`;
+}
+
+export function getItemKey(href: string): string {
+  if (href === "/matches") return "nav.matches_item";
+  if (href === "/player-mode") return "nav.playermode";
+  if (href === "/clubcorner") return "nav.clubcorner";
+  if (href === "/workspaces") return "nav.settings";
+  return "nav." + href.replace(/^\//, "");
+}
+
+export function getItemDescKey(href: string): string {
+  if (href === "/matches") return "nav_desc.matches";
+  if (href === "/player-mode") return "nav_desc.playermode";
+  if (href === "/clubcorner") return "nav_desc.clubcorner";
+  if (href === "/workspaces") return "nav_desc.settings";
+  return "nav_desc." + href.replace(/^\//, "");
+}
+

@@ -1,0 +1,583 @@
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id           String            @id @default(uuid())
+  email        String            @unique
+  passwordHash String
+  name         String?
+  role         Role              @default(TRAINER)
+  workspaces   WorkspaceMember[]
+  ratings      Rating[]
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+}
+
+model Workspace {
+  id              String            @id @default(uuid())
+  name            String
+  season          String?
+  ageGroup        String?
+  members         WorkspaceMember[]
+  players         Player[]
+  trainings       Training[]
+  matches         Match[]
+  awards          Award[]
+  winnerPoints    WinnerPoint[]
+  materials       Material[]
+  tacticBoards    TacticBoard[]
+  tasks           Task[]
+  notes           Note[]
+  externalLinks   ExternalLink[]
+  mondayTrainings MondayTraining[]
+  coachMessages   CoachMessage[]
+  feedbacks       PlayerFeedback[]
+  invites         TeamInvite[]
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+}
+
+model WorkspaceMember {
+  id          String    @id @default(uuid())
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspaceId String
+  role        Role      @default(TRAINER)
+
+  @@unique([workspaceId, userId])
+}
+
+model Player {
+  id                    String             @id @default(uuid())
+  workspace             Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspaceId           String
+  firstName             String?
+  lastName              String?
+  name                  String
+  number                Int?
+  jerseyNumber          Int?
+  position              String?
+  secondaryPositions    String[]
+  birthDate             DateTime?
+  birthYear             Int?
+  height                Int?
+  weight                Int?
+  preferredFoot         String?
+  strongFoot            String?
+  status                PlayerStatus       @default(FIT)
+  photoUrl              String?
+  contact               String?
+  parentContact         String?
+  emergencyContact      String?
+  playerAccountEmail    String?
+  favoriteTeam          String?
+  favoritePlayer        String?
+  footballGoals         String?
+  motivation            String?
+  allergies             String?
+  injuries              String?
+  limitations           String?
+  medications           String?
+  coachAlerts           String?
+  seasonFormCompletedAt DateTime?
+  medicalNotes          String?
+  strengths             String?
+  weaknesses            String?
+  developmentGoals      String?
+  trainingNotes         String?
+  personalNotes         String?
+  notes                 String?
+  rating                Float?
+  accessToken           String             @default(uuid())
+  selfRegisteredAt      DateTime?
+  ratings               Rating[]
+  healthChecks          HealthCheck[]
+  awards                Award[]
+  winnerPoints          WinnerPoint[]
+  lineups               MatchLineup[]
+  attendance            Attendance[]
+  externalLinks         ExternalLink[]
+  mondayAttendance      MondayAttendance[]
+  coachMessages         CoachMessage[]
+  feedbacks             PlayerFeedback[]
+  pushSubscriptions     PushSubscription[]
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
+}
+
+model Training {
+  id              String          @id @default(uuid())
+  workspace       Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspaceId     String
+  userId          String
+  title           String
+  focus           String
+  goal            String?
+  date            DateTime
+  startTime       String?
+  duration        Int // Minuten
+  durationMinutes Int             @default(90)
+  type            TrainingType    @default(REGULAR)
+  intensity       String? // "low", "medium", "high"
+  location        String?
+  participants    String?
+  notes           String?
+  isTemplate      Boolean         @default(false)
+  templateName    String?
+  phases          TrainingPhase[]
+  attendance      Attendance[]
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+}
+
+model TrainingPhase {
+  id              String            @id @default(uuid())
+  training        Training          @relation(fields: [trainingId], references: [id], onDelete: Cascade)
+  trainingId      String
+  phaseType       TrainingPhaseType @default(technique)
+  title           String
+  durationMinutes Int?
+  description     String?
+  coachingPoints  String?
+  organization    String?
+  material        String?
+  playerCount     String?
+  fieldSize       String?
+  variations      String?
+  loadManagement  String?
+  imageUrls       String[]
+  diagram         Json?
+  sortOrder       Int
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+}
+
+model Match {
+  id                   String         @id @default(uuid())
+  workspace            Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspaceId          String
+  userId               String
+  opponent             String
+  competition          String?
+  date                 DateTime
+  kickoffTime          String?
+  location             String?
+  home                 Boolean        @default(true)
+  homeAway             String? // "home", "away", "neutral"
+  formation            String?
+  notes                String?
+  goals                Int?
+  result               String?
+  meetingPoint         String?
+  squadNotes           String?
+  startingLineup       String?
+  substitutes          String?
+  tacticalInstructions String?
+  matchGoals           String?
+  preMatchNotes        String?
+  halftimeNotes        String?
+  postMatchNotes       String?
+  scorers              String?
+  assists              String?
+  cards                String?
+  playerRatings        Json?
+  conclusion           String?
+  lineup               MatchLineup[]
+  analysis             MatchAnalysis?
+  ratings              Rating[]
+  awards               Award[]
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
+}
+
+model MatchLineup {
+  id       String  @id @default(uuid())
+  match    Match   @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  matchId  String
+  player   Player  @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  playerId String
+  position String
+  role     String?
+}
+
+model MatchAnalysis {
+  id                     String   @id @default(uuid())
+  match                  Match    @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  matchId                String   @unique
+  opponentAnalysis       String?
+  preparation            String?
+  lineupRoles            String?
+  lineupNotes            String?
+  matchGoals             String?
+  matchTargets           String?
+  positives              String?
+  negatives              String?
+  wentWell               String?
+  needsWork              String?
+  keyScenes              String?
+  keyMoments             String?
+  individualPerformances String?
+  teamPerformance        String?
+  tacticalLessons        String?
+  nextTrainingFocus      String?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+}
+
+model Rating {
+  id              String        @id @default(uuid())
+  player          Player        @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  playerId        String
+  rater           User          @relation(fields: [raterId], references: [id], onDelete: Cascade)
+  raterId         String
+  date            DateTime
+  context         RatingContext @default(TRAINING)
+  contextType     String?
+  contextId       String?
+  contextLabel    String?
+  participation   Int?
+  motivation      Int?
+  trainingQuality Int?
+  playingQuality  Int?
+  matchQuality    Int?
+  behaviour       Int?
+  behavior        Int?
+  effort          Int?
+  concentration   Int?
+  average         Float?
+  comment         String?
+  notes           String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  match           Match?        @relation(fields: [matchId], references: [id])
+  matchId         String?
+}
+
+model HealthCheck {
+  id            String        @id @default(uuid())
+  player        Player        @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  playerId      String
+  date          DateTime
+  context       HealthContext @default(PRE_TRAINING)
+  contextType   String?
+  fatigue       Int
+  sleep         Int?
+  sleepQuality  Int?
+  soreness      Int
+  pain          Int
+  stress        Int
+  motivation    Int
+  energy        Int?
+  injuryFeeling Int?
+  wellbeing     Int?
+  notes         String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+}
+
+model Award {
+  id               String    @id @default(uuid())
+  workspace        Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspaceId      String
+  player           Player    @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  playerId         String
+  previousPlayerId String?
+  matchId          String?
+  match            Match?    @relation(fields: [matchId], references: [id], onDelete: SetNull)
+  eventLabel       String?
+  date             DateTime
+  event            String
+  reason           String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+}
+
+model WinnerPoint {
+  id           String             @id @default(uuid())
+  workspace    Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspaceId  String
+  player       Player             @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  playerId     String
+  date         DateTime
+  context      WinnerPointContext @default(TRAINING)
+  contextType  String? // "training", "match", etc.
+  contextId    String?
+  contextLabel String?
+  points       Int
+  reason       String?
+  awardedAt    DateTime           @default(now())
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+}
+
+model Attendance {
+  id         String           @id @default(uuid())
+  training   Training         @relation(fields: [trainingId], references: [id], onDelete: Cascade)
+  trainingId String
+  player     Player           @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  playerId   String
+  status     AttendanceStatus @default(present)
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+
+  @@unique([trainingId, playerId])
+}
+
+model Material {
+  id            String       @id @default(uuid())
+  workspace     Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspaceId   String
+  userId        String
+  title         String
+  type          MaterialType @default(training_plan)
+  description   String?
+  content       String?
+  printSettings Json?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+}
+
+model TacticBoard {
+  id          String    @id @default(uuid())
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspaceId String
+  userId      String
+  title       String
+  description String?
+  elements    Json?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Task {
+  id          String     @id @default(uuid())
+  workspace   Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspaceId String
+  userId      String
+  title       String
+  status      TaskStatus @default(open)
+  dueDate     DateTime?
+  relatedType String?
+  relatedId   String?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+}
+
+model Note {
+  id          String    @id @default(uuid())
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspaceId String
+  userId      String
+  relatedType String?
+  relatedId   String?
+  title       String?
+  body        String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model ExternalLink {
+  id          String           @id @default(uuid())
+  workspace   Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspaceId String
+  userId      String
+  playerId    String?
+  player      Player?          @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  linkType    ExternalLinkType @default(other)
+  title       String
+  url         String
+  notes       String?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+}
+
+model MondayTraining {
+  id              String             @id @default(uuid())
+  workspace       Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspaceId     String
+  userId          String
+  date            DateTime
+  topic           String
+  goal            String?
+  durationMinutes Int?
+  staffNotes      String?
+  sanduNotes      String?
+  attendance      MondayAttendance[]
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+}
+
+model MondayAttendance {
+  id               String                 @id @default(uuid())
+  mondayTraining   MondayTraining         @relation(fields: [mondayTrainingId], references: [id], onDelete: Cascade)
+  mondayTrainingId String
+  player           Player                 @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  playerId         String
+  status           MondayAttendanceStatus @default(present)
+  note             String?
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+
+  @@unique([mondayTrainingId, playerId])
+}
+
+model CoachMessage {
+  id          String               @id @default(uuid())
+  workspace   Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspaceId String
+  userId      String
+  player      Player               @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  playerId    String
+  category    CoachMessageCategory @default(note)
+  body        String
+  readAt      DateTime?
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+}
+
+enum Role {
+  ADMIN
+  TRAINER
+  CO_TRAINER
+  PLAYER
+  PARENT
+  OWNER
+  HEAD_COACH
+  COACH
+}
+
+enum PlayerStatus {
+  FIT
+  REHAB
+  INJURED
+  available
+  injured
+  limited
+  absent
+}
+
+enum TrainingType {
+  REGULAR
+  INTENSIVE
+  RECOVERY
+  FRIENDLY
+}
+
+enum RatingContext {
+  TRAINING
+  MATCH
+  EVENT
+}
+
+enum HealthContext {
+  PRE_TRAINING
+  POST_TRAINING
+  PRE_MATCH
+  POST_MATCH
+}
+
+enum WinnerPointContext {
+  TRAINING
+  MATCH
+  EVENT
+}
+
+enum AttendanceStatus {
+  present
+  absent
+}
+
+enum MondayAttendanceStatus {
+  present
+  absent
+  injured
+}
+
+enum TaskStatus {
+  open
+  done
+}
+
+enum MaterialType {
+  exercise_sheet
+  training_plan
+  match_plan
+  tactics_sheet
+  player_list
+  attendance_list
+  week_plan
+  month_plan
+}
+
+enum ExternalLinkType {
+  clubcorner
+  player_stats
+  quali_document
+  meeting_notes
+  medical
+  other
+}
+
+enum CoachMessageCategory {
+  training_goal
+  match_goal
+  note
+  praise
+}
+
+enum TrainingPhaseType {
+  warmup
+  activation
+  technique
+  tactics
+  game_form
+  finish
+  cooldown
+}
+
+model PlayerFeedback {
+  id          String    @id @default(uuid())
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspaceId String
+  player      Player    @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  playerId    String
+  rating      Int
+  notes       String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model TeamInvite {
+  id          String    @id @default(uuid())
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspaceId String    @map("team_id")
+  code        String    @unique
+  role        String
+  createdBy   String?   @map("created_by")
+  expiresAt   DateTime  @map("expires_at")
+  usedAt      DateTime? @map("used_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  @@map("team_invites")
+}
+
+model PushSubscription {
+  id        String   @id @default(uuid())
+  playerId  String   @map("player_id")
+  player    Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("push_subscriptions")
+}
+
+

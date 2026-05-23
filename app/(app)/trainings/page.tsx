@@ -5,8 +5,8 @@ import { TrainingPresetDrawer } from "@/components/training-preset-drawer";
 import { TrainingWeekAccordion } from "@/components/training-week-accordion";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { db } from "@/lib/db";
 import { requireActiveTeam } from "@/lib/auth";
-import { createClient } from "@/lib/supabase/server";
 import { todayIsoDate } from "@/lib/utils";
 import type { TrainingPhase } from "@/lib/types";
 
@@ -65,62 +65,76 @@ function TrainingsSkeleton() {
 }
 
 async function TrainingsData({ teamId }: { teamId: string }) {
-  const supabase = await createClient();
+  const playersData = await db.player.findMany({
+    where: { workspaceId: teamId },
+    select: { id: true, name: true, position: true },
+    orderBy: { name: "asc" }
+  });
 
-  const [playersResult, trainingsResult] = await Promise.all([
-    supabase
-      .from("players")
-      .select("id,name,position")
-      .eq("team_id", teamId)
-      .order("name", { ascending: true }),
-    supabase
-      .from("training_sessions")
-      .select("*")
-      .eq("team_id", teamId)
-      .order("date", { ascending: false })
-      .limit(250)
-  ]);
+  const trainingsData = await db.training.findMany({
+    where: { workspaceId: teamId },
+    orderBy: { date: "desc" },
+    take: 250
+  });
 
-  if (playersResult.error) {
-    throw new Error(playersResult.error.message);
-  }
-  if (trainingsResult.error) {
-    throw new Error(trainingsResult.error.message);
-  }
+  const trainingIds = trainingsData.map((t) => t.id);
 
-  const players = playersResult.data ?? [];
-  const trainings = trainingsResult.data ?? [];
-  const trainingIds = trainings.map((training) => training.id);
+  const attendanceData = trainingIds.length > 0
+    ? await db.attendance.findMany({
+        where: { trainingId: { in: trainingIds } }
+      })
+    : [];
 
-  const [attendanceResult, phasesResult] =
-    trainingIds.length > 0
-      ? await Promise.all([
-          supabase
-            .from("attendance")
-            .select("training_id,player_id,status")
-            .eq("team_id", teamId)
-            .in("training_id", trainingIds),
-          supabase
-            .from("training_phases")
-            .select("*")
-            .eq("team_id", teamId)
-            .in("training_id", trainingIds)
-            .order("sort_order", { ascending: true })
-        ])
-      : [
-          { data: [], error: null },
-          { data: [], error: null }
-        ];
+  const phasesData = trainingIds.length > 0
+    ? await db.trainingPhase.findMany({
+        where: { trainingId: { in: trainingIds } },
+        orderBy: { sortOrder: "asc" }
+      })
+    : [];
 
-  if (attendanceResult.error) {
-    throw new Error(attendanceResult.error.message);
-  }
-  if (phasesResult.error) {
-    throw new Error(phasesResult.error.message);
-  }
+  const players = playersData;
+  const trainings = trainingsData.map((t) => ({
+    id: t.id,
+    age_group: null,
+    date: t.date.toISOString().slice(0, 10),
+    duration_minutes: t.durationMinutes,
+    focus: t.focus,
+    goal: t.goal,
+    intensity: t.intensity as any,
+    is_template: t.isTemplate,
+    location: t.location,
+    notes: t.notes,
+    participants: t.participants,
+    start_time: t.startTime
+  }));
 
-  const attendanceRows = attendanceResult.data ?? [];
-  const phases = (phasesResult.data ?? []) as TrainingPhase[];
+  const attendanceRows = attendanceData.map((a) => ({
+    training_id: a.trainingId,
+    player_id: a.playerId,
+    status: a.status as any
+  }));
+
+  const phases = phasesData.map((p) => ({
+    id: p.id,
+    training_id: p.trainingId,
+    phase_type: p.phaseType as any,
+    title: p.title,
+    duration_minutes: p.durationMinutes,
+    description: p.description,
+    coaching_points: p.coachingPoints,
+    organization: p.organization,
+    material: p.material,
+    player_count: p.playerCount,
+    field_size: p.fieldSize,
+    variations: p.variations,
+    load_management: p.loadManagement,
+    image_urls: p.imageUrls,
+    diagram: p.diagram as any,
+    sort_order: p.sortOrder,
+    created_at: p.createdAt.toISOString(),
+    updated_at: p.updatedAt.toISOString(),
+    team_id: teamId
+  })) as unknown as TrainingPhase[];
 
   const today = todayIsoDate();
   const startOfWeek = new Date();

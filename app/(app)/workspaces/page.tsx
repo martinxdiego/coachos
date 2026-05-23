@@ -20,6 +20,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { getOptionalActiveTeam } from "@/lib/auth";
 import { formatDateTime } from "@/lib/utils";
+import { db } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
@@ -40,35 +41,37 @@ export default async function WorkspacesPage({
   const canManage =
     membership?.role === "owner" || membership?.role === "head_coach";
 
-  const [memberCountResult, invitesResult] = team
+  const [memberCount, dbInvites] = team
     ? await Promise.all([
-        supabase
-          .from("team_members")
-          .select("id", { count: "exact", head: true })
-          .eq("team_id", team.id),
+        db.workspaceMember.count({
+          where: { workspaceId: team.id }
+        }),
         canManage
-          ? supabase
-              .from("team_invites")
-              .select("id,code,role,expires_at,used_at,created_at")
-              .eq("team_id", team.id)
-              .order("created_at", { ascending: false })
-              .limit(6)
-          : Promise.resolve({ data: [], error: null })
+          ? db.teamInvite.findMany({
+              where: { workspaceId: team.id },
+              select: {
+                id: true,
+                code: true,
+                role: true,
+                expiresAt: true,
+                usedAt: true,
+                createdAt: true
+              },
+              orderBy: { createdAt: "desc" },
+              take: 6
+            })
+          : Promise.resolve([])
       ])
-    : [
-        { count: 0, error: null },
-        { data: [], error: null }
-      ];
+    : [0, []];
 
-  if (memberCountResult.error) {
-    throw new Error(memberCountResult.error.message);
-  }
-
-  if (invitesResult.error) {
-    throw new Error(invitesResult.error.message);
-  }
-
-  const invites = invitesResult.data ?? [];
+  const invites = dbInvites.map((invite) => ({
+    id: invite.id,
+    code: invite.code,
+    role: invite.role,
+    expires_at: invite.expiresAt.toISOString(),
+    used_at: invite.usedAt ? invite.usedAt.toISOString() : null,
+    created_at: invite.createdAt.toISOString()
+  }));
 
   return (
     <div className="space-y-6">
@@ -252,7 +255,7 @@ export default async function WorkspacesPage({
                   <CardTitle>Trainerteam</CardTitle>
                   <Badge variant="secondary">
                     <UsersRound aria-hidden="true" className="mr-1 h-3 w-3" />
-                    {memberCountResult.count ?? 0}
+                    {memberCount}
                   </Badge>
                 </div>
                 <CardDescription>

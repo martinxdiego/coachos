@@ -1,25 +1,27 @@
 import { AppShell } from "@/components/app-shell";
 import { getOptionalActiveTeam } from "@/lib/auth";
+import { db } from "@/lib/db";
 
 export default async function ProtectedLayout({
   children
 }: {
   children: React.ReactNode;
 }) {
-  const { activeTeam, supabase, teamOptions } = await getOptionalActiveTeam();
+  const { activeTeam, teamOptions } = await getOptionalActiveTeam();
   const quickPlayers = activeTeam
-    ? await supabase
-        .from("players")
-        .select("id,name,position")
-        .eq("team_id", activeTeam.team.id)
-        .order("name", { ascending: true })
-        .then((result) => {
-          if (result.error) {
-            throw new Error(result.error.message);
-          }
-
-          return result.data ?? [];
-        })
+    ? await db.player.findMany({
+        where: {
+          workspaceId: activeTeam.team.id,
+        },
+        select: {
+          id: true,
+          name: true,
+          position: true,
+        },
+        orderBy: {
+          name: "asc",
+        },
+      })
     : [];
 
   return (
@@ -32,3 +34,4 @@ export default async function ProtectedLayout({
     </AppShell>
   );
 }
+

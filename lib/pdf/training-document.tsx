@@ -19,7 +19,8 @@ const phaseLabels: Record<TrainingPhaseType, string> = {
   game_form: "Spielform",
   tactics: "Taktik",
   technique: "Technik",
-  warmup: "Warm-up"
+  warmup: "Warm-up",
+  activation: "Aktivierung"
 };
 
 const dateFormatter = new Intl.DateTimeFormat("de-CH", {

@@ -23,6 +23,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { evaluationAverage } from "@/lib/coach-metrics";
 import { requireActiveTeam } from "@/lib/auth";
 import { formatDate, todayIsoDate } from "@/lib/utils";
+import { db } from "@/lib/db";
+import type { EvaluationContextType } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -39,7 +41,7 @@ interface MondayPageProps {
 export default async function MondayTrainingPage({
   searchParams
 }: MondayPageProps) {
-  const { supabase, team } = await requireActiveTeam();
+  const { team } = await requireActiveTeam();
   const params = await searchParams;
   const category = params?.category ?? "all";
   const position = params?.position ?? "all";
@@ -48,48 +50,91 @@ export default async function MondayTrainingPage({
   const ratingFilter = params?.rating ?? "all";
   const today = todayIsoDate();
 
-  const [playersResult, mondayResult, attendanceResult, evaluationsResult] =
+  const [dbPlayers, dbMonday, dbAttendance, dbRatings] =
     await Promise.all([
-      supabase
-        .from("players")
-        .select("id,name,position,birth_year,team_category,status")
-        .eq("team_id", team.id)
-        .order("last_name", { ascending: true }),
-      supabase
-        .from("monday_trainings")
-        .select("*")
-        .eq("team_id", team.id)
-        .order("date", { ascending: false })
-        .limit(12),
-      supabase
-        .from("monday_attendance")
-        .select("*")
-        .eq("team_id", team.id),
-      supabase
-        .from("player_evaluations")
-        .select("*")
-        .eq("team_id", team.id)
-        .eq("context_type", "monday_training")
-        .order("evaluation_date", { ascending: false })
-        .limit(500)
+      db.player.findMany({
+        where: { workspaceId: team.id },
+        select: {
+          id: true,
+          name: true,
+          position: true,
+          birthYear: true,
+          status: true
+        },
+        orderBy: { lastName: "asc" }
+      }),
+      db.mondayTraining.findMany({
+        where: { workspaceId: team.id },
+        orderBy: { date: "desc" },
+        take: 12
+      }),
+      db.mondayAttendance.findMany({
+        where: {
+          player: {
+            workspaceId: team.id
+          }
+        }
+      }),
+      db.rating.findMany({
+        where: {
+          player: {
+            workspaceId: team.id
+          },
+          contextType: "monday_training"
+        },
+        orderBy: { date: "desc" },
+        take: 500
+      })
     ]);
 
-  for (const result of [
-    playersResult,
-    mondayResult,
-    attendanceResult,
-    evaluationsResult
-  ]) {
-    if (result.error) {
-      throw new Error(result.error.message);
-    }
-  }
+  const allPlayers = dbPlayers.map(p => ({
+    id: p.id,
+    name: p.name,
+    position: p.position,
+    birth_year: p.birthYear,
+    team_category: null as string | null,
+    status: p.status === "FIT" ? "available" : p.status === "INJURED" ? "injured" : p.status === "REHAB" ? "limited" : p.status.toLowerCase() as any
+  }));
 
-  const allPlayers = playersResult.data ?? [];
-  const mondayTrainings = mondayResult.data ?? [];
+  const mondayTrainings = dbMonday.map(t => ({
+    id: t.id,
+    date: t.date.toISOString().slice(0, 10),
+    topic: t.topic,
+    goal: t.goal,
+    duration_minutes: t.durationMinutes,
+    staff_notes: t.staffNotes,
+    sandu_notes: t.sanduNotes
+  }));
+
   const selectedTraining = mondayTrainings[0] ?? null;
-  const attendanceRows = attendanceResult.data ?? [];
-  const evaluations = evaluationsResult.data ?? [];
+
+  const attendanceRows = dbAttendance.map(a => ({
+    id: a.id,
+    monday_training_id: a.mondayTrainingId,
+    player_id: a.playerId,
+    status: a.status,
+    note: a.note
+  }));
+
+  const evaluations = dbRatings.map((e) => ({
+    id: e.id,
+    player_id: e.playerId,
+    user_id: e.raterId,
+    context_type: e.contextType as EvaluationContextType,
+    context_id: e.contextId,
+    context_label: e.contextLabel,
+    evaluation_date: e.date.toISOString().slice(0, 10),
+    participation: e.participation,
+    motivation: e.motivation,
+    training_quality: e.trainingQuality,
+    match_quality: e.matchQuality,
+    behavior: e.behavior ?? e.behaviour,
+    effort: e.effort,
+    concentration: e.concentration,
+    average: e.average,
+    notes: e.notes ?? e.comment,
+    created_at: e.createdAt.toISOString()
+  }));
   const latestAttendance = new Map(
     attendanceRows
       .filter((row) => row.monday_training_id === selectedTraining?.id)

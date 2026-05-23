@@ -8,8 +8,8 @@ import {
 } from "@/components/matches-roster";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { db } from "@/lib/db";
 import { requireActiveTeam } from "@/lib/auth";
-import { createClient } from "@/lib/supabase/server";
 import { todayIsoDate } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -72,32 +72,70 @@ async function MatchesData({
   suggestedLineup: string;
   suggestedSubstitutes: string;
 }) {
-  const supabase = await createClient();
-
-  const [matchesResult, playersResult] = await Promise.all([
-    supabase
-      .from("matches")
-      .select("*")
-      .eq("team_id", teamId)
-      .order("date", { ascending: false })
-      .limit(200),
-    supabase
-      .from("players")
-      .select("id,name,position,jersey_number")
-      .eq("team_id", teamId)
-      .order("jersey_number", { ascending: true, nullsFirst: false })
-      .order("name", { ascending: true })
+  const [matchesData, playersData] = await Promise.all([
+    db.match.findMany({
+      where: { workspaceId: teamId },
+      orderBy: { date: "desc" },
+      take: 200
+    }),
+    db.player.findMany({
+      where: { workspaceId: teamId },
+      select: {
+        id: true,
+        name: true,
+        position: true,
+        jerseyNumber: true
+      },
+      orderBy: [
+        { jerseyNumber: "asc" },
+        { name: "asc" }
+      ]
+    })
   ]);
 
-  if (matchesResult.error) {
-    throw new Error(matchesResult.error.message);
-  }
-  if (playersResult.error) {
-    throw new Error(playersResult.error.message);
-  }
+  const matches: MatchRow[] = matchesData.map((m) => ({
+    id: m.id,
+    opponent: m.opponent,
+    date: m.date.toISOString().slice(0, 10),
+    competition: m.competition,
+    team_category: null,
+    kickoff_time: m.kickoffTime,
+    location: m.location,
+    home_away: m.homeAway,
+    meeting_point: m.meetingPoint,
+    squad_notes: m.squadNotes,
+    starting_lineup: m.startingLineup,
+    substitutes: m.substitutes,
+    formation: m.formation,
+    tactical_instructions: m.tacticalInstructions,
+    match_goals: m.matchGoals,
+    pre_match_notes: m.preMatchNotes,
+    halftime_notes: m.halftimeNotes,
+    post_match_notes: m.postMatchNotes,
+    result: m.result,
+    scorers: m.scorers,
+    assists: m.assists,
+    cards: m.cards,
+    conclusion: m.conclusion,
+    notes: m.notes
+  }));
 
-  const matches = (matchesResult.data ?? []) as MatchRow[];
-  const players = (playersResult.data ?? []) as PlayerOption[];
+  // Sort players with non-null numbers first, then nulls (to match custom ordering)
+  const sortedPlayers = [...playersData].sort((a, b) => {
+    if (a.jerseyNumber !== null && b.jerseyNumber === null) return -1;
+    if (a.jerseyNumber === null && b.jerseyNumber !== null) return 1;
+    if (a.jerseyNumber !== null && b.jerseyNumber !== null) {
+      return a.jerseyNumber - b.jerseyNumber;
+    }
+    return a.name.localeCompare(b.name);
+  });
+
+  const players: PlayerOption[] = sortedPlayers.map((p) => ({
+    id: p.id,
+    name: p.name,
+    position: p.position,
+    jersey_number: p.jerseyNumber
+  }));
 
   return (
     <MatchesRoster
@@ -115,27 +153,40 @@ async function MatchesData({
   );
 }
 
-
 export default async function MatchesPage({ searchParams }: MatchesPageProps) {
   const { team } = await requireActiveTeam();
   const resolvedSearchParams = await searchParams;
   const initialDate = safeDate(resolvedSearchParams?.date);
-  const supabase = await createClient();
 
-  const { data: players } = await supabase
-    .from("players")
-    .select("id,name,jersey_number")
-    .eq("team_id", team.id)
-    .order("jersey_number", { ascending: true, nullsFirst: false })
-    .order("name", { ascending: true });
+  const playersData = await db.player.findMany({
+    where: { workspaceId: team.id },
+    select: {
+      id: true,
+      name: true,
+      jerseyNumber: true
+    },
+    orderBy: [
+      { jerseyNumber: "asc" },
+      { name: "asc" }
+    ]
+  });
 
-  const suggestedLineup = (players ?? [])
+  const sortedPlayers = [...playersData].sort((a, b) => {
+    if (a.jerseyNumber !== null && b.jerseyNumber === null) return -1;
+    if (a.jerseyNumber === null && b.jerseyNumber !== null) return 1;
+    if (a.jerseyNumber !== null && b.jerseyNumber !== null) {
+      return a.jerseyNumber - b.jerseyNumber;
+    }
+    return a.name.localeCompare(b.name);
+  });
+
+  const suggestedLineup = sortedPlayers
     .slice(0, 11)
-    .map((p) => (p.jersey_number ? `#${p.jersey_number} ${p.name}` : p.name))
+    .map((p) => (p.jerseyNumber ? `#${p.jerseyNumber} ${p.name}` : p.name))
     .join("\n");
-  const suggestedSubstitutes = (players ?? [])
+  const suggestedSubstitutes = sortedPlayers
     .slice(11)
-    .map((p) => (p.jersey_number ? `#${p.jersey_number} ${p.name}` : p.name))
+    .map((p) => (p.jerseyNumber ? `#${p.jerseyNumber} ${p.name}` : p.name))
     .join("\n");
 
   return (
@@ -176,3 +227,4 @@ export default async function MatchesPage({ searchParams }: MatchesPageProps) {
     </div>
   );
 }
+

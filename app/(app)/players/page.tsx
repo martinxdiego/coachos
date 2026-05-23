@@ -4,7 +4,7 @@ import { TeamSignupShare } from "@/components/team-signup-share";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { requireActiveTeam } from "@/lib/auth";
-import { createClient } from "@/lib/supabase/server";
+import { db } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
@@ -48,21 +48,42 @@ function PlayersRosterSkeleton() {
 }
 
 async function PlayersData({ teamId }: { teamId: string }) {
-  const supabase = await createClient();
-  const { data: players, error } = await supabase
-    .from("players")
-    .select(
-      "id,name,first_name,last_name,position,birth_year,team_category,jersey_number,status,rating,development_goals,photo_url"
-    )
-    .eq("team_id", teamId)
-    .order("last_name", { ascending: true });
+  const players = await db.player.findMany({
+    where: { workspaceId: teamId },
+    select: {
+      id: true,
+      name: true,
+      firstName: true,
+      lastName: true,
+      position: true,
+      birthYear: true,
+      jerseyNumber: true,
+      status: true,
+      rating: true,
+      developmentGoals: true,
+      photoUrl: true,
+    },
+    orderBy: { lastName: "asc" },
+  });
 
-  if (error) {
-    throw new Error(error.message);
-  }
+  const mappedPlayers: PlayerRow[] = players.map((p) => ({
+    id: p.id,
+    name: p.name,
+    first_name: p.firstName,
+    last_name: p.lastName,
+    position: p.position,
+    birth_year: p.birthYear,
+    team_category: null,
+    jersey_number: p.jerseyNumber,
+    status: p.status === "FIT" ? "available" : p.status === "INJURED" ? "injured" : p.status === "REHAB" ? "limited" : p.status.toLowerCase() as any,
+    rating: p.rating,
+    development_goals: p.developmentGoals,
+    photo_url: p.photoUrl,
+  }));
 
-  return <PlayersRoster players={(players ?? []) as PlayerRow[]} />;
+  return <PlayersRoster players={mappedPlayers} />;
 }
+
 
 export default async function PlayersPage() {
   const { team } = await requireActiveTeam();

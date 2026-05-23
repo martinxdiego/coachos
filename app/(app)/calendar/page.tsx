@@ -10,7 +10,9 @@ import {
   CardHeader,
   CardTitle
 } from "@/components/ui/card";
+import { db } from "@/lib/db";
 import { requireActiveTeam } from "@/lib/auth";
+
 
 export const dynamic = "force-dynamic";
 
@@ -224,7 +226,7 @@ function MonthGrid({
 }
 
 export default async function CalendarPage({ searchParams }: CalendarPageProps) {
-  const { supabase, team } = await requireActiveTeam();
+  const { team } = await requireActiveTeam();
   const resolvedSearchParams = await searchParams;
   const view = (["day", "week", "month", "year"].includes(
     resolvedSearchParams?.view ?? ""
@@ -234,43 +236,47 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
   const selectedDate = parseDate(resolvedSearchParams?.date);
   const selectedIso = toIsoDate(selectedDate);
 
-  const [trainingsResult, matchesResult] = await Promise.all([
-    supabase
-      .from("training_sessions")
-      .select("id,date,start_time,focus,location")
-      .eq("team_id", team.id)
-      .order("date", { ascending: true })
-      .limit(300),
-    supabase
-      .from("matches")
-      .select("id,date,kickoff_time,opponent,location")
-      .eq("team_id", team.id)
-      .order("date", { ascending: true })
-      .limit(300)
+  const [trainingsData, matchesData] = await Promise.all([
+    db.training.findMany({
+      where: { workspaceId: team.id },
+      select: {
+        id: true,
+        date: true,
+        startTime: true,
+        focus: true,
+        location: true
+      },
+      orderBy: { date: "asc" },
+      take: 300
+    }),
+    db.match.findMany({
+      where: { workspaceId: team.id },
+      select: {
+        id: true,
+        date: true,
+        kickoffTime: true,
+        opponent: true,
+        location: true
+      },
+      orderBy: { date: "asc" },
+      take: 300
+    })
   ]);
 
-  if (trainingsResult.error) {
-    throw new Error(trainingsResult.error.message);
-  }
-
-  if (matchesResult.error) {
-    throw new Error(matchesResult.error.message);
-  }
-
   const events: CalendarEvent[] = [
-    ...(trainingsResult.data ?? []).map((event) => ({
+    ...trainingsData.map((event) => ({
       id: `training-${event.id}`,
-      date: event.date,
-      time: event.start_time,
+      date: event.date.toISOString().slice(0, 10),
+      time: event.startTime,
       title: event.focus,
       location: event.location,
       type: "Training" as const,
       href: "/trainings"
     })),
-    ...(matchesResult.data ?? []).map((event) => ({
+    ...matchesData.map((event) => ({
       id: `match-${event.id}`,
-      date: event.date,
-      time: event.kickoff_time,
+      date: event.date.toISOString().slice(0, 10),
+      time: event.kickoffTime,
       title: event.opponent,
       location: event.location,
       type: "Spiel" as const,

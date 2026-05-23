@@ -17,66 +17,115 @@ import {
   CardHeader,
   CardTitle
 } from "@/components/ui/card";
+import { db } from "@/lib/db";
 import { requireActiveTeam } from "@/lib/auth";
-import { formatDate, todayIsoDate } from "@/lib/utils";
+import { formatDate } from "@/lib/utils";
 import type { AttendanceStatus } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
 export default async function PitchPage() {
-  const { supabase, team } = await requireActiveTeam();
-  const today = todayIsoDate();
+  const { team } = await requireActiveTeam();
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
 
-  const [playersResult, trainingResult, matchResult] = await Promise.all([
-    supabase
-      .from("players")
-      .select("id,name,position,jersey_number,status")
-      .eq("team_id", team.id)
-      .order("jersey_number", { ascending: true, nullsFirst: false })
-      .order("name", { ascending: true }),
-    supabase
-      .from("training_sessions")
-      .select("id,date,start_time,focus,goal,location,intensity")
-      .eq("team_id", team.id)
-      .gte("date", today)
-      .order("date", { ascending: true })
-      .limit(1)
-      .maybeSingle(),
-    supabase
-      .from("matches")
-      .select("id,date,kickoff_time,opponent,location,meeting_point,formation")
-      .eq("team_id", team.id)
-      .gte("date", today)
-      .order("date", { ascending: true })
-      .limit(1)
-      .maybeSingle()
+  const [dbPlayers, dbTraining, dbMatch] = await Promise.all([
+    db.player.findMany({
+      where: { workspaceId: team.id },
+      select: {
+        id: true,
+        name: true,
+        position: true,
+        jerseyNumber: true,
+        number: true,
+        status: true
+      },
+      orderBy: [
+        { jerseyNumber: "asc" },
+        { name: "asc" }
+      ]
+    }),
+    db.training.findFirst({
+      where: {
+        workspaceId: team.id,
+        date: { gte: todayStart }
+      },
+      select: {
+        id: true,
+        date: true,
+        startTime: true,
+        focus: true,
+        goal: true,
+        location: true,
+        intensity: true
+      },
+      orderBy: { date: "asc" }
+    }),
+    db.match.findFirst({
+      where: {
+        workspaceId: team.id,
+        date: { gte: todayStart }
+      },
+      select: {
+        id: true,
+        date: true,
+        kickoffTime: true,
+        opponent: true,
+        location: true,
+        meetingPoint: true,
+        formation: true
+      },
+      orderBy: { date: "asc" }
+    })
   ]);
 
-  for (const result of [playersResult, trainingResult, matchResult]) {
-    if (result.error) {
-      throw new Error(result.error.message);
-    }
-  }
+  const players = dbPlayers.map((p) => ({
+    id: p.id,
+    name: p.name,
+    position: p.position,
+    jersey_number: p.jerseyNumber ?? p.number,
+    status: p.status === "FIT" ? "available" : p.status === "INJURED" ? "injured" : "limited"
+  }));
 
-  const players = playersResult.data ?? [];
-  const training = trainingResult.data;
-  const nextMatch = matchResult.data;
+  const training = dbTraining
+    ? {
+        id: dbTraining.id,
+        date: dbTraining.date.toISOString().slice(0, 10),
+        start_time: dbTraining.startTime,
+        focus: dbTraining.focus,
+        goal: dbTraining.goal,
+        location: dbTraining.location,
+        intensity: dbTraining.intensity
+      }
+    : null;
 
-  const attendanceResult = training
-    ? await supabase
-        .from("attendance")
-        .select("player_id,status")
-        .eq("team_id", team.id)
-        .eq("training_id", training.id)
-    : { data: [], error: null };
+  const nextMatch = dbMatch
+    ? {
+        id: dbMatch.id,
+        date: dbMatch.date.toISOString().slice(0, 10),
+        kickoff_time: dbMatch.kickoffTime,
+        opponent: dbMatch.opponent,
+        location: dbMatch.location,
+        meeting_point: dbMatch.meetingPoint,
+        formation: dbMatch.formation
+      }
+    : null;
 
-  if (attendanceResult.error) {
-    throw new Error(attendanceResult.error.message);
-  }
+  const dbAttendance = training
+    ? await db.attendance.findMany({
+        where: {
+          trainingId: training.id
+        },
+        select: {
+          playerId: true,
+          status: true
+        }
+      })
+    : [];
 
   const attendance = new Map<string, AttendanceStatus>();
-  for (const row of attendanceResult.data ?? []) {
-    attendance.set(row.player_id, row.status);
+  for (const row of dbAttendance) {
+    attendance.set(row.playerId, row.status as AttendanceStatus);
   }
 
   const presentCount = players.filter(

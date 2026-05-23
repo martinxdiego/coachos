@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { db } from "@/lib/db";
 import type { HealthContextType, PlayerStatus } from "@/lib/types";
 
 const UUID_RE =
@@ -41,27 +41,46 @@ function scaleFive(formData: FormData, key: string, label: string): number {
 }
 
 async function findTeamByToken(token: string) {
-  const admin = createAdminClient();
-  const { data, error } = await admin
-    .from("teams")
-    .select("id,name,age_group,player_signup_token,created_by")
-    .eq("player_signup_token", token)
-    .maybeSingle();
-  if (error) throw new Error(error.message);
-  if (!data) throw new Error("Beitritts-Link ist ungültig oder abgelaufen.");
-  return data;
+  const team = await db.workspace.findUnique({
+    where: { id: token },
+    select: {
+      id: true,
+      name: true,
+      ageGroup: true,
+      season: true,
+    }
+  });
+  if (!team) throw new Error("Beitritts-Link ist ungültig oder abgelaufen.");
+  return {
+    id: team.id,
+    name: team.name,
+    age_group: team.ageGroup,
+    season: team.season,
+    created_by: "" // We will query the trainer's user ID if needed
+  };
 }
 
 async function findPlayerByToken(token: string) {
-  const admin = createAdminClient();
-  const { data, error } = await admin
-    .from("players")
-    .select("id,team_id,access_token,name,first_name,last_name")
-    .eq("access_token", token)
-    .maybeSingle();
-  if (error) throw new Error(error.message);
-  if (!data) throw new Error("Zugang ist ungültig.");
-  return data;
+  const player = await db.player.findFirst({
+    where: { accessToken: token },
+    select: {
+      id: true,
+      workspaceId: true,
+      accessToken: true,
+      name: true,
+      firstName: true,
+      lastName: true,
+    }
+  });
+  if (!player) throw new Error("Zugang ist ungültig.");
+  return {
+    id: player.id,
+    team_id: player.workspaceId,
+    access_token: player.accessToken,
+    name: player.name,
+    first_name: player.firstName,
+    last_name: player.lastName,
+  };
 }
 
 export interface SelfRegisterResult {
@@ -87,37 +106,34 @@ export async function selfRegisterPlayer(
   const jerseyNumber = optNumber(formData, "jersey_number");
 
   const fullName = `${firstName} ${lastName}`.trim();
-  const admin = createAdminClient();
-  const { data: created, error } = await admin
-    .from("players")
-    .insert({
-      team_id: team.id,
-      user_id: team.created_by,
-      name: fullName,
-      first_name: firstName,
-      last_name: lastName,
-      birth_date: birthDate,
-      birth_year: birthYear,
-      height_cm: heightCm,
-      weight_kg: weightKg,
-      position,
-      jersey_number: jerseyNumber,
-      status: "available" as PlayerStatus,
-      self_registered_at: new Date().toISOString()
-    })
-    .select("id,access_token")
-    .single();
 
-  if (error) {
-    throw new Error(error.message);
-  }
+  const created = await db.player.create({
+    data: {
+      workspaceId: team.id,
+      name: fullName,
+      firstName,
+      lastName,
+      birthDate: birthDate ? new Date(birthDate) : null,
+      birthYear,
+      height: heightCm,
+      weight: weightKg,
+      position,
+      jerseyNumber,
+      status: "available" as PlayerStatus,
+      selfRegisteredAt: new Date(),
+    },
+    select: {
+      id: true,
+      accessToken: true,
+    }
+  });
 
   revalidatePath("/players");
   revalidatePath("/");
 
   return {
     ok: true,
-    accessToken: created.access_token,
+    accessToken: created.accessToken,
     playerId: created.id
   };
 }
@@ -136,30 +152,69 @@ export async function submitPublicCheckin(
   const contextType: HealthContextType =
     contextRaw === "match" || contextRaw === "free" ? contextRaw : "training";
 
-  const row = {
-    team_id: player.team_id,
-    user_id: (await findTeamCreatedBy(player.team_id)) ?? player.id,
-    player_id: player.id,
-    checkin_date: checkinDate,
-    context_type: contextType,
-    fatigue: scaleFive(formData, "fatigue", "Müdigkeit"),
-    sleep_quality: scaleFive(formData, "sleep_quality", "Schlafqualität"),
-    soreness: scaleFive(formData, "soreness", "Muskelkater"),
-    pain: scaleFive(formData, "pain", "Schmerzen"),
-    stress: scaleFive(formData, "stress", "Stress"),
-    motivation: scaleFive(formData, "motivation", "Motivation"),
-    energy: scaleFive(formData, "energy", "Energie"),
-    injury_feeling: scaleFive(formData, "injury_feeling", "Verletzungsgefühl"),
-    wellbeing: scaleFive(formData, "wellbeing", "Wohlbefinden"),
-    notes: optString(formData, "notes")
-  };
+  const fatigue = scaleFive(formData, "fatigue", "Müdigkeit");
+  const sleep_quality = scaleFive(formData, "sleep_quality", "Schlafqualität");
+  const soreness = scaleFive(formData, "soreness", "Muskelkater");
+  const pain = scaleFive(formData, "pain", "Schmerzen");
+  const stress = scaleFive(formData, "stress", "Stress");
+  const motivation = scaleFive(formData, "motivation", "Motivation");
+  const energy = scaleFive(formData, "energy", "Energie");
+  const injury_feeling = scaleFive(formData, "injury_feeling", "Verletzungsgefühl");
+  const wellbeing = scaleFive(formData, "wellbeing", "Wohlbefinden");
+  const notes = optString(formData, "notes");
 
-  const admin = createAdminClient();
-  const { error } = await admin
-    .from("health_checkins")
-    .upsert(row, { onConflict: "player_id,checkin_date,context_type" });
+  const parsedDate = new Date(`${checkinDate}T00:00:00.000Z`);
 
-  if (error) throw new Error(error.message);
+  const contextEnum =
+    contextType === "match"
+      ? "PRE_MATCH"
+      : "PRE_TRAINING";
+
+  const existing = await db.healthCheck.findFirst({
+    where: {
+      playerId: player.id,
+      date: parsedDate,
+      contextType: contextType
+    }
+  });
+
+  if (existing) {
+    await db.healthCheck.update({
+      where: { id: existing.id },
+      data: {
+        fatigue,
+        sleepQuality: sleep_quality,
+        soreness,
+        pain,
+        stress,
+        motivation,
+        energy,
+        injuryFeeling: injury_feeling,
+        wellbeing,
+        notes,
+        context: contextEnum
+      }
+    });
+  } else {
+    await db.healthCheck.create({
+      data: {
+        playerId: player.id,
+        date: parsedDate,
+        contextType: contextType,
+        fatigue,
+        sleepQuality: sleep_quality,
+        soreness,
+        pain,
+        stress,
+        motivation,
+        energy,
+        injuryFeeling: injury_feeling,
+        wellbeing,
+        notes,
+        context: contextEnum
+      }
+    });
+  }
 
   revalidatePath(`/spieler/${token}`);
   revalidatePath("/health");
@@ -168,13 +223,11 @@ export async function submitPublicCheckin(
 }
 
 async function findTeamCreatedBy(teamId: string): Promise<string | null> {
-  const admin = createAdminClient();
-  const { data } = await admin
-    .from("teams")
-    .select("created_by")
-    .eq("id", teamId)
-    .maybeSingle();
-  return data?.created_by ?? null;
+  const member = await db.workspaceMember.findFirst({
+    where: { workspaceId: teamId },
+    select: { userId: true }
+  });
+  return member?.userId ?? null;
 }
 
 export async function submitPublicSeasonForm(
@@ -184,22 +237,16 @@ export async function submitPublicSeasonForm(
   const token = ensureUuid(accessToken, "Zugang");
   const player = await findPlayerByToken(token);
 
-  const admin = createAdminClient();
-  const { error } = await admin
-    .from("players")
-    .update({
+  await db.player.update({
+    where: { id: player.id },
+    data: {
       contact: optString(formData, "contact"),
-      parent_contact: optString(formData, "parent_contact"),
-      emergency_contact: optString(formData, "emergency_contact"),
-      strong_foot:
-        (optString(formData, "strong_foot") as
-          | "left"
-          | "right"
-          | "both"
-          | null) ?? null,
-      favorite_team: optString(formData, "favorite_team"),
-      favorite_player: optString(formData, "favorite_player"),
-      football_goals: optString(formData, "football_goals"),
+      parentContact: optString(formData, "parent_contact"),
+      emergencyContact: optString(formData, "emergency_contact"),
+      strongFoot: optString(formData, "strong_foot"),
+      favoriteTeam: optString(formData, "favorite_team"),
+      favoritePlayer: optString(formData, "favorite_player"),
+      footballGoals: optString(formData, "football_goals"),
       strengths: optString(formData, "strengths"),
       weaknesses: optString(formData, "weaknesses"),
       motivation: optString(formData, "motivation"),
@@ -207,11 +254,9 @@ export async function submitPublicSeasonForm(
       injuries: optString(formData, "injuries"),
       limitations: optString(formData, "limitations"),
       medications: optString(formData, "medications"),
-      season_form_completed_at: new Date().toISOString()
-    })
-    .eq("id", player.id);
-
-  if (error) throw new Error(error.message);
+      seasonFormCompletedAt: new Date()
+    }
+  });
 
   revalidatePath(`/spieler/${token}`);
   revalidatePath(`/players/${player.id}`);
@@ -229,16 +274,14 @@ export async function submitPlayerNoteToCoach(
   const safeRating =
     Number.isInteger(rating) && rating >= 1 && rating <= 10 ? rating : 5;
 
-  const admin = createAdminClient();
-  const { error } = await admin.from("player_feedback").insert({
-    team_id: player.team_id,
-    player_id: player.id,
-    user_id: (await findTeamCreatedBy(player.team_id)) ?? player.id,
-    rating: safeRating,
-    notes: body
+  await db.playerFeedback.create({
+    data: {
+      workspaceId: player.team_id,
+      playerId: player.id,
+      rating: safeRating,
+      notes: body
+    }
   });
-
-  if (error) throw new Error(error.message);
 
   revalidatePath(`/spieler/${token}`);
   revalidatePath(`/players/${player.id}`);
@@ -252,16 +295,11 @@ export async function markCoachMessageRead(
   const id = ensureUuid(messageId, "Mitteilungs-ID");
   const player = await findPlayerByToken(token);
 
-  const admin = createAdminClient();
-  const { error } = await admin
-    .from("coach_messages")
-    .update({ read_at: new Date().toISOString() })
-    .eq("id", id)
-    .eq("player_id", player.id);
-
-  if (error) throw new Error(error.message);
+  await db.coachMessage.update({
+    where: { id },
+    data: { readAt: new Date() }
+  });
 
   revalidatePath(`/spieler/${token}`);
   revalidatePath(`/players/${player.id}`);
 }
-

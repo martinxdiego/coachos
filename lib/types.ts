@@ -13,6 +13,7 @@ export type PlayerStatus = "available" | "injured" | "limited" | "absent";
 export type TrainingIntensity = "low" | "medium" | "high";
 export type TrainingPhaseType =
   | "warmup"
+  | "activation"
   | "technique"
   | "tactics"
   | "game_form"

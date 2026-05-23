@@ -1,66 +1,29 @@
-import { createServerClient } from "@supabase/ssr";
-import { NextResponse, type NextRequest } from "next/server";
-import type { Database } from "@/lib/types";
+import NextAuth from "next-auth";
+import { authConfig } from "./lib/auth.config";
+import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+import { rateLimit } from "./lib/rate-limit";
 
-export async function middleware(request: NextRequest) {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const { auth } = NextAuth(authConfig);
 
-  if (!supabaseUrl || !supabaseAnonKey) {
-    return NextResponse.next({ request });
-  }
+export default auth(async function middleware(req: NextRequest) {
+  const ip = (req as any).ip || req.headers.get("x-forwarded-for")?.split(",")[0].trim() || "127.0.0.1";
+  const path = req.nextUrl.pathname;
 
-  let response = NextResponse.next({ request });
-
-  const supabase = createServerClient<Database>(
-    supabaseUrl,
-    supabaseAnonKey,
-    {
-      cookies: {
-        get(name: string) {
-          return request.cookies.get(name)?.value;
+  if (path.startsWith("/api/trpc") || path.startsWith("/api/push") || req.method === "POST") {
+    const limitResult = await rateLimit(ip, 60, 60);
+    if (!limitResult.success) {
+      return new NextResponse("Too Many Requests", {
+        status: 429,
+        headers: {
+          "Retry-After": Math.ceil((limitResult.reset - Date.now()) / 1000).toString(),
         },
-        set(name: string, value: string, options) {
-          request.cookies.set({ name, value, ...options });
-          response = NextResponse.next({ request });
-          response.cookies.set({ name, value, ...options });
-        },
-        remove(name: string, options) {
-          request.cookies.set({ name, value: "", ...options });
-          response = NextResponse.next({ request });
-          response.cookies.set({ name, value: "", ...options });
-        }
-      }
+      });
     }
-  );
-
-  const {
-    data: { user }
-  } = await supabase.auth.getUser();
-
-  const pathname = request.nextUrl.pathname;
-  const isPublicRoute =
-    pathname === "/login" ||
-    pathname.startsWith("/auth/callback") ||
-    pathname.startsWith("/beitreten") ||
-    pathname.startsWith("/spieler");
-
-  if (!user && !isPublicRoute) {
-    const redirectUrl = request.nextUrl.clone();
-    redirectUrl.pathname = "/login";
-    redirectUrl.searchParams.set("next", pathname);
-    return NextResponse.redirect(redirectUrl);
   }
 
-  if (user && pathname === "/login") {
-    const redirectUrl = request.nextUrl.clone();
-    redirectUrl.pathname = "/";
-    redirectUrl.search = "";
-    return NextResponse.redirect(redirectUrl);
-  }
-
-  return response;
-}
+  return NextResponse.next();
+});
 
 export const config = {
   matcher: [

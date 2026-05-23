@@ -19,42 +19,69 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { db } from "@/lib/db";
 import { requireActiveTeam } from "@/lib/auth";
 import { formatDate } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
 export default async function AwardsPage() {
-  const { supabase, team } = await requireActiveTeam();
-  const [playersResult, matchesResult, awardsResult] = await Promise.all([
-    supabase
-      .from("players")
-      .select("id,name,position,jersey_number")
-      .eq("team_id", team.id)
-      .order("last_name", { ascending: true }),
-    supabase
-      .from("matches")
-      .select("id,date,opponent,result")
-      .eq("team_id", team.id)
-      .order("date", { ascending: false })
-      .limit(30),
-    supabase
-      .from("player_awards")
-      .select("*")
-      .eq("team_id", team.id)
-      .order("award_date", { ascending: false })
-      .order("created_at", { ascending: false })
+  const { team } = await requireActiveTeam();
+  const [playersData, matchesData, awardsData] = await Promise.all([
+    db.player.findMany({
+      where: { workspaceId: team.id },
+      select: {
+        id: true,
+        name: true,
+        position: true,
+        jerseyNumber: true
+      },
+      orderBy: { name: "asc" }
+    }),
+    db.match.findMany({
+      where: { workspaceId: team.id },
+      select: {
+        id: true,
+        date: true,
+        opponent: true,
+        result: true
+      },
+      orderBy: { date: "desc" },
+      take: 30
+    }),
+    db.award.findMany({
+      where: { workspaceId: team.id },
+      orderBy: [
+        { date: "desc" },
+        { createdAt: "desc" }
+      ]
+    })
   ]);
 
-  for (const result of [playersResult, matchesResult, awardsResult]) {
-    if (result.error) {
-      throw new Error(result.error.message);
-    }
-  }
+  const players = playersData.map((p) => ({
+    id: p.id,
+    name: p.name,
+    position: p.position,
+    jersey_number: p.jerseyNumber
+  }));
 
-  const players = playersResult.data ?? [];
-  const matches = matchesResult.data ?? [];
-  const awards = awardsResult.data ?? [];
+  const matches = matchesData.map((m) => ({
+    id: m.id,
+    date: m.date.toISOString().slice(0, 10),
+    opponent: m.opponent,
+    result: m.result
+  }));
+
+  const awards = awardsData.map((a) => ({
+    id: a.id,
+    player_id: a.playerId,
+    previous_player_id: a.previousPlayerId,
+    match_id: a.matchId,
+    event_label: a.eventLabel,
+    award_date: a.date.toISOString().slice(0, 10),
+    reason: a.reason
+  }));
+
   const playerById = new Map(players.map((player) => [player.id, player]));
   const current = awards[0] ?? null;
   const counts = players
@@ -64,6 +91,7 @@ export default async function AwardsPage() {
     }))
     .filter((item) => item.count > 0)
     .sort((a, b) => b.count - a.count);
+
 
   return (
     <div className="space-y-6">

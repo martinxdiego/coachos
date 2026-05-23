@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { ShieldCheck } from "lucide-react";
 import { PlayerSelfRegisterForm } from "@/components/player-self-register-form";
 import { Card, CardContent } from "@/components/ui/card";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { db } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
@@ -21,16 +21,26 @@ export default async function JoinPage({ params }: JoinPageProps) {
     notFound();
   }
 
-  const admin = createAdminClient();
-  const { data: team } = await admin
-    .from("teams")
-    .select("id,name,age_group,season")
-    .eq("player_signup_token", teamToken)
-    .maybeSingle();
+  const workspace = await db.workspace.findUnique({
+    where: { id: teamToken },
+    select: {
+      id: true,
+      name: true,
+      ageGroup: true,
+      season: true
+    }
+  });
 
-  if (!team) {
+  if (!workspace) {
     notFound();
   }
+
+  const team = {
+    id: workspace.id,
+    name: workspace.name,
+    age_group: workspace.ageGroup,
+    season: workspace.season
+  };
 
   return (
     <div className="min-h-dvh bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950 px-4 py-8 text-white sm:py-14">

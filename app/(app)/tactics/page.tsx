@@ -7,36 +7,48 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { requireActiveTeam } from "@/lib/auth";
+import { db } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
 export default async function TacticsPage() {
-  const { supabase, team } = await requireActiveTeam();
-  const [boardsResult, playersResult] = await Promise.all([
-    supabase
-      .from("tactic_boards")
-      .select("*")
-      .eq("team_id", team.id)
-      .order("updated_at", { ascending: false })
-      .limit(50),
-    supabase
-      .from("players")
-      .select("id,name,position,jersey_number")
-      .eq("team_id", team.id)
-      .order("jersey_number", { ascending: true, nullsFirst: false })
-      .order("name", { ascending: true })
+  const { team } = await requireActiveTeam();
+  const [dbBoards, dbPlayers] = await Promise.all([
+    db.tacticBoard.findMany({
+      where: { workspaceId: team.id },
+      orderBy: { updatedAt: "desc" },
+      take: 50
+    }),
+    db.player.findMany({
+      where: { workspaceId: team.id },
+      select: {
+        id: true,
+        name: true,
+        position: true,
+        jerseyNumber: true,
+        number: true
+      },
+      orderBy: [
+        { jerseyNumber: "asc" },
+        { name: "asc" }
+      ]
+    })
   ]);
 
-  if (boardsResult.error) {
-    throw new Error(boardsResult.error.message);
-  }
+  const boards = dbBoards.map((b) => ({
+    id: b.id,
+    title: b.title,
+    description: b.description,
+    elements: b.elements,
+    updated_at: b.updatedAt.toISOString()
+  }));
 
-  if (playersResult.error) {
-    throw new Error(playersResult.error.message);
-  }
-
-  const boards = boardsResult.data ?? [];
-  const players = playersResult.data ?? [];
+  const players = dbPlayers.map((p) => ({
+    id: p.id,
+    name: p.name,
+    position: p.position,
+    jersey_number: p.jerseyNumber ?? p.number
+  }));
 
   return (
     <div className="space-y-6">
