@@ -236,25 +236,25 @@ export async function signUp(formData: FormData) {
     redirectWithMessage("/login", "Das Passwort muss mindestens 6 Zeichen lang sein.");
   }
 
-  const existingUser = await db.user.findUnique({
-    where: { email }
-  });
+  try {
+    const existingUser = await db.user.findUnique({ where: { email } });
 
-  if (existingUser) {
-    redirectWithMessage("/login", "Ein Benutzer mit dieser E-Mail existiert bereits.");
-  }
-
-  const passwordHash = await bcrypt.hash(password, 10);
-
-  await db.user.create({
-    data: {
-      email,
-      passwordHash,
-      role: "TRAINER"
+    if (existingUser) {
+      redirectWithMessage("/login", "Ein Benutzer mit dieser E-Mail existiert bereits.");
     }
-  });
 
-  redirectWithMessage("/login", "Registrierung erfolgreich. Bitte melde dich an.");
+    const passwordHash = await bcrypt.hash(password, 10);
+
+    await db.user.create({
+      data: { email, passwordHash, role: "TRAINER" },
+    });
+
+    redirectWithMessage("/login", "Registrierung erfolgreich. Bitte melde dich an.");
+  } catch (err: any) {
+    if (err?.digest?.startsWith("NEXT_REDIRECT")) throw err;
+    console.error("[signUp] error:", err?.code, err?.message, err);
+    redirectWithMessage("/login", "Registrierung fehlgeschlagen – bitte versuche es erneut.");
+  }
 }
 
 export async function signOut() {
