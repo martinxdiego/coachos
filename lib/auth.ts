@@ -4,14 +4,15 @@ import { db } from "@/lib/db";
 import type { Team, TeamMember } from "@/lib/types";
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
-import { PrismaAdapter } from "@auth/prisma-adapter";
 import { authConfig } from "./auth.config";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
-  adapter: PrismaAdapter(db),
+  // No PrismaAdapter: Credentials + JWT strategy does not need a database adapter.
+  // The adapter caused CallbackRouteError because it tried to SELECT emailVerified
+  // from our User model which does not have that field.
   providers: [
     Credentials({
       name: "Credentials",
@@ -24,18 +25,30 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           .object({ email: z.string().email(), password: z.string().min(6) })
           .safeParse(credentials);
 
-        if (parsedCredentials.success) {
-          const { email, password } = parsedCredentials.data;
-          const user = await db.user.findUnique({
-            where: { email },
-          });
-          if (!user) return null;
+        if (!parsedCredentials.success) return null;
+
+        const { email, password } = parsedCredentials.data;
+
+        try {
+          const user = await db.user.findUnique({ where: { email } });
+
+          if (!user) {
+            console.log("[auth] user not found:", email);
+            return null;
+          }
+
           const passwordsMatch = await bcrypt.compare(password, user.passwordHash);
 
-          if (passwordsMatch) return { id: user.id, email: user.email, name: user.name, role: user.role };
-        }
+          if (!passwordsMatch) {
+            console.log("[auth] wrong password for:", email);
+            return null;
+          }
 
-        return null;
+          return { id: user.id, email: user.email, name: user.name, role: user.role };
+        } catch (err) {
+          console.error("[auth] authorize DB error:", err);
+          return null;
+        }
       },
     }),
   ],
