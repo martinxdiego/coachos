@@ -127,8 +127,8 @@ export default async function PlayerModePage({
   );
   const isStaffPreview =
     membership.role === "owner" ||
-    membership.role === "head_coach" ||
-    membership.role === "coach";
+    membership.role === "coach" ||
+    membership.role === "assistant";
   const selectedPlayerId = params?.player ?? linkedPlayer?.id;
   const selectedOption =
     players.find((player) => player.id === selectedPlayerId) ?? null;

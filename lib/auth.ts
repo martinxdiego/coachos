@@ -145,7 +145,7 @@ function mapMemberToMembership(member: any) {
     id: member.id,
     team_id: member.workspaceId,
     user_id: member.userId,
-    role: member.role.toLowerCase() as any, // In Supabase, role was lowercase e.g., 'owner', 'head_coach'
+    role: member.role.toLowerCase() as any, // 'owner' | 'coach' | 'assistant'
     created_at: member.workspace?.createdAt?.toISOString() || new Date().toISOString(),
   } as unknown as TeamMembership;
 }

@@ -11,7 +11,7 @@ model User {
   email        String            @unique
   passwordHash String
   name         String?
-  role         Role              @default(TRAINER)
+  role         Role              @default(COACH)
   workspaces   WorkspaceMember[]
   ratings      Rating[]
   createdAt    DateTime          @default(now())
@@ -48,7 +48,7 @@ model WorkspaceMember {
   userId      String
   workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   workspaceId String
-  role        Role      @default(TRAINER)
+  role        Role      @default(ASSISTANT)
 
   @@unique([workspaceId, userId])
 }
@@ -442,14 +442,9 @@ model CoachMessage {
 }
 
 enum Role {
-  ADMIN
-  TRAINER
-  CO_TRAINER
-  PLAYER
-  PARENT
   OWNER
-  HEAD_COACH
   COACH
+  ASSISTANT
 }
 
 enum PlayerStatus {

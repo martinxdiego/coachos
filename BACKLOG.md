@@ -34,7 +34,7 @@ Schätzung in Story Points (SP): 1 ≈ halber Tag, 2 ≈ 1 Tag, 3 ≈ 2 Tage, 5 
   *AK:* Route entfernt, `DATABASE_URL`/Service-Keys rotiert oder als sauber verifiziert.
   *Umgesetzt:* Route + Ordner gelöscht. Git-History enthält keine `.env`-Dateien; `.gitignore` deckt sie ab → keine Rotation nötig.
 
-- [ ] **S1.3 (P0, 3 SP) Team-Beitritt auf `TeamInvite` umstellen** ⛔ braucht Entscheidung + DB-Migration (siehe unten)
+- [x] **S1.3 (P0, 3 SP) Team-Beitritt auf `TeamInvite` umstellen** ✅ 2026-06-12 (Hard-Cutover)
   `findTeamByToken` in `app/actions-public.ts` darf nicht mehr `workspace.id` als Token akzeptieren. Stattdessen: `TeamInvite.code` (zufällig, `expiresAt`, widerrufbar). UI in `/workspaces` + `/beitreten/[teamToken]` anpassen, `player_signup_token`-Fallback in `lib/auth.ts:115` entfernen.
   *AK:* Beitritt nur mit gültigem, nicht abgelaufenem Invite-Code. Trainer kann Codes erzeugen und widerrufen. Alte Workspace-UUID-Links funktionieren nicht mehr.
 
@@ -42,6 +42,7 @@ Schätzung in Story Points (SP): 1 ≈ halber Tag, 2 ≈ 1 Tag, 3 ≈ 2 Tage, 5 
   Token-Rotation: Trainer kann pro Spieler einen neuen Link erzeugen (alter wird ungültig). Optional `lastUsedAt` loggen.
   *AK:* "Link erneuern"-Button im Spielerprofil; alter Token liefert 404.
   *Umgesetzt:* Server-Action `rotatePlayerAccessToken` (workspace-scoped) + "Link erneuern"-Button mit Bestätigung in `player-mode-share.tsx`. Alter Token findet keinen Spieler mehr. `lastUsedAt`-Logging als optionales Follow-up offen.
+  *S1.3 umgesetzt (Hard-Cutover):* `lib/invites.ts` (getOrCreate/rotate/resolve, role PLAYER, 90 Tage Ablauf, akzeptiert nie eine Workspace-UUID); `/beitreten/[teamToken]` + `selfRegisterPlayer` lösen nur noch Invite-Codes auf; Players-Seite zeigt aktiven Code + „Link erneuern" (`rotateTeamSignupCode`). Alte UUID-Links laufen ins Leere. **Setzt `team_invites`-Tabelle voraus → kommt mit S3.1-Baseline.**
 
 - [x] **S1.5 (P0, 2 SP) DB-TLS korrekt konfigurieren** ✅ 2026-06-12
   `rejectUnauthorized: false` in `lib/db.ts` entfernen; Supabase-CA-Zertifikat einbinden (`ssl: { ca: ... }`) oder `sslmode=verify-full` in der Connection-URL.
@@ -53,19 +54,20 @@ Schätzung in Story Points (SP): 1 ≈ halber Tag, 2 ≈ 1 Tag, 3 ≈ 2 Tage, 5 
   *AK:* Brute-Force-Test schlägt fehl; Logs enthalten keine Klartext-E-Mails bei Fehlversuchen.
   *Umgesetzt:* `lib/login-throttle.ts` (5 Fehlversuche → 15 min Lockout, Redis + In-Memory-Fallback); `authorize()` mit konstanter bcrypt-Laufzeit gegen User-Enumeration, generischen Meldungen, ohne E-Mail-Logging; Passwortlänge 10 in Action + Login-Form. **Offen:** zxcvbn-Stärkeprüfung (separates kleines Follow-up).
 
-- [ ] **S1.7 (P0, 2 SP) Rollen durchsetzen** ⛔ braucht Entscheidung + DB-Migration (siehe unten)
+- [x] **S1.7 (P0, 2 SP) Rollen durchsetzen** ✅ 2026-06-12 (Migration vorbereitet, Apply nach Baseline)
   `Role`-Enum auf benutzte Werte reduzieren (z. B. `OWNER`, `COACH`, `ASSISTANT`); destruktive Aktionen (Workspace löschen, Mitglieder verwalten, Invite-Codes) nur für `OWNER`.
   *AK:* Berechtigungsmatrix dokumentiert; Tests für mind. 3 verbotene Aktionen.
+  *Umgesetzt:* `Role`-Enum auf `OWNER/COACH/ASSISTANT` reduziert (Schema + Defaults `COACH`/`ASSISTANT`); transaktionssichere Migration `20260612120000_reduce_roles` mit Altwert-Mapping; `canManageWorkspace`→nur owner, Staff-Invite-Rollen coach/assistant, Join-Mapping, tRPC-Workspace-Update nur OWNER, UI-Checks aktualisiert; Berechtigungsmatrix in `docs/permissions.md`. **Apply:** läuft mit `migrate deploy` nach der S3.1-Baseline. **Offen:** automatisierte Verbots-Tests → S4.2. ASSISTANT = gleiche Rechte wie COACH (nur OWNER destruktiv).
 
 ---
 
-### ⛔ Blockiert: S1.3 & S1.7 brauchen eine Entscheidung + DB-Migration
+### ✅ Sprint 1 abgeschlossen (7/7)
 
-Beide ändern das Prisma-Schema und damit die **Live-Supabase-DB**. Es gibt noch keine Migrationshistorie (S3.1), und ich kann/darf keine Migration ungetestet gegen die Produktiv-DB fahren. Offene Fragen:
-- **S1.3:** Bestehende Beitritts-Links (= Workspace-UUID) sind im Umlauf — Hard-Cutover oder Übergangsfrist? Existiert `team_invites` schon in der DB (per `db push`)? UI zum Erzeugen/Widerrufen von Codes gehört dazu.
-- **S1.7:** Enum-Reduktion braucht Daten-Mapping der Altwerte. Welche Rollen sollen final existieren (`OWNER`, `COACH`, `ASSISTANT`?), und sollen wir das mit der Migrations-Baseline aus S3.1 bündeln?
-
-Empfehlung: S3.1 (Migrations-Baseline) vorziehen, dann S1.3 + S1.7 als saubere Migration umsetzen.
+Alle Sicherheits-Stories umgesetzt; Typecheck + Lint grün. **Ausstehende User-Aktionen vor/bei Deploy:**
+1. **S3.1-Baseline** je Umgebung einmalig: `npm run db:baseline` (Prod + Staging).
+2. **Danach** `prisma migrate deploy` ausführen → wendet `20260612120000_reduce_roles` an (S1.7).
+3. **TLS:** Supabase-CA-Cert als `DATABASE_CA_CERT` in Vercel (S1.5).
+4. **Tests** für Mandanten-Trennung + verbotene Rollen-Aktionen kommen mit S4.2.
 
 ---
 
