@@ -232,8 +232,8 @@ export async function signUp(formData: FormData) {
   const email = requiredString(formData, "email", "Email").toLowerCase();
   const password = requiredString(formData, "password", "Password");
 
-  if (password.length < 6) {
-    redirectWithMessage("/login", "Das Passwort muss mindestens 6 Zeichen lang sein.");
+  if (password.length < 10) {
+    redirectWithMessage("/login", "Das Passwort muss mindestens 10 Zeichen lang sein.");
   }
 
   try {
@@ -615,6 +615,29 @@ export async function deletePlayer(formData: FormData) {
   revalidatePath("/pitch");
   revalidatePath("/players");
   revalidatePath("/tactics");
+}
+
+export async function rotatePlayerAccessToken(formData: FormData) {
+  const { team } = await requireActiveTeam();
+  const id = requiredString(formData, "id", "Player");
+
+  const player = await db.player.findFirst({
+    where: { id, workspaceId: team.id }
+  });
+  if (!player) {
+    throw new Error("Player not found or unauthorized.");
+  }
+
+  // Issuing a fresh token immediately invalidates the previous share link
+  // (e.g. when a link leaked in a family chat).
+  await db.player.update({
+    where: { id },
+    data: { accessToken: randomUUID() }
+  });
+
+  revalidatePath("/players");
+  revalidatePath(`/players/${id}`);
+  revalidatePath("/player-mode");
 }
 
 const PLAYER_PHOTO_BUCKET = "player-photos";

@@ -274,7 +274,7 @@ export default function LoginPage() {
                       autoComplete="new-password"
                       className="border-white/10 bg-white/10 text-white placeholder:text-slate-500 focus:border-emerald-400/50 focus:bg-white/15 focus:shadow-[0_0_0_3px_rgba(16,185,129,.1)] focus:ring-0"
                       id="signup-password"
-                      minLength={8}
+                      minLength={10}
                       name="password"
                       required
                       type="password"

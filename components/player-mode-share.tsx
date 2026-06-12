@@ -2,8 +2,16 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Check, Copy, ExternalLink, QrCode as QrIcon, UserCircle2 } from "lucide-react";
+import {
+  Check,
+  Copy,
+  ExternalLink,
+  QrCode as QrIcon,
+  RefreshCw,
+  UserCircle2
+} from "lucide-react";
 import { toast } from "sonner";
+import { rotatePlayerAccessToken } from "@/app/actions";
 import { QrCode } from "@/components/qr-code";
 import { Button } from "@/components/ui/button";
 import {
@@ -20,7 +28,7 @@ interface PlayerModeShareProps {
 }
 
 export function PlayerModeShare({
-  playerId: _playerId,
+  playerId,
   playerName,
   accessToken
 }: PlayerModeShareProps) {
@@ -85,6 +93,24 @@ export function PlayerModeShare({
             <QrIcon aria-hidden="true" className="h-4 w-4" />
             {showQr ? "QR ausblenden" : "QR-Code zeigen"}
           </Button>
+          <form
+            action={rotatePlayerAccessToken}
+            onSubmit={(event) => {
+              if (
+                !window.confirm(
+                  `Neuen Link für ${playerName} erzeugen? Der bisherige Link wird sofort ungültig.`
+                )
+              ) {
+                event.preventDefault();
+              }
+            }}
+          >
+            <input name="id" type="hidden" value={playerId} />
+            <Button size="sm" type="submit" variant="outline">
+              <RefreshCw aria-hidden="true" className="h-4 w-4" />
+              Link erneuern
+            </Button>
+          </form>
         </div>
         {showQr ? (
           <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-border bg-secondary/30 p-5">

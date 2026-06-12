@@ -7,6 +7,11 @@ import Credentials from "next-auth/providers/credentials";
 import { authConfig } from "./auth.config";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
+import {
+  clearLoginAttempts,
+  getLoginThrottle,
+  recordFailedLogin,
+} from "./login-throttle";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
@@ -22,31 +27,47 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       },
       async authorize(credentials) {
         const parsedCredentials = z
-          .object({ email: z.string().email(), password: z.string().min(6) })
+          .object({ email: z.string().email(), password: z.string().min(1) })
           .safeParse(credentials);
 
         if (!parsedCredentials.success) return null;
 
         const { email, password } = parsedCredentials.data;
+        const normalizedEmail = email.toLowerCase();
+
+        // Block brute-force / credential-stuffing before touching the DB.
+        const throttle = await getLoginThrottle(normalizedEmail);
+        if (throttle.locked) {
+          throw new Error(
+            `Zu viele Fehlversuche. Bitte in ${Math.ceil(
+              throttle.retryAfterSeconds / 60
+            )} Minuten erneut versuchen.`
+          );
+        }
 
         try {
-          const user = await db.user.findUnique({ where: { email } });
+          const user = await db.user.findUnique({
+            where: { email: normalizedEmail },
+          });
 
-          if (!user) {
-            console.log("[auth] user not found:", email);
+          // Always run bcrypt.compare to keep timing constant whether or not the
+          // user exists (mitigates user-enumeration via response time).
+          const hash =
+            user?.passwordHash ??
+            "$2a$10$invalidinvalidinvalidinvalidinvalidinvalidinvalidinvalidiu";
+          const passwordsMatch = await bcrypt.compare(password, hash);
+
+          if (!user || !passwordsMatch) {
+            await recordFailedLogin(normalizedEmail);
             return null;
           }
 
-          const passwordsMatch = await bcrypt.compare(password, user.passwordHash);
-
-          if (!passwordsMatch) {
-            console.log("[auth] wrong password for:", email);
-            return null;
-          }
-
+          await clearLoginAttempts(normalizedEmail);
           return { id: user.id, email: user.email, name: user.name, role: user.role };
         } catch (err) {
-          console.error("[auth] authorize DB error:", err);
+          // Re-throw lockout signal; swallow everything else without logging PII.
+          if (err instanceof Error && err.message.startsWith("Zu viele")) throw err;
+          console.error("[auth] authorize error");
           return null;
         }
       },

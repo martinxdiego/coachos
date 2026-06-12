@@ -18,15 +18,44 @@ const createPrismaClient = () => {
 
   const pool = new Pool({
     connectionString,
-    // Supabase (and most cloud Postgres providers) require SSL.
-    // rejectUnauthorized:false is needed because Supabase's certificate chain
-    // is not always trusted by the default Node CA bundle on Vercel.
-    ssl: isLocal ? false : { rejectUnauthorized: false },
+    ssl: resolveSslConfig(isLocal),
   });
 
   const adapter = new PrismaPg(pool);
   return new PrismaClient({ adapter });
 };
+
+/**
+ * Resolves the TLS configuration for the Postgres pool.
+ *
+ * Order of preference:
+ *  1. Local connections: no TLS.
+ *  2. `DATABASE_CA_CERT` set: full verification against the provided CA
+ *     (the secure production path — download Supabase's CA cert and set it).
+ *  3. Otherwise: verified TLS via the system CA bundle.
+ *
+ * Disabling certificate verification (the old `rejectUnauthorized:false`
+ * default) is now opt-in via `DATABASE_SSL_NO_VERIFY=true` and must only be used
+ * as a temporary escape hatch — it exposes the connection to MITM attacks.
+ */
+function resolveSslConfig(isLocal: boolean) {
+  if (isLocal) return false;
+
+  const ca = process.env.DATABASE_CA_CERT;
+  if (ca) {
+    return { ca, rejectUnauthorized: true };
+  }
+
+  if (process.env.DATABASE_SSL_NO_VERIFY === "true") {
+    console.warn(
+      "[db] TLS certificate verification is DISABLED (DATABASE_SSL_NO_VERIFY). " +
+        "Set DATABASE_CA_CERT for a secure connection."
+    );
+    return { rejectUnauthorized: false };
+  }
+
+  return { rejectUnauthorized: true };
+}
 
 export const db = globalForPrisma.prisma ?? createPrismaClient();
 
