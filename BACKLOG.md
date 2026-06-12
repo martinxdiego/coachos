@@ -101,9 +101,10 @@ Empfehlung: S3.1 (Migrations-Baseline) vorziehen, dann S1.3 + S1.7 als saubere M
 **Ziel:** Ein widerspruchsfreies Schema mit Migrationshistorie als Single Source of Truth.
 **Sprint: 2–3**
 
-- [ ] **S3.1 (P1, 2 SP) Prisma Migrations einführen**
+- [x] **S3.1 (P1, 2 SP) Prisma Migrations einführen** 🔄 2026-06-12 (Baseline-Files fertig, `db:baseline` auf Prod/Staging ausstehend)
   `prisma migrate dev` Baseline aus Bestands-DB erzeugen (`migrate diff` → Baseline-Migration, als applied markieren). Ab jetzt: kein `db push` mehr gegen Prod.
   *AK:* `prisma/migrations/` existiert; README beschreibt Migrations-Workflow; Deploy führt `migrate deploy` aus.
+  *Umgesetzt:* `prisma/migrations/0_init/migration.sql` (offline aus Schema generiert, 73 DDL-Statements, alle Modelle inkl. `team_invites`/`push_subscriptions`) + `migration_lock.toml`; npm-Scripts `db:baseline`/`db:migrate`/`db:migrate:deploy`/`db:migrate:status`; Workflow in `prisma/MIGRATIONS.md`. **Aktion nötig (einmalig je Umgebung):** `npm run db:baseline` gegen Prod + Staging (schreibt nur in `_prisma_migrations`, nicht-destruktiv). Danach separater Commit: `build` auf `migrate deploy` umstellen.
 
 - [ ] **S3.2 (P1, 5 SP) Duplikat-Felder konsolidieren** (je Feld: Datenmigration + Code-Anpassung)
   - `Player`: `number`→`jerseyNumber`, `preferredFoot`→`strongFoot` (eines behalten)
