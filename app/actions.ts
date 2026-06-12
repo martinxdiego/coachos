@@ -12,6 +12,7 @@ import bcrypt from "bcryptjs";
 import { getSiteUrl } from "@/lib/env";
 import { createClient } from "@/lib/supabase/server";
 import { db } from "@/lib/db";
+import { rotatePlayerSignupInvite } from "@/lib/invites";
 import { cacheDel } from "@/lib/redis";
 import type {
   AttendanceStatus,
@@ -638,6 +639,12 @@ export async function rotatePlayerAccessToken(formData: FormData) {
   revalidatePath("/players");
   revalidatePath(`/players/${id}`);
   revalidatePath("/player-mode");
+}
+
+export async function rotateTeamSignupCode() {
+  const { team, user } = await requireActiveTeam();
+  await rotatePlayerSignupInvite(team.id, user.id);
+  revalidatePath("/players");
 }
 
 const PLAYER_PHOTO_BUCKET = "player-photos";

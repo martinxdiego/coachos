@@ -133,7 +133,7 @@ function mapWorkspaceToTeam(workspace: any) {
     age_group: workspace.ageGroup || null,
     created_at: workspace.createdAt.toISOString(),
     updated_at: workspace.updatedAt.toISOString(),
-    player_signup_token: workspace.id, // simple fallback
+    player_signup_token: "", // deprecated: join now uses TeamInvite codes (lib/invites.ts)
     created_by: "",
   } as unknown as Team;
 }

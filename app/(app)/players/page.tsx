@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { requireActiveTeam } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { getOrCreatePlayerSignupInvite } from "@/lib/invites";
 
 export const dynamic = "force-dynamic";
 
@@ -86,13 +87,14 @@ async function PlayersData({ teamId }: { teamId: string }) {
 
 
 export default async function PlayersPage() {
-  const { team } = await requireActiveTeam();
+  const { team, user } = await requireActiveTeam();
+  const invite = await getOrCreatePlayerSignupInvite(team.id, user.id);
 
   return (
     <div className="space-y-6">
       <TeamSignupShare
         teamName={team.name}
-        teamSignupToken={team.player_signup_token}
+        teamSignupToken={invite.code}
       />
       <Suspense fallback={<PlayersRosterSkeleton />}>
         <PlayersData teamId={team.id} />
