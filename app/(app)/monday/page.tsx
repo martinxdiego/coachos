@@ -93,7 +93,7 @@ export default async function MondayTrainingPage({
     position: p.position,
     birth_year: p.birthYear,
     team_category: null as string | null,
-    status: p.status === "FIT" ? "available" : p.status === "INJURED" ? "injured" : p.status === "REHAB" ? "limited" : p.status.toLowerCase() as any
+    status: p.status.toLowerCase() as any
   }));
 
   const mondayTrainings = dbMonday.map(t => ({

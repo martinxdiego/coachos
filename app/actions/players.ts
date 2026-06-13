@@ -21,7 +21,8 @@ import {
   optionalString,
   requiredRating,
   requiredString,
-  scaleFive
+  scaleFive,
+  toPlayerStatus
 } from "@/lib/forms";
 import { cacheDel } from "@/lib/redis";
 import type {
@@ -165,12 +166,13 @@ export async function updatePlayer(formData: FormData) {
     "right",
     "both"
   ] as const) as StrongFoot | null;
-  const status = enumValue(formData, "status", [
+  const statusInput = enumValue(formData, "status", [
     "available",
     "injured",
     "limited",
     "absent"
-  ] as const) as PlayerStatus | null;
+  ] as const);
+  const status = statusInput ? toPlayerStatus(statusInput) : null;
 
   const player = await db.player.findFirst({
     where: { id, workspaceId: team.id }
@@ -222,7 +224,7 @@ export async function updatePlayer(formData: FormData) {
       trainingNotes: optionalString(formData, "training_notes"),
       personalNotes: optionalString(formData, "personal_notes"),
       notes: optionalString(formData, "notes"),
-      status: status ?? "available",
+      status: status ?? "AVAILABLE",
       rating: optionalNumber(formData, "rating")
     }
   });

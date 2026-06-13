@@ -70,7 +70,7 @@ model Player {
   weight                Int?
   preferredFoot         String?
   strongFoot            String?
-  status                PlayerStatus       @default(FIT)
+  status                PlayerStatus       @default(AVAILABLE)
   photoUrl              String?
   contact               String?
   parentContact         String?
@@ -479,13 +479,10 @@ enum Role {
 }
 
 enum PlayerStatus {
-  FIT
-  REHAB
+  AVAILABLE
+  LIMITED
   INJURED
-  available
-  injured
-  limited
-  absent
+  ABSENT
 }
 
 enum TrainingType {

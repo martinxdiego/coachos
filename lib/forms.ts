@@ -67,3 +67,25 @@ export function enumValue<T extends string>(
   const value = String(formData.get(key) ?? "").trim();
   return allowed.includes(value as T) ? (value as T) : null;
 }
+
+export type PlayerStatusValue = "AVAILABLE" | "LIMITED" | "INJURED" | "ABSENT";
+
+/**
+ * Maps a UI / form status (lowercase, or a legacy value) onto the Prisma
+ * PlayerStatus enum. The DB stores uppercase; the UI works in lowercase.
+ */
+export function toPlayerStatus(
+  value: string | null | undefined
+): PlayerStatusValue {
+  switch ((value ?? "").toLowerCase()) {
+    case "injured":
+      return "INJURED";
+    case "limited":
+    case "rehab":
+      return "LIMITED";
+    case "absent":
+      return "ABSENT";
+    default:
+      return "AVAILABLE";
+  }
+}

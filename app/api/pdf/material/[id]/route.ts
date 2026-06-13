@@ -53,22 +53,13 @@ export async function GET(_request: Request, { params }: RouteParams) {
     content: materialRow.content
   };
 
-  const normalizeStatus = (status: string): PlayerStatus =>
-    status === "FIT"
-      ? "available"
-      : status === "INJURED"
-        ? "injured"
-        : status === "REHAB"
-          ? "limited"
-          : (status.toLowerCase() as PlayerStatus);
-
   const players: MaterialPlayerRow[] = playerRows.map((player) => ({
     id: player.id,
     name: player.name,
     position: player.position,
     birth_year: player.birthYear,
     jersey_number: player.jerseyNumber,
-    status: normalizeStatus(player.status)
+    status: player.status.toLowerCase() as PlayerStatus
   }));
 
   const buffer = await renderToBuffer(

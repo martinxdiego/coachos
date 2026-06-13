@@ -102,7 +102,7 @@ export async function selfRegisterPlayer(
       weight: weightKg,
       position,
       jerseyNumber,
-      status: "available" as PlayerStatus,
+      status: "AVAILABLE",
       selfRegisteredAt: new Date(),
     },
     select: {

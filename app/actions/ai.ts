@@ -120,9 +120,9 @@ export async function createAiTrainingDraft(formData: FormData) {
     }
   }
 
-  const available = players.filter((p: any) => p.status === "available" || !p.status);
-  const limited = players.filter((p: any) => p.status === "limited");
-  const injured = players.filter((p: any) => p.status === "injured");
+  const available = players.filter((p: any) => p.status === "AVAILABLE" || !p.status);
+  const limited = players.filter((p: any) => p.status === "LIMITED");
+  const injured = players.filter((p: any) => p.status === "INJURED");
 
   const wellnessLines = players
     .map((player: any) => {

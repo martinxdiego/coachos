@@ -208,7 +208,7 @@ export default async function MaterialsPage() {
     position: p.position,
     birth_year: p.birthYear,
     jersey_number: p.jerseyNumber,
-    status: (p.status === "FIT" ? "available" : p.status === "INJURED" ? "injured" : p.status === "REHAB" ? "limited" : p.status.toLowerCase()) as PlayerStatus
+    status: p.status.toLowerCase() as PlayerStatus
   }));
 
   return (

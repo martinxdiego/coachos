@@ -98,7 +98,7 @@ async function buildMaterialContent(
 
     const mappedPlayers = players.map((player) => ({
       ...player,
-      status: player.status === "FIT" ? "available" : player.status === "INJURED" ? "injured" : player.status === "REHAB" ? "limited" : player.status.toLowerCase()
+      status: player.status.toLowerCase()
     }));
 
     if (type === "attendance_list") {

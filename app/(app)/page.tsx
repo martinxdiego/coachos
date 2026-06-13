@@ -494,7 +494,7 @@ async function DashboardSections({ teamId }: { teamId: string }) {
     id: p.id,
     name: p.name,
     position: p.position,
-    status: p.status === "FIT" ? "available" : p.status === "INJURED" ? "injured" : p.status === "REHAB" ? "limited" : p.status.toLowerCase(),
+    status: p.status.toLowerCase(),
     rating: p.rating,
     jersey_number: p.jerseyNumber,
     birth_year: p.birthYear,

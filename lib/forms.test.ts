@@ -8,6 +8,7 @@ import {
   requiredRating,
   requiredString,
   scaleFive,
+  toPlayerStatus,
 } from "./forms";
 
 function fd(entries: Record<string, string>): FormData {
@@ -90,5 +91,19 @@ describe("enumValue", () => {
       "coach"
     );
     expect(enumValue(fd({ r: "boss" }), "r", ["coach", "assistant"])).toBeNull();
+  });
+});
+
+describe("toPlayerStatus", () => {
+  it("maps UI lowercase values to the enum", () => {
+    expect(toPlayerStatus("available")).toBe("AVAILABLE");
+    expect(toPlayerStatus("limited")).toBe("LIMITED");
+    expect(toPlayerStatus("injured")).toBe("INJURED");
+    expect(toPlayerStatus("absent")).toBe("ABSENT");
+  });
+  it("maps legacy values and falls back to AVAILABLE", () => {
+    expect(toPlayerStatus("rehab")).toBe("LIMITED");
+    expect(toPlayerStatus(null)).toBe("AVAILABLE");
+    expect(toPlayerStatus("garbage")).toBe("AVAILABLE");
   });
 });

@@ -76,7 +76,7 @@ async function PlayersData({ teamId }: { teamId: string }) {
     birth_year: p.birthYear,
     team_category: null,
     jersey_number: p.jerseyNumber,
-    status: p.status === "FIT" ? "available" : p.status === "INJURED" ? "injured" : p.status === "REHAB" ? "limited" : p.status.toLowerCase() as any,
+    status: p.status.toLowerCase() as any,
     rating: p.rating,
     development_goals: p.developmentGoals,
     photo_url: p.photoUrl,

@@ -84,7 +84,7 @@ export default async function PitchPage() {
     name: p.name,
     position: p.position,
     jersey_number: p.jerseyNumber ?? p.number,
-    status: p.status === "FIT" ? "available" : p.status === "INJURED" ? "injured" : "limited"
+    status: p.status.toLowerCase() as any
   }));
 
   const training = dbTraining

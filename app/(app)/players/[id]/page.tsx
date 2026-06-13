@@ -207,7 +207,7 @@ export default async function PlayerProfilePage({
     access_token: dbPlayer.accessToken,
     self_registered_at: dbPlayer.selfRegisteredAt ? dbPlayer.selfRegisteredAt.toISOString() : null,
     team_category: null as string | null,
-    status: dbPlayer.status === "FIT" ? "available" : dbPlayer.status === "INJURED" ? "injured" : "limited"
+    status: dbPlayer.status.toLowerCase() as any
   };
 
   const feedback = dbFeedback.map((f) => ({

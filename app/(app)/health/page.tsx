@@ -114,7 +114,7 @@ export default async function HealthPage() {
     name: p.name,
     position: p.position,
     team_category: null,
-    status: p.status === "FIT" ? "available" : p.status === "INJURED" ? "injured" : p.status === "REHAB" ? "limited" : p.status.toLowerCase() as any,
+    status: p.status.toLowerCase() as any,
     medical_notes: p.medicalNotes,
     coach_alerts: p.coachAlerts
   }));
