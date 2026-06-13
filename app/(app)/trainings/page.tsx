@@ -196,12 +196,12 @@ export default async function TrainingsPage({ searchParams }: TrainingsPageProps
         </div>
         <div className="flex flex-wrap gap-2 sm:flex-row-reverse sm:items-center">
           <CreateTrainingDrawer
-            ageGroup={team.age_group}
+            ageGroup={team.ageGroup}
             initialDate={initialDate}
           />
           <TrainingPresetDrawer initialDate={initialDate} />
           <TrainingAiDraftDrawer
-            ageGroup={team.age_group}
+            ageGroup={team.ageGroup}
             initialDate={initialDate}
           />
         </div>

@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
-import type { Team, TeamMember } from "@/lib/types";
+import type { Workspace, WorkspaceMember } from "@prisma/client";
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import { authConfig } from "./auth.config";
@@ -77,19 +77,16 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
 export const ACTIVE_TEAM_COOKIE = "coachos-active-team";
 
-export type TeamMembership = Pick<
-  TeamMember,
-  "id" | "role" | "team_id" | "user_id" | "created_at"
->;
+export type TeamMembership = WorkspaceMember;
 
 export interface ActiveTeamContext {
-  team: Team;
-  membership: TeamMembership;
+  team: Workspace;
+  membership: WorkspaceMember;
 }
 
 export interface TeamOption {
-  team: Team;
-  membership: TeamMembership;
+  team: Workspace;
+  membership: WorkspaceMember;
 }
 
 export async function requireUser() {
@@ -107,33 +104,6 @@ export async function requireUser() {
   };
 }
 
-// Map Workspace to Supabase Team structure for compatibility
-function mapWorkspaceToTeam(workspace: any) {
-  if (!workspace) return null;
-  return {
-    id: workspace.id,
-    name: workspace.name,
-    season: workspace.season || null,
-    age_group: workspace.ageGroup || null,
-    created_at: workspace.createdAt.toISOString(),
-    updated_at: workspace.updatedAt.toISOString(),
-    player_signup_token: "", // deprecated: join now uses TeamInvite codes (lib/invites.ts)
-    created_by: "",
-  } as unknown as Team;
-}
-
-// Map WorkspaceMember to Supabase TeamMember structure for compatibility
-function mapMemberToMembership(member: any) {
-  if (!member) return null;
-  return {
-    id: member.id,
-    team_id: member.workspaceId,
-    user_id: member.userId,
-    role: member.role.toLowerCase() as any, // 'owner' | 'coach' | 'assistant'
-    created_at: member.workspace?.createdAt?.toISOString() || new Date().toISOString(),
-  } as unknown as TeamMembership;
-}
-
 export async function getTeamOptionsForUser(userId: string): Promise<TeamOption[]> {
   const members = await db.workspaceMember.findMany({
     where: { userId },
@@ -142,13 +112,10 @@ export async function getTeamOptionsForUser(userId: string): Promise<TeamOption[
     },
   });
 
-  return members
-    .map((m) => {
-      const team = mapWorkspaceToTeam(m.workspace);
-      const membership = mapMemberToMembership(m);
-      return team && membership ? { team, membership } : null;
-    })
-    .filter((option): option is TeamOption => option !== null);
+  return members.map((m) => {
+    const { workspace, ...membership } = m;
+    return { team: workspace, membership };
+  });
 }
 
 export async function getActiveTeamForUser(userId: string) {

@@ -126,9 +126,9 @@ export default async function PlayerModePage({
       player.player_account_email?.toLowerCase() === user.email?.toLowerCase()
   );
   const isStaffPreview =
-    membership.role === "owner" ||
-    membership.role === "coach" ||
-    membership.role === "assistant";
+    membership.role === "OWNER" ||
+    membership.role === "COACH" ||
+    membership.role === "ASSISTANT";
   const selectedPlayerId = params?.player ?? linkedPlayer?.id;
   const selectedOption =
     players.find((player) => player.id === selectedPlayerId) ?? null;

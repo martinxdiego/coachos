@@ -24,7 +24,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { healthRisk } from "@/lib/coach-metrics";
 import { requireActiveTeam } from "@/lib/auth";
 import { db } from "@/lib/db";
-import type { Team } from "@/lib/types";
+import type { Workspace } from "@prisma/client";
 import { formatDate, formatDateTime, todayIsoDate } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -250,7 +250,7 @@ function HeroFocusSkeleton() {
   );
 }
 
-function Hero({ team }: { team: Team }) {
+function Hero({ team }: { team: Workspace }) {
   const today = todayIsoDate();
   return (
     <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950 p-7 text-white shadow-elevated sm:p-10">
@@ -272,7 +272,7 @@ function Hero({ team }: { team: Team }) {
           </h1>
           <p className="mt-2 text-[14px] text-slate-300">
             {germanLongDate(today)} · {team.season ?? "Aktuelle Saison"}
-            {team.age_group ? ` · ${team.age_group}` : ""}
+            {team.ageGroup ? ` · ${team.ageGroup}` : ""}
           </p>
 
           <Suspense fallback={<HeroFocusSkeleton />}>

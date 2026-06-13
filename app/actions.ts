@@ -36,7 +36,6 @@ import type {
   MondayAttendanceStatus,
   PlayerStatus,
   StrongFoot,
-  TeamRole,
   TrainingIntensity,
   TrainingPhaseType,
   WinnerPointContextType
@@ -110,11 +109,11 @@ function redirectWithMessage(path: string, message: string) {
   redirect(`${path}?message=${encodeURIComponent(message)}`);
 }
 
-function canManageWorkspace(role: TeamRole) {
+function canManageWorkspace(role: Role) {
   // Only the workspace owner may perform destructive/administrative actions.
   // COACH and ASSISTANT have equal (full) day-to-day rights but cannot manage
   // the workspace itself or its members.
-  return role === "owner";
+  return role === "OWNER";
 }
 
 function inviteCode() {
@@ -1246,7 +1245,7 @@ export async function createAiTrainingDraft(formData: FormData) {
   const { user, team } = await requireActiveTeam();
   const focus = requiredString(formData, "focus", "Schwerpunkt");
   const duration = optionalNumber(formData, "duration_minutes") ?? 90;
-  const ageGroup = optionalString(formData, "age_group") ?? team.age_group;
+  const ageGroup = optionalString(formData, "age_group") ?? team.ageGroup;
   const date = requiredString(formData, "date", "Datum");
   const additionalContext = optionalString(formData, "context") ?? "";
 

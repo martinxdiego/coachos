@@ -38,7 +38,7 @@ export async function GET(_request: Request, { params }: RouteParams) {
     location: matchRow.location,
     home_away: matchRow.homeAway ?? (matchRow.home ? "home" : "away"),
     competition: matchRow.competition,
-    team_category: team.age_group ?? null,
+    team_category: team.ageGroup ?? null,
     meeting_point: matchRow.meetingPoint,
     formation: matchRow.formation,
     starting_lineup: matchRow.startingLineup,

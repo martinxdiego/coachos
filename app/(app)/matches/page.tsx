@@ -207,7 +207,7 @@ export default async function MatchesPage({ searchParams }: MatchesPageProps) {
         <div className="flex flex-wrap gap-2">
           <MatchImportDrawer />
           <CreateMatchDrawer
-            ageGroup={team.age_group}
+            ageGroup={team.ageGroup}
             initialDate={initialDate}
             suggestedLineup={suggestedLineup}
             suggestedSubstitutes={suggestedSubstitutes}
@@ -217,7 +217,7 @@ export default async function MatchesPage({ searchParams }: MatchesPageProps) {
 
       <Suspense fallback={<MatchesSkeleton />}>
         <MatchesData
-          ageGroup={team.age_group}
+          ageGroup={team.ageGroup}
           initialDate={initialDate}
           suggestedLineup={suggestedLineup}
           suggestedSubstitutes={suggestedSubstitutes}

@@ -38,7 +38,7 @@ export default async function WorkspacesPage({
   const message = resolvedSearchParams?.message;
   const team = activeTeam?.team;
   const membership = activeTeam?.membership;
-  const canManage = membership?.role === "owner";
+  const canManage = membership?.role === "OWNER";
 
   const [memberCount, dbInvites] = team
     ? await Promise.all([
@@ -114,7 +114,7 @@ export default async function WorkspacesPage({
                       </div>
                       <p className="mt-1 text-sm text-muted-foreground">
                         {option.season ?? "Saison offen"} ·{" "}
-                        {option.age_group ?? "Altersklasse offen"}
+                        {option.ageGroup ?? "Altersklasse offen"}
                       </p>
                     </div>
                     <Button type="submit" variant="outline">
@@ -158,7 +158,7 @@ export default async function WorkspacesPage({
                       <div className="space-y-2">
                         <Label htmlFor="age_group">Altersklasse</Label>
                         <Input
-                          defaultValue={team.age_group ?? ""}
+                          defaultValue={team.ageGroup ?? ""}
                           id="age_group"
                           name="age_group"
                         />
@@ -180,7 +180,7 @@ export default async function WorkspacesPage({
                       <p className="text-sm text-muted-foreground">
                         Altersklasse
                       </p>
-                      <p className="font-medium">{team.age_group ?? "Offen"}</p>
+                      <p className="font-medium">{team.ageGroup ?? "Offen"}</p>
                     </div>
                   </div>
                 )}

@@ -83,7 +83,7 @@ export async function GET(_request: Request, { params }: RouteParams) {
     location: trainingRow.location,
     focus: trainingRow.focus,
     goal: trainingRow.goal,
-    age_group: team.age_group ?? null,
+    age_group: team.ageGroup ?? null,
     intensity: trainingRow.intensity,
     participants: trainingRow.participants,
     notes: trainingRow.notes

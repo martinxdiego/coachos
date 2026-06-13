@@ -13,10 +13,10 @@ import { QuickCreate } from "@/components/quick-create";
 import { Button } from "@/components/ui/button";
 import { WorkspaceSwitcher } from "@/components/workspace-switcher";
 import type { TeamOption } from "@/lib/auth";
-import type { Team } from "@/lib/types";
+import type { Workspace } from "@prisma/client";
 
 interface AppShellProps {
-  activeTeam?: Team | null;
+  activeTeam?: Workspace | null;
   children: React.ReactNode;
   quickPlayers?: {
     id: string;
