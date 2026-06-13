@@ -132,9 +132,10 @@ Alle Sicherheits-Stories umgesetzt; Typecheck + Lint grün. **Ausstehende User-A
   *AK:* Migration angewendet; `EXPLAIN` auf Dashboard-Queries nutzt Indexe.
   *Umgesetzt:* 17 `@@index` im Schema (tenant-Modelle auf `workspaceId`; Zeitreihen +`date`; `HealthCheck`/`Rating` `playerId+date`; `MatchLineup`/`Attendance` `playerId`); Migration `20260613130000_add_indexes` (via `migrate diff`). Gesamte Kette (0_init→reduce_roles→add_indexes) auf PGlite verifiziert; typecheck+34 Tests grün. **Apply:** mit `migrate deploy` (User).
 
-- [ ] **S3.5 (P2, 5 SP) Spielstatistik strukturieren**
+- [x] **S3.5 (P2, 5 SP) Spielstatistik strukturieren** ✅ 2026-06-13
   `scorers`/`assists`/`cards`/`startingLineup`/`substitutes` (Freitext) → Relationen: `MatchEvent` (Typ: GOAL/ASSIST/YELLOW/RED/SUB, playerId, minute) + vorhandenes `MatchLineup` nutzen. Freitextfelder bleiben übergangsweise lesbar, neue Eingaben strukturiert.
   *AK:* Spieler-Saisonstatistik (Tore/Assists/Karten) automatisch aggregierbar; Eingabe-UI im Match-Formular.
+  *Umgesetzt:* `MatchEvent`-Modell (Enum GOAL/ASSIST/YELLOW_CARD/RED_CARD/SUBSTITUTION, minute, note) + Relationen/Indexe; Migration `20260613170000_add_match_events`. `lib/match-stats.ts` `aggregatePlayerStats()` (Torschützenliste-Sortierung, +3 Tests = 39). Actions `addMatchEvent`/`deleteMatchEvent` (workspace-scoped). UI `MatchEventsEditor` (Liste+Add+Delete) in der Match-Card. Freitextfelder bleiben. 7-Migrationen-Kette auf PGlite verifiziert; typecheck+lint+39 Tests+build grün. **Offen (optionale Politur):** Saison-Torschützentabelle auf der Analyse-Seite (Aggregation steht bereit).
 
 - [x] **S3.6 (P1, 1 SP) Personenspezifische Felder entfernen** ✅ 2026-06-13
   `sanduNotes` in `MondayTraining` → generisches Feld (`assistantNotes`) oder eigenes `StaffNote`-Modell. "Montagstraining" als Konzept prüfen → generischer "wiederkehrende Einheit"-Typ (siehe S6.2).
