@@ -10,7 +10,6 @@ export const authConfig = {
       const pathname = nextUrl.pathname;
       const isPublicRoute =
         pathname === "/login" ||
-        pathname.startsWith("/auth/callback") ||
         pathname.startsWith("/beitreten") ||
         pathname.startsWith("/spieler");
 

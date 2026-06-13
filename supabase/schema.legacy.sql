@@ -1,3 +1,8 @@
+-- ⚠️ DEPRECATED / LEGACY — NOT the source of truth.
+-- Schema is now managed by Prisma. See prisma/schema.prisma and
+-- prisma/migrations/ (workflow: prisma/MIGRATIONS.md).
+-- This file is the old Supabase/RLS schema, kept for historical reference only.
+-- Do NOT run it against the current database.
 create extension if not exists pgcrypto;
 
 create table if not exists public.teams (

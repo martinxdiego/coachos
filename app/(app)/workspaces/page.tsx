@@ -33,7 +33,7 @@ interface WorkspacesPageProps {
 export default async function WorkspacesPage({
   searchParams
 }: WorkspacesPageProps) {
-  const { supabase, activeTeam, teamOptions } = await getOptionalActiveTeam();
+  const { activeTeam, teamOptions } = await getOptionalActiveTeam();
   const resolvedSearchParams = await searchParams;
   const message = resolvedSearchParams?.message;
   const team = activeTeam?.team;

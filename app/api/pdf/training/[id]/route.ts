@@ -1,9 +1,12 @@
 import { renderToBuffer } from "@react-pdf/renderer";
 import { NextResponse } from "next/server";
 import { requireActiveTeam } from "@/lib/auth";
+import { db } from "@/lib/db";
 import { pdfDateString, safeFilename } from "@/lib/pdf/filename";
 import { TrainingDocument } from "@/lib/pdf/training-document";
 import type { TrainingPhase } from "@/lib/types";
+
+const isoDate = (value: Date) => value.toISOString().slice(0, 10);
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -51,58 +54,62 @@ export async function GET(_request: Request, { params }: RouteParams) {
     return NextResponse.json({ error: "ID fehlt" }, { status: 400 });
   }
 
-  const { supabase, team } = await requireActiveTeam();
+  const { team } = await requireActiveTeam();
 
-  const [trainingResult, phasesResult, playersResult] = await Promise.all([
-    supabase
-      .from("training_sessions")
-      .select(
-        "id,date,start_time,duration_minutes,location,focus,goal,age_group,intensity,participants,notes"
-      )
-      .eq("id", id)
-      .eq("team_id", team.id)
-      .maybeSingle(),
-    supabase
-      .from("training_phases")
-      .select("*")
-      .eq("training_id", id)
-      .eq("team_id", team.id)
-      .order("sort_order", { ascending: true }),
-    supabase
-      .from("players")
-      .select("id,name,position")
-      .eq("team_id", team.id)
-      .order("name", { ascending: true })
-  ]);
+  const trainingRow = await db.training.findFirst({
+    where: { id, workspaceId: team.id },
+    include: {
+      phases: { orderBy: { sortOrder: "asc" } }
+    }
+  });
 
-  if (trainingResult.error) {
-    return NextResponse.json(
-      { error: trainingResult.error.message },
-      { status: 500 }
-    );
-  }
-  if (!trainingResult.data) {
+  if (!trainingRow) {
     return NextResponse.json(
       { error: "Training nicht gefunden" },
       { status: 404 }
     );
   }
-  if (phasesResult.error) {
-    return NextResponse.json(
-      { error: phasesResult.error.message },
-      { status: 500 }
-    );
-  }
-  if (playersResult.error) {
-    return NextResponse.json(
-      { error: playersResult.error.message },
-      { status: 500 }
-    );
-  }
 
-  const training = trainingResult.data;
-  const phases = (phasesResult.data ?? []) as TrainingPhase[];
-  const players = playersResult.data ?? [];
+  const playerRows = await db.player.findMany({
+    where: { workspaceId: team.id },
+    select: { id: true, name: true, position: true },
+    orderBy: { name: "asc" }
+  });
+
+  const training = {
+    date: isoDate(trainingRow.date),
+    start_time: trainingRow.startTime,
+    duration_minutes: trainingRow.durationMinutes ?? trainingRow.duration,
+    location: trainingRow.location,
+    focus: trainingRow.focus,
+    goal: trainingRow.goal,
+    age_group: team.age_group ?? null,
+    intensity: trainingRow.intensity,
+    participants: trainingRow.participants,
+    notes: trainingRow.notes
+  };
+
+  // Map Prisma (camelCase) phases onto the snake_case shape the PDF expects.
+  const phases = trainingRow.phases.map((phase) => ({
+    id: phase.id,
+    training_id: phase.trainingId,
+    phase_type: phase.phaseType,
+    title: phase.title,
+    duration_minutes: phase.durationMinutes,
+    description: phase.description,
+    coaching_points: phase.coachingPoints,
+    organization: phase.organization,
+    material: phase.material,
+    player_count: phase.playerCount,
+    field_size: phase.fieldSize,
+    variations: phase.variations,
+    load_management: phase.loadManagement,
+    image_urls: phase.imageUrls,
+    diagram: phase.diagram,
+    sort_order: phase.sortOrder
+  })) as unknown as TrainingPhase[];
+
+  const players = playerRows;
 
   // Pre-fetch every phase image once, in parallel, so the PDF renderer never
   // has to do network I/O. Failed fetches are silently dropped — a deleted or

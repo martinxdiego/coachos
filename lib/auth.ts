@@ -98,23 +98,7 @@ export async function requireUser() {
     redirect("/login");
   }
 
-  // Create a mock supabase object to prevent destructuring crash on legacy pages
-  const dummySupabase = {
-    auth: {
-      getUser: async () => ({ data: { user: session.user }, error: null }),
-      signOut: async () => ({ error: null }),
-    },
-    from: () => ({
-      select: () => ({
-        eq: () => ({
-          order: () => Promise.resolve({ data: [], error: null }),
-        }),
-      }),
-    }),
-  } as any;
-
   return {
-    supabase: dummySupabase,
     user: {
       id: session.user.id!,
       email: session.user.email!,
@@ -184,14 +168,14 @@ export async function getActiveTeamForUser(userId: string) {
 }
 
 export async function getOptionalActiveTeam() {
-  const { user, supabase } = await requireUser();
+  const { user } = await requireUser();
   const { activeTeam, teamOptions } = await getActiveTeamForUser(user.id);
 
-  return { supabase, user, activeTeam, teamOptions };
+  return { user, activeTeam, teamOptions };
 }
 
 export async function requireActiveTeam() {
-  const { user, supabase } = await requireUser();
+  const { user } = await requireUser();
   const { activeTeam, teamOptions } = await getActiveTeamForUser(user.id);
 
   if (!activeTeam) {
@@ -199,7 +183,6 @@ export async function requireActiveTeam() {
   }
 
   return {
-    supabase,
     user,
     team: activeTeam.team,
     membership: activeTeam.membership,

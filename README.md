@@ -30,10 +30,11 @@ Router, Tailwind CSS, shadcn-style components, and Supabase.
 
 2. Create a Supabase project.
 
-3. Run `supabase/schema.sql` in the Supabase SQL editor. The schema creates
-   workspaces, memberships, invite codes, players, trainings, training phases,
-   matches, materials, tactic boards, tasks, notes, attendance, feedback, and
-   RLS policies.
+3. Set up the database schema with Prisma migrations (see
+   `prisma/MIGRATIONS.md`). On an existing database, baseline once with
+   `npm run db:baseline`, then `npm run db:migrate:deploy`. The data model
+   lives in `prisma/schema.prisma`. (`supabase/schema.legacy.sql` is the old
+   Supabase/RLS schema, kept for reference only — do not run it.)
 
 4. Copy `.env.example` to `.env.local` and fill in:
 
