@@ -747,7 +747,7 @@ export interface Database {
           goal: string | null;
           duration_minutes: number | null;
           staff_notes: string | null;
-          sandu_notes: string | null;
+          assistant_notes: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -760,7 +760,7 @@ export interface Database {
           goal?: string | null;
           duration_minutes?: number | null;
           staff_notes?: string | null;
-          sandu_notes?: string | null;
+          assistant_notes?: string | null;
           created_at?: string;
           updated_at?: string;
         };

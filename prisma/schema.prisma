@@ -434,7 +434,7 @@ model MondayTraining {
   goal            String?
   durationMinutes Int?
   staffNotes      String?
-  sanduNotes      String?
+  assistantNotes  String?
   attendance      MondayAttendance[]
   createdAt       DateTime           @default(now())
   updatedAt       DateTime           @updatedAt

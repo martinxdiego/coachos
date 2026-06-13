@@ -82,7 +82,7 @@ export async function createMondayTraining(formData: FormData) {
       goal: optionalString(formData, "goal"),
       durationMinutes: optionalNumber(formData, "duration_minutes"),
       staffNotes: optionalString(formData, "staff_notes"),
-      sanduNotes: optionalString(formData, "sandu_notes")
+      assistantNotes: optionalString(formData, "assistant_notes")
     }
   });
 
@@ -109,7 +109,7 @@ export async function updateMondayTraining(formData: FormData) {
       goal: optionalString(formData, "goal"),
       durationMinutes: optionalNumber(formData, "duration_minutes"),
       staffNotes: optionalString(formData, "staff_notes"),
-      sanduNotes: optionalString(formData, "sandu_notes")
+      assistantNotes: optionalString(formData, "assistant_notes")
     }
   });
 

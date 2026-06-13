@@ -103,7 +103,7 @@ export default async function MondayTrainingPage({
     goal: t.goal,
     duration_minutes: t.durationMinutes,
     staff_notes: t.staffNotes,
-    sandu_notes: t.sanduNotes
+    assistant_notes: t.assistantNotes
   }));
 
   const selectedTraining = mondayTrainings[0] ?? null;
@@ -202,7 +202,7 @@ export default async function MondayTrainingPage({
   return (
     <div className="space-y-6">
       <PageHeader
-        description="Separates Montagstraining fuer Spieler aus mehreren Kategorien mit Anwesenheit, Bewertung und Sändu-Auswertung."
+        description="Separates Montagstraining fuer Spieler aus mehreren Kategorien mit Anwesenheit, Bewertung und Co-Trainer-Auswertung."
         title="Montagstraining"
       />
 
@@ -270,7 +270,7 @@ export default async function MondayTrainingPage({
                 />
                 <Textarea name="goal" placeholder="Ziel des Montagstrainings" />
                 <Textarea name="staff_notes" placeholder="Staff-Notizen" />
-                <Textarea name="sandu_notes" placeholder="Sändu-Auswertung" />
+                <Textarea name="assistant_notes" placeholder="Co-Trainer-Auswertung" />
                 <Button className="w-full" type="submit">
                   <CalendarPlus aria-hidden="true" className="h-4 w-4" />
                   Training speichern
@@ -423,9 +423,9 @@ export default async function MondayTrainingPage({
                         placeholder="Staff-Notizen"
                       />
                       <Textarea
-                        defaultValue={training.sandu_notes ?? ""}
-                        name="sandu_notes"
-                        placeholder="Sändu-Auswertung"
+                        defaultValue={training.assistant_notes ?? ""}
+                        name="assistant_notes"
+                        placeholder="Co-Trainer-Auswertung"
                       />
                       <div className="flex flex-wrap gap-2">
                         <Button type="submit">
