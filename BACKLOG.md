@@ -189,7 +189,7 @@ Alle Sicherheits-Stories umgesetzt; Typecheck + Lint grün. **Ausstehende User-A
 - [ ] **S5.2 (P2, 8 SP) Alle UI-Strings extrahieren** 🔄 in Arbeit (flächenweise)
   Hardcodierte deutsche Texte (UI, Fehlermeldungen in Actions, Push-Texte, PDF-Labels) in Message-Kataloge; EN-Übersetzung erstellen.
   *AK:* `messages/de.json` + `en.json` decken die App ab; Sprachwechsel zeigt durchgängig EN.
-  *Fortschritt:* Muster etabliert (Server: `getTranslations`, Client: `useTranslations`, lenienter Fallback). **Fertig (DE+EN):** `auth`-Namespace = Login-Seite (`ac863ff`), `join`-Namespace = /join-Seite (`6a2f388`). **Offen (flächenweise):** PlayerSelfRegisterForm, /p Spieler-Bereich (groß), Coach-UI (~40 Komponenten/Seiten), Action-Fehlermeldungen, Push-Texte, PDF-Labels. Jede Fläche einzeln verifiziert (typecheck+build), da nur build-prüfbar.
+  *Fortschritt:* Muster etabliert (Server: `getTranslations`, Client: `useTranslations`, lenienter Fallback). **Fertig (DE+EN):** `auth` = Login (`ac863ff`), `join` = /join (`6a2f388`), `pages` = Header (Titel+Beschreibung) von 6 Coach-Seiten — workspaces, awards, evaluations, analysis, calendar, health (`8ebbd75`). **Offen (flächenweise):** restliche Coach-Seiten-Header (materials, tactics, player-mode, monday, clubcorner, pitch, points + Dashboard), die tieferen Strings je Seite (Buttons, Empty-States, Formularlabels), PlayerSelfRegisterForm, /p Spieler-Bereich, Action-Fehler, Push, PDF. Jede Fläche einzeln verifiziert.
 
 - [x] **S5.3 (P2, 2 SP) Routen vereinheitlichen** ✅ 2026-06-13
   `/spieler`, `/beitreten`, `/winnerpunkte` → englische technische Routen (`/p/[token]`, `/join/[code]`, `/points`) mit Redirects von Alt-URLs (Spieler-Links sind im Umlauf!).
