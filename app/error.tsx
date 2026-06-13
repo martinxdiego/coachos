@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
+import { captureException } from "@/lib/logger";
 
 export default function Error({
   error,
@@ -11,8 +12,7 @@ export default function Error({
   reset: () => void;
 }) {
   useEffect(() => {
-    // Surface the error for monitoring (Sentry hook lands in S4.3).
-    console.error("[app] unhandled error", error.digest ?? "");
+    captureException(error, { boundary: "root", digest: error.digest });
   }, [error]);
 
   return (

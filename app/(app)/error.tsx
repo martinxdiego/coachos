@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { captureException } from "@/lib/logger";
 
 export default function AppError({
   error,
@@ -12,7 +13,7 @@ export default function AppError({
   reset: () => void;
 }) {
   useEffect(() => {
-    console.error("[app] section error", error.digest ?? "");
+    captureException(error, { boundary: "app", digest: error.digest });
   }, [error]);
 
   return (
