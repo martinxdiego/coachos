@@ -6,6 +6,7 @@ import {
   setActiveTeam,
   updateTeam
 } from "@/app/actions";
+import { getTranslations } from "next-intl/server";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -34,6 +35,7 @@ export default async function WorkspacesPage({
   searchParams
 }: WorkspacesPageProps) {
   const { activeTeam, teamOptions } = await getOptionalActiveTeam();
+  const t = await getTranslations("pages");
   const resolvedSearchParams = await searchParams;
   const message = resolvedSearchParams?.message;
   const team = activeTeam?.team;
@@ -75,8 +77,8 @@ export default async function WorkspacesPage({
   return (
     <div className="space-y-6">
       <PageHeader
-        description="Erstelle, wechsle oder erweitere deine privaten Trainer-Workspaces."
-        title="Workspaces"
+        description={t("workspaces_desc")}
+        title={t("workspaces_title")}
       />
 
       {message ? (

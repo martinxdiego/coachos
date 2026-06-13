@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { BarChart3, FileDown, Save } from "lucide-react";
 import { saveMatchAnalysis } from "@/app/actions";
+import { getTranslations } from "next-intl/server";
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
 import { PrintButton } from "@/components/print-button";
@@ -42,6 +43,7 @@ const fields = [
 
 export default async function AnalysisPage({ searchParams }: AnalysisPageProps) {
   const { team } = await requireActiveTeam();
+  const t = await getTranslations("pages");
   const resolvedSearchParams = await searchParams;
 
   const [matchesData, analysesData] = await Promise.all([
@@ -121,8 +123,8 @@ export default async function AnalysisPage({ searchParams }: AnalysisPageProps) 
             </Button>
           </div>
         }
-        description="Spielvorbereitung, Gegneranalyse, taktische Punkte und Review je Spiel."
-        title="Analyse"
+        description={t("analysis_desc")}
+        title={t("analysis_title")}
       />
 
       <section className="grid gap-4 xl:grid-cols-[360px_1fr]">

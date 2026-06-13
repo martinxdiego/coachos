@@ -6,6 +6,7 @@ import {
   updatePlayerAward
 } from "@/app/actions";
 import { ConfirmDeleteForm } from "@/components/confirm-delete-form";
+import { getTranslations } from "next-intl/server";
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
@@ -27,6 +28,7 @@ export const dynamic = "force-dynamic";
 
 export default async function AwardsPage() {
   const { team } = await requireActiveTeam();
+  const t = await getTranslations("pages");
   const [playersData, matchesData, awardsData] = await Promise.all([
     db.player.findMany({
       where: { workspaceId: team.id },
@@ -96,8 +98,8 @@ export default async function AwardsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        description="Man of the Week / Hut-System mit aktuellem Gewinner, Übergabe und Hall of Fame."
-        title="Hut-System"
+        description={t("awards_desc")}
+        title={t("awards_title")}
       />
 
       <section className="grid gap-4 xl:grid-cols-[420px_1fr]">

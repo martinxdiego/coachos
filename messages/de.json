@@ -36,6 +36,20 @@
     "intro": "Trag dich kurz ein. Du bekommst danach deinen persönlichen Link zum Bookmarken — ohne Login.",
     "consent": "Mit der Anmeldung stimmst du zu, dass dein Trainer deine Daten zur Trainings- und Spielplanung verwendet."
   },
+  "pages": {
+    "workspaces_title": "Workspaces",
+    "workspaces_desc": "Erstelle, wechsle oder erweitere deine privaten Trainer-Workspaces.",
+    "awards_title": "Hut-System",
+    "awards_desc": "Man of the Week / Hut-System mit aktuellem Gewinner, Übergabe und Hall of Fame.",
+    "evaluations_title": "Spielerbewertungen",
+    "evaluations_desc": "Schnelle 1-bis-5-Bewertungen pro Training, Spiel oder Event mit Trainerübersicht.",
+    "analysis_title": "Analyse",
+    "analysis_desc": "Spielvorbereitung, Gegneranalyse, taktische Punkte und Review je Spiel.",
+    "calendar_title": "Kalender",
+    "calendar_desc": "Tages-, Wochen-, Monats- und Jahresplanung mit Training und Spiel.",
+    "health_title": "Gesundheit / Belastung",
+    "health_desc": "Belastungs-Check mit Ampelwarnungen für Training und Spiel."
+  },
   "nav": {
     "today": "Heute",
     "training": "Training",

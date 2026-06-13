@@ -4,6 +4,7 @@ import {
   saveHealthCheckin,
   updateHealthCheckin
 } from "@/app/actions";
+import { getTranslations } from "next-intl/server";
 import { EmptyState } from "@/components/empty-state";
 import { HealthRoster, type HealthRow } from "@/components/health-roster";
 import { PageHeader } from "@/components/page-header";
@@ -61,6 +62,7 @@ const riskMeta = {
 
 export default async function HealthPage() {
   const { team } = await requireActiveTeam();
+  const t = await getTranslations("pages");
   const today = todayIsoDate();
 
   const playersData = await db.player.findMany({
@@ -184,8 +186,8 @@ export default async function HealthPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        description="Belastungs-Check mit Ampelwarnungen fuer Training und Spiel."
-        title="Gesundheit / Belastung"
+        description={t("health_desc")}
+        title={t("health_title")}
       />
 
       <section className="grid gap-4 md:grid-cols-3">

@@ -14,6 +14,7 @@ import {
 } from "@/app/actions";
 import { ConfirmDeleteForm } from "@/components/confirm-delete-form";
 import { EmptyState } from "@/components/empty-state";
+import { getTranslations } from "next-intl/server";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -54,6 +55,7 @@ import { db } from "@/lib/db";
 
 export default async function EvaluationsPage() {
   const { team } = await requireActiveTeam();
+  const t = await getTranslations("pages");
   const today = todayIsoDate();
 
   const [playersRaw, trainingsRaw, matchesRaw, evaluationsRaw] = await Promise.all([
@@ -181,8 +183,8 @@ export default async function EvaluationsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        description="Schnelle 1-bis-5-Bewertungen pro Training, Spiel oder Event mit Trainerübersicht."
-        title="Spielerbewertungen"
+        description={t("evaluations_desc")}
+        title={t("evaluations_title")}
       />
 
       <section className="grid gap-4 xl:grid-cols-[420px_1fr]">

@@ -36,6 +36,20 @@
     "intro": "Sign up quickly. You'll then get your personal link to bookmark — no login required.",
     "consent": "By signing up you agree that your coach uses your data for training and match planning."
   },
+  "pages": {
+    "workspaces_title": "Workspaces",
+    "workspaces_desc": "Create, switch or extend your private coaching workspaces.",
+    "awards_title": "Hat System",
+    "awards_desc": "Man of the Week / hat system with current winner, handover and hall of fame.",
+    "evaluations_title": "Player ratings",
+    "evaluations_desc": "Quick 1-to-5 ratings per training, match or event with a coach overview.",
+    "analysis_title": "Analysis",
+    "analysis_desc": "Match prep, opponent analysis, tactical points and review per match.",
+    "calendar_title": "Calendar",
+    "calendar_desc": "Daily, weekly, monthly and yearly planning with training and matches.",
+    "health_title": "Health / Load",
+    "health_desc": "Load check with traffic-light warnings for training and matches."
+  },
   "nav": {
     "today": "Today",
     "training": "Training",

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { CalendarPlus, ChevronLeft, ChevronRight, Trophy } from "lucide-react";
+import { getTranslations } from "next-intl/server";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -227,6 +228,7 @@ function MonthGrid({
 
 export default async function CalendarPage({ searchParams }: CalendarPageProps) {
   const { team } = await requireActiveTeam();
+  const t = await getTranslations("pages");
   const resolvedSearchParams = await searchParams;
   const view = (["day", "week", "month", "year"].includes(
     resolvedSearchParams?.view ?? ""
@@ -316,8 +318,8 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
   return (
     <div className="space-y-6">
       <PageHeader
-        description="Tages-, Wochen-, Monats- und Jahresplanung mit Training und Spiel."
-        title="Kalender"
+        description={t("calendar_desc")}
+        title={t("calendar_title")}
       />
 
       <Card>
