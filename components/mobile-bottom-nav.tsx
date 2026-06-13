@@ -5,9 +5,11 @@ import { usePathname } from "next/navigation";
 import { useOpenCluster } from "@/components/more-nav-provider";
 import { isClusterActive, navClusters, getNavKey } from "@/components/nav-config";
 import { cn } from "@/lib/utils";
-import { t, getLocale } from "@/lib/i18n";
+import { useLocale, useTranslations } from "next-intl";
 
 export function MobileBottomNav({ enabled }: { enabled: boolean }) {
+  const t = useTranslations();
+  const locale = useLocale();
   const pathname = usePathname();
   const openCluster = useOpenCluster();
 
@@ -40,7 +42,7 @@ export function MobileBottomNav({ enabled }: { enabled: boolean }) {
                 key={cluster.id}
               >
                 <Icon aria-hidden="true" className="h-[18px] w-[18px]" />
-                {t(getNavKey(cluster.id), cluster.label)}
+                {t(getNavKey(cluster.id))}
               </Link>
             );
           }
@@ -48,9 +50,9 @@ export function MobileBottomNav({ enabled }: { enabled: boolean }) {
           return (
             <button
               aria-label={
-                getLocale() === "de"
-                  ? `${t(getNavKey(cluster.id), cluster.label)} öffnen`
-                  : `Open ${t(getNavKey(cluster.id), cluster.label)}`
+                locale === "de"
+                  ? `${t(getNavKey(cluster.id))} öffnen`
+                  : `Open ${t(getNavKey(cluster.id))}`
               }
               aria-current={isActive ? "page" : undefined}
               className={cn(
@@ -64,7 +66,7 @@ export function MobileBottomNav({ enabled }: { enabled: boolean }) {
               type="button"
             >
               <Icon aria-hidden="true" className="h-[18px] w-[18px]" />
-              {t(getNavKey(cluster.id), cluster.label)}
+              {t(getNavKey(cluster.id))}
               {isActive ? (
                 <span
                   aria-hidden="true"

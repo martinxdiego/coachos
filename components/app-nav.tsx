@@ -14,9 +14,10 @@ import {
   getItemDescKey
 } from "@/components/nav-config";
 import { cn } from "@/lib/utils";
-import { t } from "@/lib/i18n";
+import { useTranslations } from "next-intl";
 
 export function AppNav() {
+  const t = useTranslations();
   const pathname = usePathname();
   const [openClusterId, setOpenClusterId] = useState<string | null>(null);
   const navRef = useRef<HTMLElement | null>(null);
@@ -67,7 +68,7 @@ export function AppNav() {
               key={cluster.id}
             >
               <Icon aria-hidden="true" className="h-4 w-4" />
-              {t(getNavKey(cluster.id), cluster.label)}
+              {t(getNavKey(cluster.id))}
             </Link>
           );
         }
@@ -109,6 +110,7 @@ function ClusterButton({
   onClose: () => void;
   pathname: string;
 }) {
+  const t = useTranslations();
   const Icon = cluster.icon;
   const items = cluster.items ?? [];
 
@@ -126,7 +128,7 @@ function ClusterButton({
         type="button"
       >
         <Icon aria-hidden="true" className="h-4 w-4" />
-        {t(getNavKey(cluster.id), cluster.label)}
+        {t(getNavKey(cluster.id))}
         <ChevronDown
           aria-hidden="true"
           className={cn(
@@ -186,11 +188,11 @@ function ClusterButton({
                     </span>
                     <span className="flex-1 min-w-0">
                       <span className="block text-[13.5px] font-medium leading-tight">
-                        {t(getItemKey(item.href), item.label)}
+                        {t(getItemKey(item.href))}
                       </span>
                       {item.description ? (
                         <span className="mt-0.5 block truncate text-[12px] text-muted-foreground">
-                          {t(getItemDescKey(item.href), item.description)}
+                          {t(getItemDescKey(item.href))}
                         </span>
                       ) : null}
                     </span>

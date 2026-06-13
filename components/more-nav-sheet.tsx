@@ -12,7 +12,7 @@ import {
   getItemDescKey
 } from "@/components/nav-config";
 import { cn } from "@/lib/utils";
-import { t } from "@/lib/i18n";
+import { useTranslations } from "next-intl";
 
 interface MoreNavSheetProps {
   isOpen: boolean;
@@ -21,6 +21,7 @@ interface MoreNavSheetProps {
 }
 
 export function MoreNavSheet({ isOpen, onClose, cluster }: MoreNavSheetProps) {
+  const t = useTranslations();
   const pathname = usePathname();
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
@@ -44,7 +45,7 @@ export function MoreNavSheet({ isOpen, onClose, cluster }: MoreNavSheetProps) {
   return (
     <div className="fixed inset-0 z-50">
       <button
-        aria-label={t("common.close", "Schließen")}
+        aria-label={t("common.close")}
         className="absolute inset-0 bg-slate-950/45"
         onClick={onClose}
         type="button"
@@ -62,15 +63,15 @@ export function MoreNavSheet({ isOpen, onClose, cluster }: MoreNavSheetProps) {
             </span>
             <div>
               <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-primary">
-                {t("nav.section", "Bereich")}
+                {t("nav.section")}
               </p>
               <h2 className="mt-0.5 text-2xl font-semibold tracking-tight">
-                {t(getNavKey(cluster.id), cluster.label)}
+                {t(getNavKey(cluster.id))}
               </h2>
             </div>
           </div>
           <button
-            aria-label={t("common.close", "Schließen")}
+            aria-label={t("common.close")}
             className="flex h-9 w-9 items-center justify-center rounded-full bg-secondary text-secondary-foreground transition-transform duration-150 ease-spring active:scale-95"
             onClick={onClose}
             type="button"
@@ -108,11 +109,11 @@ export function MoreNavSheet({ isOpen, onClose, cluster }: MoreNavSheetProps) {
                     </span>
                     <span className="flex-1 min-w-0">
                       <span className="block text-[15px] font-medium leading-tight">
-                        {t(getItemKey(item.href), item.label)}
+                        {t(getItemKey(item.href))}
                       </span>
                       {item.description ? (
                         <span className="mt-0.5 block truncate text-[13px] text-muted-foreground">
-                          {t(getItemDescKey(item.href), item.description)}
+                          {t(getItemDescKey(item.href))}
                         </span>
                       ) : null}
                     </span>

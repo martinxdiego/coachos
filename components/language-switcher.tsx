@@ -1,25 +1,26 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { getLocale, setLocale } from "@/lib/i18n";
+import { useTransition } from "react";
+import { useLocale } from "next-intl";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Globe } from "lucide-react";
 
 export function LanguageSwitcher() {
-  const [locale, setLocaleState] = useState("de");
-
-  useEffect(() => {
-    setLocaleState(getLocale());
-  }, []);
+  const locale = useLocale();
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
 
   const handleToggle = () => {
     const nextLocale = locale === "de" ? "en" : "de";
-    setLocale(nextLocale);
+    document.cookie = `NEXT_LOCALE=${nextLocale}; path=/; max-age=31536000`;
+    startTransition(() => router.refresh());
   };
 
   return (
     <Button
       onClick={handleToggle}
+      disabled={isPending}
       size="sm"
       variant="ghost"
       className="flex items-center gap-2 text-slate-300 hover:bg-slate-800 hover:text-white"
