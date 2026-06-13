@@ -91,10 +91,10 @@ Alle Sicherheits-Stories umgesetzt; Typecheck + Lint grün. **Ausstehende User-A
   *AK:* ADR-Dokument (`docs/adr/001-data-layer.md`); kein Endpunkt existiert doppelt in beiden Schichten.
   *Umgesetzt:* `docs/adr/001-data-layer.md`. tRPC war vollständig verdrahtet, aber von keiner Client-Komponente genutzt → komplett entfernt (`lib/trpc/**`, `app/api/trpc/**`, Provider, `@trpc/*` + `@tanstack/react-query`-Deps). `/api/trpc`-Angriffsfläche damit weg.
 
-- [ ] **S2.4 (P1, 5 SP) `actions.ts` aufteilen** ⏭️ verschoben (nach S4.2)
+- [x] **S2.4 (P1, 5 SP) `actions.ts` aufteilen** ✅ 2026-06-13
   91-KB-Datei nach Domänen splitten: `app/actions/{auth,players,trainings,matches,materials,tactics,health,awards,workspace}.ts`. Gemeinsame Helfer (`requiredString`, `optionalNumber`, …) nach `lib/forms.ts`.
   *AK:* Keine Datei > 500 Zeilen; Imports aktualisiert; Build grün.
-  *Hinweis:* Großer mechanischer Split ohne Verhaltensänderung — am sichersten mit Test-Netz (S4.2) und Barrel-Re-Export für stabile Importpfade.
+  *Umgesetzt:* 2800-Zeilen-`actions.ts` in 16 Domänen-Module `app/actions/<domain>.ts` (je `"use server"`) + `app/actions/_shared.ts` (Helfer/Konstanten) gesplittet; `app/actions.ts` ist jetzt ein Barrel (`export *`) → alle `@/app/actions`-Importe unverändert gültig. Keine Datei >500 Zeilen (größte: trainings 500). Verhaltensneutral; typecheck+lint+34 Tests+`next build` grün. (Form-Helfer-Extraktion nach `lib/forms.ts` lief bereits in S4.2.)
 
 - [x] **S2.5 (P1, 3 SP) Queue-Architektur fixen** ✅ 2026-06-13
   BullMQ-Worker aus dem Next-Prozess entfernen (`lib/queue.ts` startet Worker beim Import — auf Vercel unzuverlässig, In-Memory-Fallback verliert Jobs). Ersatz: Push direkt synchron im Cron-Handler versenden (Volumen ist klein) **oder** QStash/Inngest. BullMQ + ioredis raus aus den Dependencies, falls nicht mehr gebraucht.
