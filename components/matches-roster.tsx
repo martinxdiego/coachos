@@ -19,6 +19,7 @@ import {
 } from "@/app/actions";
 import { ConfirmDeleteForm } from "@/components/confirm-delete-form";
 import { EmptyState } from "@/components/empty-state";
+import { MatchEventsEditor } from "@/components/match-events-editor";
 import { PdfDownloadButton } from "@/components/pdf-download-button";
 import { ToastForm } from "@/components/toast-form";
 import { Badge } from "@/components/ui/badge";
@@ -39,10 +40,20 @@ const FORMATIONS: Record<string, number[]> = {
 
 const formationKeys = Object.keys(FORMATIONS);
 
+export interface MatchEventRow {
+  id: string;
+  type: "GOAL" | "ASSIST" | "YELLOW_CARD" | "RED_CARD" | "SUBSTITUTION";
+  minute: number | null;
+  note: string | null;
+  player_id: string;
+  player_name: string;
+}
+
 export interface MatchRow {
   id: string;
   opponent: string;
   date: string;
+  events: MatchEventRow[];
   competition: string | null;
   team_category: string | null;
   kickoff_time: string | null;
@@ -433,6 +444,14 @@ function MatchCard({
               <Link href="/evaluations">Bewertungen</Link>
             </Button>
           </div>
+
+          {players.length > 0 ? (
+            <MatchEventsEditor
+              events={match.events}
+              matchId={match.id}
+              players={players}
+            />
+          ) : null}
 
           {players.length > 0 ? (
             <details className="rounded-2xl border border-border/70 bg-secondary/30 p-4">

@@ -179,6 +179,65 @@ export async function deleteMatch(formData: FormData) {
   revalidatePath("/pitch");
 }
 
+const MATCH_EVENT_TYPES = [
+  "GOAL",
+  "ASSIST",
+  "YELLOW_CARD",
+  "RED_CARD",
+  "SUBSTITUTION"
+] as const;
+
+export async function addMatchEvent(formData: FormData) {
+  const { team } = await requireActiveTeam();
+  const matchId = requiredString(formData, "match_id", "Match");
+  const playerId = requiredString(formData, "player_id", "Player");
+  const type = enumValue(formData, "type", MATCH_EVENT_TYPES);
+  if (!type) {
+    throw new Error("Event-Typ ist ungültig.");
+  }
+
+  // Scope check: the match and the player must belong to the active workspace.
+  const [match, player] = await Promise.all([
+    db.match.findFirst({ where: { id: matchId, workspaceId: team.id }, select: { id: true } }),
+    db.player.findFirst({ where: { id: playerId, workspaceId: team.id }, select: { id: true } })
+  ]);
+  if (!match || !player) {
+    throw new Error("Spiel oder Spieler nicht gefunden.");
+  }
+
+  await db.matchEvent.create({
+    data: {
+      matchId,
+      playerId,
+      type,
+      minute: optionalNumber(formData, "minute"),
+      note: optionalString(formData, "note")
+    }
+  });
+
+  revalidatePath("/matches");
+  revalidatePath("/analysis");
+}
+
+export async function deleteMatchEvent(formData: FormData) {
+  const { team } = await requireActiveTeam();
+  const id = requiredString(formData, "id", "Event");
+
+  // Only delete if the event's match is in the active workspace.
+  const event = await db.matchEvent.findFirst({
+    where: { id, match: { workspaceId: team.id } },
+    select: { id: true }
+  });
+  if (!event) {
+    throw new Error("Event nicht gefunden oder nicht berechtigt.");
+  }
+
+  await db.matchEvent.delete({ where: { id } });
+
+  revalidatePath("/matches");
+  revalidatePath("/analysis");
+}
+
 
 export async function saveMatchAnalysis(formData: FormData) {
   const { team } = await requireActiveTeam();

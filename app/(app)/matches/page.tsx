@@ -76,7 +76,13 @@ async function MatchesData({
     db.match.findMany({
       where: { workspaceId: teamId },
       orderBy: { date: "desc" },
-      take: 200
+      take: 200,
+      include: {
+        events: {
+          orderBy: { minute: "asc" },
+          include: { player: { select: { name: true } } }
+        }
+      }
     }),
     db.player.findMany({
       where: { workspaceId: teamId },
@@ -97,6 +103,14 @@ async function MatchesData({
     id: m.id,
     opponent: m.opponent,
     date: m.date.toISOString().slice(0, 10),
+    events: m.events.map((e) => ({
+      id: e.id,
+      type: e.type,
+      minute: e.minute,
+      note: e.note,
+      player_id: e.playerId,
+      player_name: e.player.name
+    })),
     competition: m.competition,
     team_category: null,
     kickoff_time: m.kickoffTime,
