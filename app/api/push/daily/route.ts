@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { todayIsoDate } from "@/lib/utils";
 import { db } from "@/lib/db";
-import { addJob } from "@/lib/queue";
+import { sendPushNotification } from "@/lib/push";
 
 export async function POST(req: Request) {
   const authHeader = req.headers.get("authorization");
@@ -42,29 +42,28 @@ export async function POST(req: Request) {
       return NextResponse.json({ sent: 0 });
     }
 
-    let queuedCount = 0;
-    await Promise.all(
+    const results = await Promise.all(
       pending.map(async (sub) => {
         const player = sub.player;
-        if (!player) return;
+        if (!player) return false;
 
-        await addJob("push-notifications", `daily-wellness-${player.id}-${today}`, {
-          subscription: {
+        return sendPushNotification(
+          {
             endpoint: sub.endpoint,
             p256dh: sub.p256dh,
             auth: sub.auth
           },
-          payload: {
+          {
             title: `Hey ${player.firstName ?? player.name}! 👋`,
             body: "Zeit für deinen Wellness-Check. Wie fühlst du dich heute?",
             url: `/spieler/${player.accessToken}`
           }
-        });
-        queuedCount++;
+        );
       })
     );
 
-    return NextResponse.json({ queued: queuedCount });
+    const sent = results.filter(Boolean).length;
+    return NextResponse.json({ sent, attempted: pending.length });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
