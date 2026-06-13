@@ -186,9 +186,10 @@ Alle Sicherheits-Stories umgesetzt; Typecheck + Lint grün. **Ausstehende User-A
   *AK:* ADR; kein toter i18n-Code; Sprachumschalter funktioniert serverseitig nachweisbar.
   *Umgesetzt:* next-intl im No-Routing-Modus (Locale aus `NEXT_LOCALE`-Cookie, kein Route-Umbau); `i18n/request.ts` mit lenientem Fallback (Key statt Crash); Root-Layout async + `NextIntlClientProvider` + `lang`; Nav-Komponenten auf `useTranslations`/`useLocale`; Sprachumschalter via Cookie + `router.refresh()`; `lib/i18n.ts` gelöscht. (Bei der Analyse zeigte sich: das alte i18n war nur client-seitig aktiv, also nicht real kaputt — Entscheidung dennuch pro next-intl als EN-Grundlage.)
 
-- [ ] **S5.2 (P2, 8 SP) Alle UI-Strings extrahieren**
+- [ ] **S5.2 (P2, 8 SP) Alle UI-Strings extrahieren** 🔄 in Arbeit (flächenweise)
   Hardcodierte deutsche Texte (UI, Fehlermeldungen in Actions, Push-Texte, PDF-Labels) in Message-Kataloge; EN-Übersetzung erstellen.
   *AK:* `messages/de.json` + `en.json` decken die App ab; Sprachwechsel zeigt durchgängig EN.
+  *Fortschritt:* Muster etabliert (Server: `getTranslations`, Client: `useTranslations`, lenienter Fallback). **Fertig (DE+EN):** `auth`-Namespace = Login-Seite (`ac863ff`), `join`-Namespace = /join-Seite (`6a2f388`). **Offen (flächenweise):** PlayerSelfRegisterForm, /p Spieler-Bereich (groß), Coach-UI (~40 Komponenten/Seiten), Action-Fehlermeldungen, Push-Texte, PDF-Labels. Jede Fläche einzeln verifiziert (typecheck+build), da nur build-prüfbar.
 
 - [x] **S5.3 (P2, 2 SP) Routen vereinheitlichen** ✅ 2026-06-13
   `/spieler`, `/beitreten`, `/winnerpunkte` → englische technische Routen (`/p/[token]`, `/join/[code]`, `/points`) mit Redirects von Alt-URLs (Spieler-Links sind im Umlauf!).
