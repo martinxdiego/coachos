@@ -125,9 +125,10 @@ Alle Sicherheits-Stories umgesetzt; Typecheck + Lint grün. **Ausstehende User-A
   Zwei Generationen (`FIT/REHAB/INJURED` + `available/injured/limited/absent`) → ein Set: `AVAILABLE`, `LIMITED`, `INJURED`, `ABSENT`. Datenmigration mappt Altwerte.
   *AK:* Enum hat 4 Werte; zod-Schemas und UI-Filter angepasst.
 
-- [ ] **S3.4 (P1, 2 SP) Indexe ergänzen**
+- [x] **S3.4 (P1, 2 SP) Indexe ergänzen** ✅ 2026-06-13
   `@@index([workspaceId])` auf allen mandantenbezogenen Modellen; `@@index([workspaceId, date])` auf `Training`, `Match`, `HealthCheck`, `WinnerPoint`, `Rating`.
   *AK:* Migration angewendet; `EXPLAIN` auf Dashboard-Queries nutzt Indexe.
+  *Umgesetzt:* 17 `@@index` im Schema (tenant-Modelle auf `workspaceId`; Zeitreihen +`date`; `HealthCheck`/`Rating` `playerId+date`; `MatchLineup`/`Attendance` `playerId`); Migration `20260613130000_add_indexes` (via `migrate diff`). Gesamte Kette (0_init→reduce_roles→add_indexes) auf PGlite verifiziert; typecheck+34 Tests grün. **Apply:** mit `migrate deploy` (User).
 
 - [ ] **S3.5 (P2, 5 SP) Spielstatistik strukturieren**
   `scorers`/`assists`/`cards`/`startingLineup`/`substitutes` (Freitext) → Relationen: `MatchEvent` (Typ: GOAL/ASSIST/YELLOW/RED/SUB, playerId, minute) + vorhandenes `MatchLineup` nutzen. Freitextfelder bleiben übergangsweise lesbar, neue Eingaben strukturiert.
