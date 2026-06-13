@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 import { ShieldCheck } from "lucide-react";
 import { PlayerSelfRegisterForm } from "@/components/player-self-register-form";
 import { Card, CardContent } from "@/components/ui/card";
@@ -20,6 +21,7 @@ export default async function JoinPage({ params }: JoinPageProps) {
     notFound();
   }
 
+  const t = await getTranslations("join");
   const team = {
     name: invite.workspaceName,
     age_group: invite.ageGroup,
@@ -37,18 +39,17 @@ export default async function JoinPage({ params }: JoinPageProps) {
             <ShieldCheck className="h-6 w-6 text-emerald-300" />
           </span>
           <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-300">
-            Team-Beitritt
+            {t("badge")}
           </p>
           <h1 className="mt-2 text-3xl font-semibold tracking-tight">
             {team.name}
           </h1>
           <p className="mt-1.5 text-[14px] text-slate-300">
             {team.age_group ? `${team.age_group} · ` : ""}
-            {team.season ?? "Aktuelle Saison"}
+            {team.season ?? t("current_season")}
           </p>
           <p className="mt-3 text-[13px] leading-6 text-slate-400">
-            Trag dich kurz ein. Du bekommst danach deinen persönlichen Link
-            zum Bookmarken — ohne Login.
+            {t("intro")}
           </p>
         </header>
 
@@ -59,8 +60,7 @@ export default async function JoinPage({ params }: JoinPageProps) {
         </Card>
 
         <p className="text-center text-[12px] text-slate-400">
-          Mit der Anmeldung stimmst du zu, dass dein Trainer deine Daten zur
-          Trainings- und Spielplanung verwendet.
+          {t("consent")}
         </p>
       </div>
     </div>

@@ -30,6 +30,12 @@
     "signup_subtitle": "Danach erstellst du einen Workspace oder trittst per Code bei.",
     "signup_button": "Account erstellen"
   },
+  "join": {
+    "badge": "Team-Beitritt",
+    "current_season": "Aktuelle Saison",
+    "intro": "Trag dich kurz ein. Du bekommst danach deinen persönlichen Link zum Bookmarken — ohne Login.",
+    "consent": "Mit der Anmeldung stimmst du zu, dass dein Trainer deine Daten zur Trainings- und Spielplanung verwendet."
+  },
   "nav": {
     "today": "Heute",
     "training": "Training",

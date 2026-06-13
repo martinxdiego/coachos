@@ -30,6 +30,12 @@
     "signup_subtitle": "Then create a workspace or join with a code.",
     "signup_button": "Create account"
   },
+  "join": {
+    "badge": "Team join",
+    "current_season": "Current season",
+    "intro": "Sign up quickly. You'll then get your personal link to bookmark — no login required.",
+    "consent": "By signing up you agree that your coach uses your data for training and match planning."
+  },
   "nav": {
     "today": "Today",
     "training": "Training",
