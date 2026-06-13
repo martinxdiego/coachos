@@ -79,7 +79,7 @@ export async function GET(_request: Request, { params }: RouteParams) {
   const training = {
     date: isoDate(trainingRow.date),
     start_time: trainingRow.startTime,
-    duration_minutes: trainingRow.durationMinutes ?? trainingRow.duration,
+    duration_minutes: trainingRow.durationMinutes,
     location: trainingRow.location,
     focus: trainingRow.focus,
     goal: trainingRow.goal,

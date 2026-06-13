@@ -25,8 +25,7 @@ export default async function TacticsPage() {
         id: true,
         name: true,
         position: true,
-        jerseyNumber: true,
-        number: true
+        jerseyNumber: true
       },
       orderBy: [
         { jerseyNumber: "asc" },
@@ -47,7 +46,7 @@ export default async function TacticsPage() {
     id: p.id,
     name: p.name,
     position: p.position,
-    jersey_number: p.jerseyNumber ?? p.number
+    jersey_number: p.jerseyNumber
   }));
 
   return (

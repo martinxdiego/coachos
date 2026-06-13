@@ -36,7 +36,7 @@ export async function GET(_request: Request, { params }: RouteParams) {
     date: matchRow.date.toISOString().slice(0, 10),
     kickoff_time: matchRow.kickoffTime,
     location: matchRow.location,
-    home_away: matchRow.homeAway ?? (matchRow.home ? "home" : "away"),
+    home_away: matchRow.homeAway ?? "home",
     competition: matchRow.competition,
     team_category: team.ageGroup ?? null,
     meeting_point: matchRow.meetingPoint,

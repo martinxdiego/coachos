@@ -194,7 +194,6 @@ export async function createAiTrainingDraft(formData: FormData) {
       title: plan.focus || focus,
       date: new Date(date),
       durationMinutes: duration,
-      duration: duration,
       focus: plan.focus || focus,
       goal: plan.goal,
       intensity,

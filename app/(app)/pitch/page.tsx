@@ -37,7 +37,6 @@ export default async function PitchPage() {
         name: true,
         position: true,
         jerseyNumber: true,
-        number: true,
         status: true
       },
       orderBy: [
@@ -83,7 +82,7 @@ export default async function PitchPage() {
     id: p.id,
     name: p.name,
     position: p.position,
-    jersey_number: p.jerseyNumber ?? p.number,
+    jersey_number: p.jerseyNumber,
     status: p.status.toLowerCase() as any
   }));
 

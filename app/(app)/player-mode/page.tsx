@@ -200,7 +200,7 @@ export default async function PlayerModePage({
         ...dbPlayer,
         first_name: dbPlayer.firstName,
         photo_url: dbPlayer.photoUrl,
-        jersey_number: dbPlayer.jerseyNumber ?? dbPlayer.number,
+        jersey_number: dbPlayer.jerseyNumber,
         team_category: null,
         contact: dbPlayer.contact,
         parent_contact: dbPlayer.parentContact,
@@ -233,7 +233,7 @@ export default async function PlayerModePage({
     motivation: e.motivation,
     training_quality: e.trainingQuality,
     match_quality: e.matchQuality ?? e.playingQuality,
-    behavior: e.behavior ?? e.behaviour,
+    behavior: e.behavior,
     effort: e.effort,
     concentration: e.concentration,
     notes: e.notes ?? e.comment

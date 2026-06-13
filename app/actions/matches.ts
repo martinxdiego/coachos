@@ -83,7 +83,6 @@ export async function createMatch(formData: FormData) {
       competition: payload.competition,
       kickoffTime: payload.kickoff_time,
       location: payload.location,
-      home: payload.home_away === "home",
       homeAway: payload.home_away,
       meetingPoint: payload.meeting_point,
       squadNotes: payload.squad_notes,
@@ -132,7 +131,6 @@ export async function updateMatch(formData: FormData) {
       competition: payload.competition,
       kickoffTime: payload.kickoff_time,
       location: payload.location,
-      home: payload.home_away === "home",
       homeAway: payload.home_away,
       meetingPoint: payload.meeting_point,
       squadNotes: payload.squad_notes,
@@ -281,7 +279,6 @@ export async function importMatches(formData: FormData) {
         opponent,
         kickoffTime: kickoffTime || null,
         location: location || null,
-        home: homeAway === "home",
         homeAway: (["home", "away", "neutral"].includes(homeAway)
           ? homeAway
           : null),

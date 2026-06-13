@@ -60,7 +60,6 @@ model Player {
   firstName             String?
   lastName              String?
   name                  String
-  number                Int?
   jerseyNumber          Int?
   position              String?
   secondaryPositions    String[]
@@ -68,7 +67,6 @@ model Player {
   birthYear             Int?
   height                Int?
   weight                Int?
-  preferredFoot         String?
   strongFoot            String?
   status                PlayerStatus       @default(AVAILABLE)
   photoUrl              String?
@@ -123,7 +121,6 @@ model Training {
   goal            String?
   date            DateTime
   startTime       String?
-  duration        Int // Minuten
   durationMinutes Int             @default(90)
   type            TrainingType    @default(REGULAR)
   intensity       String? // "low", "medium", "high"
@@ -172,7 +169,6 @@ model Match {
   date                 DateTime
   kickoffTime          String?
   location             String?
-  home                 Boolean        @default(true)
   homeAway             String? // "home", "away", "neutral"
   formation            String?
   notes                String?
@@ -254,7 +250,6 @@ model Rating {
   trainingQuality Int?
   playingQuality  Int?
   matchQuality    Int?
-  behaviour       Int?
   behavior        Int?
   effort          Int?
   concentration   Int?

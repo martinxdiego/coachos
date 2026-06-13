@@ -197,7 +197,6 @@ export function trainingPayload(formData: FormData) {
     date: new Date(requiredString(formData, "date", "Training date")),
     startTime: optionalString(formData, "start_time"),
     durationMinutes: optionalNumber(formData, "duration_minutes") ?? 90,
-    duration: optionalNumber(formData, "duration_minutes") ?? 90,
     location: optionalString(formData, "location"),
     focus: optionalString(formData, "focus") ?? "",
     goal: optionalString(formData, "goal"),

@@ -148,7 +148,7 @@ export default async function ClubcornerPage() {
     motivation: e.motivation,
     training_quality: e.trainingQuality,
     match_quality: e.matchQuality,
-    behavior: e.behavior ?? e.behaviour,
+    behavior: e.behavior,
     effort: e.effort,
     concentration: e.concentration,
     average: e.average,

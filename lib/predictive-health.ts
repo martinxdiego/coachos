@@ -73,7 +73,7 @@ export async function calculatePredictiveInjuryRisk(
   // 3. Calculate Training Workload (Minutes * Intensity multiplier)
   let recentWorkload = 0;
   for (const att of attendances) {
-    const duration = att.training.durationMinutes ?? att.training.duration ?? 90;
+    const duration = att.training.durationMinutes ?? 90;
     const intensity = att.training.intensity ?? "medium";
     let multiplier = 1.5;
     if (intensity === "low") multiplier = 1.0;
