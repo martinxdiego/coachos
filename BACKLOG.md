@@ -148,9 +148,10 @@ Alle Sicherheits-Stories umgesetzt; Typecheck + Lint grün. **Ausstehende User-A
   Workflow: `typecheck → lint → unit tests → build → e2e (gegen Preview)`. PR-Pflicht auf `main`, kein Direkt-Push.
   *AK:* `.github/workflows/ci.yml`; roter Check blockiert Merge.
 
-- [ ] **S4.2 (P2, 5 SP) Test-Fundament**
+- [x] **S4.2 (P2, 5 SP) Test-Fundament** 🔄 2026-06-13 (Unit-Fundament fertig; E2E-Erweiterung + CI offen)
   Vitest einrichten; Unit-Tests für: Autorisierung (S1.1-Middleware), Form-Helfer, `coach-metrics`/`predictive-health`-Berechnungen, Invite-Code-Lifecycle. Playwright erweitern: Login-Fehlerfälle, Mandanten-Trennung (User A sieht Team B nicht), Spieler-Check-in.
   *AK:* `npm test` existiert; ≥ 20 Unit-Tests; 3 E2E-Szenarien; alles in CI.
+  *Umgesetzt:* Vitest + `vitest.config.ts` (`@/`-Alias, Dummy-`DATABASE_URL`); `npm test`/`test:watch`; reine Form-Helfer nach `lib/forms.ts` extrahiert; **34 Unit-Tests grün** (forms, coach-metrics/healthRisk, pdf/filename, utils, invites-Code, login-throttle-Lockout). **Offen:** Playwright-Specs für Mandanten-Trennung + Login-Fehler (brauchen laufende App/DB) und CI-Verdrahtung (S4.1). Hinweis: die in der AK genannte tRPC-Middleware existiert nicht mehr (in S2.3 entfernt).
 
 - [ ] **S4.3 (P2, 2 SP) Error-Monitoring & Logging**
   Sentry (Client + Server + Edge) einbinden; `console.log`-Debugging durch strukturiertes Logging ersetzen (z. B. pino); PII (E-Mails, Gesundheitsdaten) nie loggen.
