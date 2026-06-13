@@ -190,9 +190,10 @@ Alle Sicherheits-Stories umgesetzt; Typecheck + Lint grün. **Ausstehende User-A
   Hardcodierte deutsche Texte (UI, Fehlermeldungen in Actions, Push-Texte, PDF-Labels) in Message-Kataloge; EN-Übersetzung erstellen.
   *AK:* `messages/de.json` + `en.json` decken die App ab; Sprachwechsel zeigt durchgängig EN.
 
-- [ ] **S5.3 (P2, 2 SP) Routen vereinheitlichen**
+- [x] **S5.3 (P2, 2 SP) Routen vereinheitlichen** ✅ 2026-06-13
   `/spieler`, `/beitreten`, `/winnerpunkte` → englische technische Routen (`/p/[token]`, `/join/[code]`, `/points`) mit Redirects von Alt-URLs (Spieler-Links sind im Umlauf!).
   *AK:* Alte Links redirecten 308; QR-Codes/Push-URLs nutzen neue Pfade.
+  *Umgesetzt:* `/spieler`→`/p`, `/beitreten`→`/join`, `/winnerpunkte`→`/points` (git mv); alle internen Refs (Actions/revalidatePath, Push-URL, PWA-`start_url`, Share-/Register-Komponenten, auth.config-Matcher, e2e). 308-Redirects in `next.config.mjs` für `/spieler|/beitreten/:path*` + `/winnerpunkte` → Links/QR/Bookmarks bleiben gültig. Nebenbei latenten Nav-Key-Mismatch gefixt (`/points`→`nav.winnerpoints`). Build zeigt neue Routen, alte weg; typecheck+lint+build grün.
 
 - [ ] **S5.4 (P2, 1 SP) Fehlermeldungs-Stil vereinheitlichen**
   Einheitliches Format (Sprache via i18n, kein Mix "is required" / "ist erforderlich"); zentrale Fehler-Helper.
