@@ -10,7 +10,7 @@ export default auth(async function middleware(req: NextRequest) {
   const ip = (req as any).ip || req.headers.get("x-forwarded-for")?.split(",")[0].trim() || "127.0.0.1";
   const path = req.nextUrl.pathname;
 
-  if (path.startsWith("/api/trpc") || path.startsWith("/api/push") || req.method === "POST") {
+  if (path.startsWith("/api/push") || req.method === "POST") {
     const limitResult = await rateLimit(ip, 60, 60);
     if (!limitResult.success) {
       return new NextResponse("Too Many Requests", {
