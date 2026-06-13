@@ -13,6 +13,16 @@ import { getSiteUrl } from "@/lib/env";
 import { createClient } from "@/lib/supabase/server";
 import { db } from "@/lib/db";
 import { rotatePlayerSignupInvite } from "@/lib/invites";
+import {
+  enumValue,
+  normalizeExternalUrl,
+  optionalNumber,
+  optionalScaleFive,
+  optionalString,
+  requiredRating,
+  requiredString,
+  scaleFive
+} from "@/lib/forms";
 import { cacheDel } from "@/lib/redis";
 import type {
   AttendanceStatus,
@@ -96,66 +106,6 @@ const trainingPresets = {
   }
 >;
 
-function requiredString(formData: FormData, key: string, label: string) {
-  const value = String(formData.get(key) ?? "").trim();
-  if (!value) {
-    throw new Error(`${label} is required.`);
-  }
-  return value;
-}
-
-function optionalString(formData: FormData, key: string) {
-  const value = String(formData.get(key) ?? "").trim();
-  return value.length > 0 ? value : null;
-}
-
-function optionalNumber(formData: FormData, key: string) {
-  const raw = String(formData.get(key) ?? "").trim();
-  if (!raw) {
-    return null;
-  }
-
-  const number = Number(raw);
-  return Number.isFinite(number) ? number : null;
-}
-
-function normalizeExternalUrl(rawUrl: string) {
-  return /^[a-z][a-z0-9+.-]*:/i.test(rawUrl) ||
-    rawUrl.startsWith("/") ||
-    rawUrl.includes(" ")
-    ? rawUrl
-    : `https://${rawUrl}`;
-}
-
-function requiredRating(formData: FormData) {
-  const rating = Number(formData.get("rating"));
-  if (!Number.isInteger(rating) || rating < 1 || rating > 10) {
-    throw new Error("Rating must be between 1 and 10.");
-  }
-  return rating;
-}
-
-function scaleFive(formData: FormData, key: string, label: string) {
-  const value = Number(formData.get(key));
-  if (!Number.isInteger(value) || value < 1 || value > 5) {
-    throw new Error(`${label} must be between 1 and 5.`);
-  }
-  return value;
-}
-
-function optionalScaleFive(formData: FormData, key: string) {
-  const raw = String(formData.get(key) ?? "").trim();
-  if (!raw) {
-    return null;
-  }
-
-  const value = Number(raw);
-  if (!Number.isInteger(value) || value < 1 || value > 5) {
-    throw new Error(`${key} must be between 1 and 5.`);
-  }
-  return value;
-}
-
 function redirectWithMessage(path: string, message: string) {
   redirect(`${path}?message=${encodeURIComponent(message)}`);
 }
@@ -192,15 +142,6 @@ function looksLikePlayerImportHeader(line: string) {
     normalized.includes("nachname") ||
     normalized.includes("last")
   );
-}
-
-function enumValue<T extends string>(
-  formData: FormData,
-  key: string,
-  allowed: readonly T[]
-) {
-  const value = String(formData.get(key) ?? "").trim();
-  return allowed.includes(value as T) ? (value as T) : null;
 }
 
 async function setActiveTeamCookie(teamId: string) {
