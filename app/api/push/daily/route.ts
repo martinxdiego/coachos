@@ -56,7 +56,7 @@ export async function POST(req: Request) {
           {
             title: `Hey ${player.firstName ?? player.name}! 👋`,
             body: "Zeit für deinen Wellness-Check. Wie fühlst du dich heute?",
-            url: `/spieler/${player.accessToken}`
+            url: `/p/${player.accessToken}`
           }
         );
       })

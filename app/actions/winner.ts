@@ -119,7 +119,7 @@ export async function addWinnerPoints(formData: FormData) {
   await cacheDel(`leaderboard:${team.id}:points`);
 
   revalidatePath("/");
-  revalidatePath("/winnerpunkte");
+  revalidatePath("/points");
   revalidatePath("/clubcorner");
   revalidatePath("/player-mode");
   revalidatePath(`/players/${playerId}`);
@@ -186,7 +186,7 @@ export async function updateWinnerPoints(formData: FormData) {
   await cacheDel(`leaderboard:${team.id}:points`);
 
   revalidatePath("/");
-  revalidatePath("/winnerpunkte");
+  revalidatePath("/points");
   revalidatePath("/clubcorner");
   revalidatePath("/player-mode");
   revalidatePath(`/players/${playerId}`);
@@ -215,7 +215,7 @@ export async function deleteWinnerPoints(formData: FormData) {
   await cacheDel(`leaderboard:${team.id}:points`);
 
   revalidatePath("/");
-  revalidatePath("/winnerpunkte");
+  revalidatePath("/points");
   revalidatePath("/clubcorner");
   revalidatePath("/player-mode");
   if (playerId) {

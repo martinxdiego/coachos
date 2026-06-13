@@ -438,7 +438,7 @@ function MatchCard({
               </Link>
             </Button>
             <Button asChild size="sm" variant="outline">
-              <Link href="/winnerpunkte?type=match">Winnerpunkte</Link>
+              <Link href="/points?type=match">Winnerpunkte</Link>
             </Button>
             <Button asChild size="sm" variant="outline">
               <Link href="/evaluations">Bewertungen</Link>

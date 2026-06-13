@@ -40,7 +40,7 @@ export function PlayerModeShare({
     setOrigin(window.location.origin);
   }, []);
 
-  const path = `/spieler/${accessToken}`;
+  const path = `/p/${accessToken}`;
   const fullUrl = origin ? `${origin}${path}` : path;
 
   async function copy() {

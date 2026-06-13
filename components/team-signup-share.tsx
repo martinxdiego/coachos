@@ -30,7 +30,7 @@ export function TeamSignupShare({
     setOrigin(window.location.origin);
   }, []);
 
-  const path = `/beitreten/${teamSignupToken}`;
+  const path = `/join/${teamSignupToken}`;
   const fullUrl = origin ? `${origin}${path}` : path;
 
   async function copy() {

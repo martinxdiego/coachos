@@ -133,7 +133,7 @@ export const navClusters: NavCluster[] = [
         description: "Auszeichnungen & Belohnungen"
       },
       {
-        href: "/winnerpunkte",
+        href: "/points",
         label: "Winnerpunkte",
         icon: Medal,
         description: "Punkte für Engagement"
@@ -193,6 +193,7 @@ export function getItemKey(href: string): string {
   if (href === "/player-mode") return "nav.playermode";
   if (href === "/clubcorner") return "nav.clubcorner";
   if (href === "/workspaces") return "nav.settings";
+  if (href === "/points") return "nav.winnerpoints";
   return "nav." + href.replace(/^\//, "");
 }
 
@@ -201,6 +202,7 @@ export function getItemDescKey(href: string): string {
   if (href === "/player-mode") return "nav_desc.playermode";
   if (href === "/clubcorner") return "nav_desc.clubcorner";
   if (href === "/workspaces") return "nav_desc.settings";
+  if (href === "/points") return "nav_desc.winnerpoints";
   return "nav_desc." + href.replace(/^\//, "");
 }
 

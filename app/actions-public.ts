@@ -199,7 +199,7 @@ export async function submitPublicCheckin(
     });
   }
 
-  revalidatePath(`/spieler/${token}`);
+  revalidatePath(`/p/${token}`);
   revalidatePath("/health");
   revalidatePath("/");
   revalidatePath(`/players/${player.id}`);
@@ -241,7 +241,7 @@ export async function submitPublicSeasonForm(
     }
   });
 
-  revalidatePath(`/spieler/${token}`);
+  revalidatePath(`/p/${token}`);
   revalidatePath(`/players/${player.id}`);
 }
 
@@ -266,7 +266,7 @@ export async function submitPlayerNoteToCoach(
     }
   });
 
-  revalidatePath(`/spieler/${token}`);
+  revalidatePath(`/p/${token}`);
   revalidatePath(`/players/${player.id}`);
 }
 
@@ -283,6 +283,6 @@ export async function markCoachMessageRead(
     data: { readAt: new Date() }
   });
 
-  revalidatePath(`/spieler/${token}`);
+  revalidatePath(`/p/${token}`);
   revalidatePath(`/players/${player.id}`);
 }

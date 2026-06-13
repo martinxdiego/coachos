@@ -21,7 +21,7 @@ export interface PlayerSignupInvite {
 /**
  * Returns the workspace's active, reusable player-signup invite, creating one if
  * none exists or the previous one has expired. This is the only valid token for
- * the public /beitreten flow — the old "workspace id as token" path is gone.
+ * the public /join flow — the old "workspace id as token" path is gone.
  */
 export async function getOrCreatePlayerSignupInvite(
   workspaceId: string,

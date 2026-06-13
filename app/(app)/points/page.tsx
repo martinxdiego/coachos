@@ -198,7 +198,7 @@ export default async function WinnerPointsPage({
       type,
       ...next
     });
-    return `/winnerpunkte?${params.toString()}`;
+    return `/points?${params.toString()}`;
   };
 
   return (

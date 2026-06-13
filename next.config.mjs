@@ -12,6 +12,14 @@ const nextConfig = {
       // Muss zum clientseitigen Limit (6 MB) plus FormData-Overhead passen.
       bodySizeLimit: "8mb"
     }
+  },
+  // 308 redirects so links/QR codes shared before the route rename keep working.
+  async redirects() {
+    return [
+      { source: "/spieler/:path*", destination: "/p/:path*", permanent: true },
+      { source: "/beitreten/:path*", destination: "/join/:path*", permanent: true },
+      { source: "/winnerpunkte", destination: "/points", permanent: true }
+    ];
   }
 };
 

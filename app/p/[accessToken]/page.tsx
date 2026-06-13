@@ -33,7 +33,7 @@ export const dynamic = "force-dynamic";
 export async function generateMetadata({ params }: PlayerPagePublicProps): Promise<Metadata> {
   const { accessToken } = await params;
   return {
-    manifest: `/spieler/${accessToken}/manifest`,
+    manifest: `/p/${accessToken}/manifest`,
     appleWebApp: {
       capable: true,
       statusBarStyle: "black-translucent",
@@ -497,7 +497,7 @@ export default async function PlayerPublicPage({ params }: PlayerPagePublicProps
         {/* Push-Benachrichtigungen */}
         <PushSubscribeButton
           playerId={player.id}
-          playerUrl={`/spieler/${accessToken}`}
+          playerUrl={`/p/${accessToken}`}
         />
 
         {/* Notiz an Trainer */}

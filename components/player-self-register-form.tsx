@@ -18,7 +18,7 @@ export function PlayerSelfRegisterForm({ teamToken }: { teamToken: string }) {
     startTransition(async () => {
       try {
         const result = await selfRegisterPlayer(teamToken, formData);
-        const url = `${window.location.origin}/spieler/${result.accessToken}`;
+        const url = `${window.location.origin}/p/${result.accessToken}`;
         const firstName = String(formData.get("first_name") ?? "").trim();
         setSuccess({ url, firstName });
         toast.success("Anmeldung erfolgreich!");

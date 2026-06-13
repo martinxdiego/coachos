@@ -9,7 +9,7 @@ export async function GET(
     name: "CoachOS – Mein Bereich",
     short_name: "CoachOS",
     description: "Dein persönlicher Spieler-Bereich",
-    start_url: `/spieler/${accessToken}`,
+    start_url: `/p/${accessToken}`,
     display: "standalone",
     orientation: "portrait",
     background_color: "#0f172a",

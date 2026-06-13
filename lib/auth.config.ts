@@ -10,8 +10,8 @@ export const authConfig = {
       const pathname = nextUrl.pathname;
       const isPublicRoute =
         pathname === "/login" ||
-        pathname.startsWith("/beitreten") ||
-        pathname.startsWith("/spieler");
+        pathname.startsWith("/join") ||
+        pathname.startsWith("/p");
 
       if (isPublicRoute) {
         if (isLoggedIn && pathname === "/login") {

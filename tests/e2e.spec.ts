@@ -76,7 +76,7 @@ test.describe("CoachOS E2E Flow", () => {
     await page.click('button:has-text("Direkt öffnen")');
     
     // Expect we are now on the player profile page
-    await page.waitForURL(/\/spieler\/.+/);
+    await page.waitForURL(/\/p\/.+/);
     
     // 6. Player Check-in
     // Check that check-in section is visible and wie fühlst du dich heute is displayed
