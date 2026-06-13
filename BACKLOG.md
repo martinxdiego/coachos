@@ -135,9 +135,10 @@ Alle Sicherheits-Stories umgesetzt; Typecheck + Lint grün. **Ausstehende User-A
   `scorers`/`assists`/`cards`/`startingLineup`/`substitutes` (Freitext) → Relationen: `MatchEvent` (Typ: GOAL/ASSIST/YELLOW/RED/SUB, playerId, minute) + vorhandenes `MatchLineup` nutzen. Freitextfelder bleiben übergangsweise lesbar, neue Eingaben strukturiert.
   *AK:* Spieler-Saisonstatistik (Tore/Assists/Karten) automatisch aggregierbar; Eingabe-UI im Match-Formular.
 
-- [ ] **S3.6 (P1, 1 SP) Personenspezifische Felder entfernen**
+- [x] **S3.6 (P1, 1 SP) Personenspezifische Felder entfernen** ✅ 2026-06-13
   `sanduNotes` in `MondayTraining` → generisches Feld (`assistantNotes`) oder eigenes `StaffNote`-Modell. "Montagstraining" als Konzept prüfen → generischer "wiederkehrende Einheit"-Typ (siehe S6.2).
   *AK:* Kein Eigenname mehr im Schema.
+  *Umgesetzt:* `sanduNotes`→`assistantNotes` (Migration `20260613150000_rename_sandu_notes`, RENAME COLUMN, Daten erhalten); monday-Action/Page nutzen `assistant_notes`/„Co-Trainer-Auswertung"; Legacy-Typ angepasst. 5-Migrations-Kette auf PGlite verifiziert. (Montagstraining-Generalisierung → S6.2.)
 
 ---
 
