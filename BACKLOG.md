@@ -113,13 +113,14 @@ Alle Sicherheits-Stories umgesetzt; Typecheck + Lint grün. **Ausstehende User-A
   *AK:* `prisma/migrations/` existiert; README beschreibt Migrations-Workflow; Deploy führt `migrate deploy` aus.
   *Umgesetzt:* `prisma/migrations/0_init/migration.sql` (offline aus Schema generiert, 73 DDL-Statements, alle Modelle inkl. `team_invites`/`push_subscriptions`) + `migration_lock.toml`; npm-Scripts `db:baseline`/`db:migrate`/`db:migrate:deploy`/`db:migrate:status`; Workflow in `prisma/MIGRATIONS.md`. **Aktion nötig (einmalig je Umgebung):** `npm run db:baseline` gegen Prod + Staging (schreibt nur in `_prisma_migrations`, nicht-destruktiv). Danach separater Commit: `build` auf `migrate deploy` umstellen.
 
-- [ ] **S3.2 (P1, 5 SP) Duplikat-Felder konsolidieren** (je Feld: Datenmigration + Code-Anpassung)
+- [x] **S3.2 (P1, 5 SP) Duplikat-Felder konsolidieren** ✅ 2026-06-13 (5 Skalar-Paare; MatchAnalysis bewusst ausgeklammert)
   - `Player`: `number`→`jerseyNumber`, `preferredFoot`→`strongFoot` (eines behalten)
   - `Training`: `duration`→`durationMinutes`
   - `Match`: `home`→`homeAway`
   - `Rating`: `behaviour`→`behavior`
   - `MatchAnalysis`: `positives/negatives` vs. `wentWell/needsWork` — ein Paar behalten; `matchGoals` nur in einem Modell
   *AK:* Migration kopiert Bestandsdaten ins Zielfeld; alte Spalten entfernt; UI unverändert funktionsfähig.
+  *Umgesetzt:* 5 Skalar-Duplikate entfernt (kanonisch = jeweils geschriebenes Feld); Migration `20260613160000_consolidate_duplicate_fields` (Backfill → DROP COLUMN, inkl. Recovery für Trainings auf Default-90); Write-Sites (trainingPayload-Spread-Falle entdeckt+gefixt) + Read-Sites (`??`-Fallbacks) bereinigt. Seeded PGlite-Test bestätigt alle Backfills; typecheck+lint+36 Tests+build grün. **MatchAnalysis-Überlappung (positives/negatives vs wentWell/needsWork) ausgeklammert** — das sind inhaltlich verschiedene Notizfelder (Produktentscheidung), kein echtes Duplikat.
 
 - [x] **S3.3 (P1, 2 SP) `PlayerStatus`-Enum vereinheitlichen** ✅ 2026-06-13
   Zwei Generationen (`FIT/REHAB/INJURED` + `available/injured/limited/absent`) → ein Set: `AVAILABLE`, `LIMITED`, `INJURED`, `ABSENT`. Datenmigration mappt Altwerte.
