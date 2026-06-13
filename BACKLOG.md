@@ -76,25 +76,30 @@ Alle Sicherheits-Stories umgesetzt; Typecheck + Lint grün. **Ausstehende User-A
 **Ziel:** Genau ein Datenzugriffsweg (Server Actions + Prisma). Supabase nur noch für Storage.
 **Sprint: 2**
 
-- [ ] **S2.1 (P1, 5 SP) Supabase-Altlasten entfernen**
+- [x] **S2.1 (P1, 5 SP) Supabase-Altlasten entfernen** ✅ 2026-06-13
   Fake-`dummySupabase` aus `requireUser()` (`lib/auth.ts:80`) entfernen; alle Seiten finden, die das Mock nutzen (liefern heute stillschweigend leere Daten!) und auf Prisma umstellen. `supabase/schema.sql`-RLS-Policies als obsolet markieren/archivieren.
   *AK:* `grep dummySupabase` leer; jede Seite zeigt echte Daten; Supabase-Client nur noch in Storage-Code.
+  *Umgesetzt:* dummySupabase entfernt; `requireUser`/`getOptionalActiveTeam`/`requireActiveTeam` geben keinen supabase-Client mehr zurück. **PDF-Routen (training/match/material) waren über das Mock faktisch kaputt** (`.maybeSingle()` existierte nicht) — auf Prisma umgeschrieben. Toten Supabase-OAuth-Callback + `lib/supabase/admin.ts` + `getSupabaseServiceRoleEnv` entfernt. `schema.sql`→`schema.legacy.sql` mit Deprecation-Header; README zeigt auf Prisma. Supabase nur noch für Storage.
 
-- [ ] **S2.2 (P1, 3 SP) Team/Workspace-Mapping-Layer entfernen**
+- [ ] **S2.2 (P1, 3 SP) Team/Workspace-Mapping-Layer entfernen** ⏭️ verschoben (nach S4.2)
   `mapWorkspaceToTeam`/`mapMemberToMembership` löschen; überall direkt Prisma-Typen (`Workspace`, `WorkspaceMember`) verwenden. snake_case-Typen (`Team`, `TeamMember`) aus `lib/types.ts` entfernen.
   *AK:* Ein Begriff im ganzen Code (Entscheidung: **Workspace**); keine `as any`-Casts mehr in `lib/auth.ts`.
+  *Hinweis:* Breiter, verhaltensneutraler Refactor (snake_case→camelCase + Rollen-Case über viele Seiten). Empfehlung: erst **S4.2 (Tests)** als Sicherheitsnetz, dann S2.2 + S2.4 zusammen.
 
-- [ ] **S2.3 (P1, 2 SP) tRPC-vs-Actions-Entscheidung umsetzen**
+- [x] **S2.3 (P1, 2 SP) tRPC-vs-Actions-Entscheidung umsetzen** ✅ 2026-06-13
   Entscheidung: Server Actions als primäre Mutations-Schicht (dort liegt bereits die ganze Logik). tRPC entweder (a) entfernen oder (b) nur für Client-seitige Reads behalten — dann aber abgesichert (S1.1) und dokumentiert wofür.
   *AK:* ADR-Dokument (`docs/adr/001-data-layer.md`); kein Endpunkt existiert doppelt in beiden Schichten.
+  *Umgesetzt:* `docs/adr/001-data-layer.md`. tRPC war vollständig verdrahtet, aber von keiner Client-Komponente genutzt → komplett entfernt (`lib/trpc/**`, `app/api/trpc/**`, Provider, `@trpc/*` + `@tanstack/react-query`-Deps). `/api/trpc`-Angriffsfläche damit weg.
 
-- [ ] **S2.4 (P1, 5 SP) `actions.ts` aufteilen**
+- [ ] **S2.4 (P1, 5 SP) `actions.ts` aufteilen** ⏭️ verschoben (nach S4.2)
   91-KB-Datei nach Domänen splitten: `app/actions/{auth,players,trainings,matches,materials,tactics,health,awards,workspace}.ts`. Gemeinsame Helfer (`requiredString`, `optionalNumber`, …) nach `lib/forms.ts`.
   *AK:* Keine Datei > 500 Zeilen; Imports aktualisiert; Build grün.
+  *Hinweis:* Großer mechanischer Split ohne Verhaltensänderung — am sichersten mit Test-Netz (S4.2) und Barrel-Re-Export für stabile Importpfade.
 
-- [ ] **S2.5 (P1, 3 SP) Queue-Architektur fixen**
+- [x] **S2.5 (P1, 3 SP) Queue-Architektur fixen** ✅ 2026-06-13
   BullMQ-Worker aus dem Next-Prozess entfernen (`lib/queue.ts` startet Worker beim Import — auf Vercel unzuverlässig, In-Memory-Fallback verliert Jobs). Ersatz: Push direkt synchron im Cron-Handler versenden (Volumen ist klein) **oder** QStash/Inngest. BullMQ + ioredis raus aus den Dependencies, falls nicht mehr gebraucht.
   *AK:* Tägliche Push-Notification nachweisbar zugestellt (Test-Subscription); keine Worker-Initialisierung im Request-Pfad.
+  *Umgesetzt:* `lib/push.ts` (`sendPushNotification`, räumt tote 410/404-Subs auf); `/api/push/daily` versendet synchron und meldet `{sent, attempted}`; `lib/queue.ts` + `bullmq`-Dependency entfernt (`ioredis` bleibt). **Offen (S4.2):** Zustellungs-Test mit echter Subscription.
 
 ---
 
