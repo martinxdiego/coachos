@@ -181,9 +181,10 @@ Alle Sicherheits-Stories umgesetzt; Typecheck + Lint grün. **Ausstehende User-A
 **Ziel:** Eine Sprache pro Ebene: Code englisch, UI konsistent lokalisiert, Begriffe einheitlich.
 **Sprint: 4**
 
-- [ ] **S5.1 (P2, 2 SP) i18n-Entscheidung + Fix**
+- [x] **S5.1 (P2, 2 SP) i18n-Entscheidung + Fix** ✅ 2026-06-13 (Entscheidung: next-intl)
   Entscheidung: launch DACH-only → handgerolltes `lib/i18n.ts` entfernen (es ist serverseitig kaputt: synchrones `cookies()` in Next 15 → liefert immer "de") **oder** richtig: next-intl mit Locale-Routing. Empfehlung für jetzt: next-intl, da EN-Markt fürs Skalierungsziel nötig ist.
   *AK:* ADR; kein toter i18n-Code; Sprachumschalter funktioniert serverseitig nachweisbar.
+  *Umgesetzt:* next-intl im No-Routing-Modus (Locale aus `NEXT_LOCALE`-Cookie, kein Route-Umbau); `i18n/request.ts` mit lenientem Fallback (Key statt Crash); Root-Layout async + `NextIntlClientProvider` + `lang`; Nav-Komponenten auf `useTranslations`/`useLocale`; Sprachumschalter via Cookie + `router.refresh()`; `lib/i18n.ts` gelöscht. (Bei der Analyse zeigte sich: das alte i18n war nur client-seitig aktiv, also nicht real kaputt — Entscheidung dennuch pro next-intl als EN-Grundlage.)
 
 - [ ] **S5.2 (P2, 8 SP) Alle UI-Strings extrahieren**
   Hardcodierte deutsche Texte (UI, Fehlermeldungen in Actions, Push-Texte, PDF-Labels) in Message-Kataloge; EN-Übersetzung erstellen.
