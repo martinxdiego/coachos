@@ -8,6 +8,28 @@
     "no_data": "No data available",
     "close": "Close"
   },
+  "auth": {
+    "wordmark_tagline": "Coach Workspace",
+    "badge": "Private coaching platform",
+    "headline_pre": "One workspace for",
+    "headline_accent": "coaching staff, tactics",
+    "headline_post": "and matchday.",
+    "subtitle": "CoachOS brings players, training phases, matches, materials, tasks and tactics boards together in one professional staff tool.",
+    "feature1_title": "Workspace first",
+    "feature1_body": "Multiple teams, clear separation, fast switching.",
+    "feature2_title": "Invite assistant coaches",
+    "feature2_body": "Staff access via simple invite codes.",
+    "feature3_title": "Private by default",
+    "feature3_body": "No player or parent accounts in this version.",
+    "signin_title": "Sign in",
+    "signin_subtitle": "Back into your active coach workspace.",
+    "email": "Email",
+    "password": "Password",
+    "signin_button": "Sign in",
+    "signup_title": "Create account",
+    "signup_subtitle": "Then create a workspace or join with a code.",
+    "signup_button": "Create account"
+  },
   "nav": {
     "today": "Today",
     "training": "Training",

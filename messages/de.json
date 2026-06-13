@@ -8,6 +8,28 @@
     "no_data": "Keine Daten vorhanden",
     "close": "Schließen"
   },
+  "auth": {
+    "wordmark_tagline": "Trainer-Workspace",
+    "badge": "Private Trainerplattform",
+    "headline_pre": "Ein Workspace für",
+    "headline_accent": "Trainerteam, Taktik",
+    "headline_post": "und Spieltag.",
+    "subtitle": "CoachOS bündelt Spieler, Trainingsphasen, Spiele, Material, Aufgaben und Taktikboards in einem professionellen Staff-Tool.",
+    "feature1_title": "Workspace zuerst",
+    "feature1_body": "Mehrere Teams, klare Trennung, schneller Wechsel.",
+    "feature2_title": "Co-Trainer einladen",
+    "feature2_body": "Staff-Zugriff über einfache Invite-Codes.",
+    "feature3_title": "Privat by default",
+    "feature3_body": "Keine Spieler- oder Elternaccounts in dieser Version.",
+    "signin_title": "Einloggen",
+    "signin_subtitle": "Zurück in deinen aktiven Trainer-Workspace.",
+    "email": "E-Mail",
+    "password": "Passwort",
+    "signin_button": "Einloggen",
+    "signup_title": "Account erstellen",
+    "signup_subtitle": "Danach erstellst du einen Workspace oder trittst per Code bei.",
+    "signup_button": "Account erstellen"
+  },
   "nav": {
     "today": "Heute",
     "training": "Training",
