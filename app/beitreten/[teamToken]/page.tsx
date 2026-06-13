@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { ShieldCheck } from "lucide-react";
 import { PlayerSelfRegisterForm } from "@/components/player-self-register-form";
 import { Card, CardContent } from "@/components/ui/card";
-import { db } from "@/lib/db";
+import { resolvePlayerSignupInvite } from "@/lib/invites";
 
 export const dynamic = "force-dynamic";
 
@@ -12,34 +12,18 @@ interface JoinPageProps {
   }>;
 }
 
-const UUID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 export default async function JoinPage({ params }: JoinPageProps) {
   const { teamToken } = await params;
-  if (!UUID_RE.test(teamToken)) {
-    notFound();
-  }
 
-  const workspace = await db.workspace.findUnique({
-    where: { id: teamToken },
-    select: {
-      id: true,
-      name: true,
-      ageGroup: true,
-      season: true
-    }
-  });
-
-  if (!workspace) {
+  const invite = await resolvePlayerSignupInvite(teamToken);
+  if (!invite) {
     notFound();
   }
 
   const team = {
-    id: workspace.id,
-    name: workspace.name,
-    age_group: workspace.ageGroup,
-    season: workspace.season
+    name: invite.workspaceName,
+    age_group: invite.ageGroup,
+    season: invite.season
   };
 
   return (

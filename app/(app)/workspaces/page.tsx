@@ -38,8 +38,7 @@ export default async function WorkspacesPage({
   const message = resolvedSearchParams?.message;
   const team = activeTeam?.team;
   const membership = activeTeam?.membership;
-  const canManage =
-    membership?.role === "owner" || membership?.role === "head_coach";
+  const canManage = membership?.role === "owner";
 
   const [memberCount, dbInvites] = team
     ? await Promise.all([
@@ -48,7 +47,7 @@ export default async function WorkspacesPage({
         }),
         canManage
           ? db.teamInvite.findMany({
-              where: { workspaceId: team.id },
+              where: { workspaceId: team.id, role: { not: "PLAYER" } },
               select: {
                 id: true,
                 code: true,
@@ -274,7 +273,7 @@ export default async function WorkspacesPage({
                         name="role"
                       >
                         <option value="coach">Coach</option>
-                        <option value="head_coach">Head Coach</option>
+                        <option value="assistant">Assistent</option>
                       </select>
                     </div>
                     <Button className="w-full" type="submit" variant="outline">

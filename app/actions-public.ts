@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
+import { resolvePlayerSignupInvite } from "@/lib/invites";
 import type { HealthContextType, PlayerStatus } from "@/lib/types";
 
 const UUID_RE =
@@ -40,26 +41,6 @@ function scaleFive(formData: FormData, key: string, label: string): number {
   return value;
 }
 
-async function findTeamByToken(token: string) {
-  const team = await db.workspace.findUnique({
-    where: { id: token },
-    select: {
-      id: true,
-      name: true,
-      ageGroup: true,
-      season: true,
-    }
-  });
-  if (!team) throw new Error("Beitritts-Link ist ungültig oder abgelaufen.");
-  return {
-    id: team.id,
-    name: team.name,
-    age_group: team.ageGroup,
-    season: team.season,
-    created_by: "" // We will query the trainer's user ID if needed
-  };
-}
-
 async function findPlayerByToken(token: string) {
   const player = await db.player.findFirst({
     where: { accessToken: token },
@@ -93,8 +74,10 @@ export async function selfRegisterPlayer(
   teamToken: string,
   formData: FormData
 ): Promise<SelfRegisterResult> {
-  const token = ensureUuid(teamToken, "Team-Token");
-  const team = await findTeamByToken(token);
+  const invite = await resolvePlayerSignupInvite(teamToken);
+  if (!invite) {
+    throw new Error("Beitritts-Link ist ungültig oder abgelaufen.");
+  }
 
   const firstName = reqString(formData, "first_name", "Vorname");
   const lastName = reqString(formData, "last_name", "Nachname");
@@ -109,7 +92,7 @@ export async function selfRegisterPlayer(
 
   const created = await db.player.create({
     data: {
-      workspaceId: team.id,
+      workspaceId: invite.workspaceId,
       name: fullName,
       firstName,
       lastName,

@@ -12,6 +12,7 @@ import bcrypt from "bcryptjs";
 import { getSiteUrl } from "@/lib/env";
 import { createClient } from "@/lib/supabase/server";
 import { db } from "@/lib/db";
+import { rotatePlayerSignupInvite } from "@/lib/invites";
 import { cacheDel } from "@/lib/redis";
 import type {
   AttendanceStatus,
@@ -160,7 +161,10 @@ function redirectWithMessage(path: string, message: string) {
 }
 
 function canManageWorkspace(role: TeamRole) {
-  return role === "owner" || role === "head_coach";
+  // Only the workspace owner may perform destructive/administrative actions.
+  // COACH and ASSISTANT have equal (full) day-to-day rights but cannot manage
+  // the workspace itself or its members.
+  return role === "owner";
 }
 
 function inviteCode() {
@@ -232,8 +236,8 @@ export async function signUp(formData: FormData) {
   const email = requiredString(formData, "email", "Email").toLowerCase();
   const password = requiredString(formData, "password", "Password");
 
-  if (password.length < 6) {
-    redirectWithMessage("/login", "Das Passwort muss mindestens 6 Zeichen lang sein.");
+  if (password.length < 10) {
+    redirectWithMessage("/login", "Das Passwort muss mindestens 10 Zeichen lang sein.");
   }
 
   try {
@@ -246,7 +250,7 @@ export async function signUp(formData: FormData) {
     const passwordHash = await bcrypt.hash(password, 10);
 
     await db.user.create({
-      data: { email, passwordHash, role: "TRAINER" },
+      data: { email, passwordHash, role: "COACH" },
     });
 
     redirectWithMessage("/login", "Registrierung erfolgreich. Bitte melde dich an.");
@@ -336,7 +340,7 @@ export async function createTeamInvite(formData: FormData) {
     throw new Error("Only lead coaches can invite staff members.");
   }
 
-  const role = enumValue(formData, "role", ["head_coach", "coach"] as const);
+  const role = enumValue(formData, "role", ["coach", "assistant"] as const);
   if (!role) {
     throw new Error("Invite role is required.");
   }
@@ -390,10 +394,8 @@ export async function joinTeamWithInvite(formData: FormData) {
         return invite.workspaceId;
       }
 
-      let parsedRole: Role = "TRAINER";
-      if (invite.role === "head_coach") {
-        parsedRole = "HEAD_COACH";
-      } else if (invite.role === "coach") {
+      let parsedRole: Role = "ASSISTANT";
+      if (invite.role === "coach") {
         parsedRole = "COACH";
       }
 
@@ -615,6 +617,35 @@ export async function deletePlayer(formData: FormData) {
   revalidatePath("/pitch");
   revalidatePath("/players");
   revalidatePath("/tactics");
+}
+
+export async function rotatePlayerAccessToken(formData: FormData) {
+  const { team } = await requireActiveTeam();
+  const id = requiredString(formData, "id", "Player");
+
+  const player = await db.player.findFirst({
+    where: { id, workspaceId: team.id }
+  });
+  if (!player) {
+    throw new Error("Player not found or unauthorized.");
+  }
+
+  // Issuing a fresh token immediately invalidates the previous share link
+  // (e.g. when a link leaked in a family chat).
+  await db.player.update({
+    where: { id },
+    data: { accessToken: randomUUID() }
+  });
+
+  revalidatePath("/players");
+  revalidatePath(`/players/${id}`);
+  revalidatePath("/player-mode");
+}
+
+export async function rotateTeamSignupCode() {
+  const { team, user } = await requireActiveTeam();
+  await rotatePlayerSignupInvite(team.id, user.id);
+  revalidatePath("/players");
 }
 
 const PLAYER_PHOTO_BUCKET = "player-photos";

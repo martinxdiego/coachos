@@ -50,14 +50,14 @@ export const workspaceRouter = createTRPCRouter({
         where: {
           workspaceId: input.id,
           userId: ctx.user.id,
-          role: { in: ["OWNER", "HEAD_COACH"] },
+          role: "OWNER",
         },
       });
 
       if (!member) {
         throw new TRPCError({
           code: "FORBIDDEN",
-          message: "Only workspace owners or head coaches can modify settings.",
+          message: "Only the workspace owner can modify settings.",
         });
       }
 

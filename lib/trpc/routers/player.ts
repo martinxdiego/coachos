@@ -1,36 +1,31 @@
 import { z } from "zod";
-import { createTRPCRouter, protectedProcedure } from "../init";
-import { TRPCError } from "@trpc/server";
+import {
+  assertPlayerAccess,
+  createTRPCRouter,
+  protectedProcedure,
+  workspaceProcedure,
+} from "../init";
 
 export const playerRouter = createTRPCRouter({
-  list: protectedProcedure
-    .input(z.object({ workspaceId: z.string().uuid() }))
-    .query(async ({ ctx, input }) => {
-      return ctx.db.player.findMany({
-        where: { workspaceId: input.workspaceId },
-        orderBy: { name: "asc" },
-      });
-    }),
+  list: workspaceProcedure.query(async ({ ctx, input }) => {
+    return ctx.db.player.findMany({
+      where: { workspaceId: input.workspaceId },
+      orderBy: { name: "asc" },
+    });
+  }),
 
   get: protectedProcedure
     .input(z.object({ id: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
-      const player = await ctx.db.player.findUnique({
+      await assertPlayerAccess(ctx.db, ctx.user.id!, input.id);
+      return ctx.db.player.findUnique({
         where: { id: input.id },
       });
-      if (!player) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Player not found",
-        });
-      }
-      return player;
     }),
 
-  create: protectedProcedure
+  create: workspaceProcedure
     .input(
       z.object({
-        workspaceId: z.string().uuid(),
         name: z.string().min(1),
         firstName: z.string().optional(),
         lastName: z.string().optional(),
@@ -85,6 +80,7 @@ export const playerRouter = createTRPCRouter({
     )
     .mutation(async ({ ctx, input }) => {
       const { id, ...data } = input;
+      await assertPlayerAccess(ctx.db, ctx.user.id!, id);
       return ctx.db.player.update({
         where: { id },
         data,
@@ -94,6 +90,7 @@ export const playerRouter = createTRPCRouter({
   delete: protectedProcedure
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
+      await assertPlayerAccess(ctx.db, ctx.user.id!, input.id);
       return ctx.db.player.delete({
         where: { id: input.id },
       });

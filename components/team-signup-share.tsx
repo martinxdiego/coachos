@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Check, Copy, Download, ExternalLink, QrCode as QrIcon, UsersRound } from "lucide-react";
+import { Check, Copy, Download, ExternalLink, QrCode as QrIcon, RefreshCw, UsersRound } from "lucide-react";
 import { toast } from "sonner";
+import { rotateTeamSignupCode } from "@/app/actions";
 import { QrCode, qrCodeUrl } from "@/components/qr-code";
 import { Button } from "@/components/ui/button";
 import {
@@ -118,6 +119,23 @@ export function TeamSignupShare({
             <Download aria-hidden="true" className="h-4 w-4" />
             QR drucken
           </Button>
+          <form
+            action={rotateTeamSignupCode}
+            onSubmit={(event) => {
+              if (
+                !window.confirm(
+                  "Neuen Beitritts-Link erzeugen? Der bisherige Link und QR-Code werden sofort ungültig."
+                )
+              ) {
+                event.preventDefault();
+              }
+            }}
+          >
+            <Button size="sm" type="submit" variant="outline">
+              <RefreshCw aria-hidden="true" className="h-4 w-4" />
+              Link erneuern
+            </Button>
+          </form>
         </div>
         {showQr ? (
           <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-border bg-white/70 p-5">

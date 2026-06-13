@@ -7,7 +7,7 @@ export type Json =
   | Json[];
 
 export type AttendanceStatus = "present" | "absent";
-export type TeamRole = "owner" | "head_coach" | "coach";
+export type TeamRole = "owner" | "coach" | "assistant";
 export type StrongFoot = "left" | "right" | "both";
 export type PlayerStatus = "available" | "injured" | "limited" | "absent";
 export type TrainingIntensity = "low" | "medium" | "high";
