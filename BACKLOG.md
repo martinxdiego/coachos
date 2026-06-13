@@ -81,10 +81,10 @@ Alle Sicherheits-Stories umgesetzt; Typecheck + Lint grün. **Ausstehende User-A
   *AK:* `grep dummySupabase` leer; jede Seite zeigt echte Daten; Supabase-Client nur noch in Storage-Code.
   *Umgesetzt:* dummySupabase entfernt; `requireUser`/`getOptionalActiveTeam`/`requireActiveTeam` geben keinen supabase-Client mehr zurück. **PDF-Routen (training/match/material) waren über das Mock faktisch kaputt** (`.maybeSingle()` existierte nicht) — auf Prisma umgeschrieben. Toten Supabase-OAuth-Callback + `lib/supabase/admin.ts` + `getSupabaseServiceRoleEnv` entfernt. `schema.sql`→`schema.legacy.sql` mit Deprecation-Header; README zeigt auf Prisma. Supabase nur noch für Storage.
 
-- [ ] **S2.2 (P1, 3 SP) Team/Workspace-Mapping-Layer entfernen** ⏭️ verschoben (nach S4.2)
+- [x] **S2.2 (P1, 3 SP) Team/Workspace-Mapping-Layer entfernen** ✅ 2026-06-13
   `mapWorkspaceToTeam`/`mapMemberToMembership` löschen; überall direkt Prisma-Typen (`Workspace`, `WorkspaceMember`) verwenden. snake_case-Typen (`Team`, `TeamMember`) aus `lib/types.ts` entfernen.
   *AK:* Ein Begriff im ganzen Code (Entscheidung: **Workspace**); keine `as any`-Casts mehr in `lib/auth.ts`.
-  *Hinweis:* Breiter, verhaltensneutraler Refactor (snake_case→camelCase + Rollen-Case über viele Seiten). Empfehlung: erst **S4.2 (Tests)** als Sicherheitsnetz, dann S2.2 + S2.4 zusammen.
+  *Umgesetzt:* beide Mapper + `as unknown as Team`-Casts entfernt; `requireActiveTeam`/`getOptionalActiveTeam` liefern rohe `Workspace`/`WorkspaceMember`; Aufrufer angepasst (`age_group`→`ageGroup`, Rollen als `Role`-Enum OWNER/COACH/ASSISTANT in canManageWorkspace + workspaces/player-mode); `Team`/`TeamMember`-Aliase + toter `TeamRole`-Import raus. Typecheck+lint+34 Tests grün. (Verbleibender `session.user as any` ist NextAuth-Typing, nicht der Mapping-Cast.)
 
 - [x] **S2.3 (P1, 2 SP) tRPC-vs-Actions-Entscheidung umsetzen** ✅ 2026-06-13
   Entscheidung: Server Actions als primäre Mutations-Schicht (dort liegt bereits die ganze Logik). tRPC entweder (a) entfernen oder (b) nur für Client-seitige Reads behalten — dann aber abgesichert (S1.1) und dokumentiert wofür.
@@ -144,9 +144,10 @@ Alle Sicherheits-Stories umgesetzt; Typecheck + Lint grün. **Ausstehende User-A
 **Ziel:** Fehler fallen vor dem Deploy auf; Fehler in Prod werden gemeldet, nicht vom Kunden entdeckt.
 **Sprint: 3**
 
-- [ ] **S4.1 (P2, 2 SP) CI-Pipeline (GitHub Actions)**
+- [x] **S4.1 (P2, 2 SP) CI-Pipeline (GitHub Actions)** ✅ 2026-06-13
   Workflow: `typecheck → lint → unit tests → build → e2e (gegen Preview)`. PR-Pflicht auf `main`, kein Direkt-Push.
   *AK:* `.github/workflows/ci.yml`; roter Check blockiert Merge.
+  *Umgesetzt:* `.github/workflows/ci.yml` (PR + Push auf main): `npm ci` → `prisma generate` → typecheck → lint → `npm test` → `next build` (Dummy-Env, Pages force-dynamic). Build lokal mit Dummy-Env verifiziert. **Offen (User):** Branch-Protection auf `main` aktivieren + E2E in CI, sobald Preview/DB steht.
 
 - [x] **S4.2 (P2, 5 SP) Test-Fundament** 🔄 2026-06-13 (Unit-Fundament fertig; E2E-Erweiterung + CI offen)
   Vitest einrichten; Unit-Tests für: Autorisierung (S1.1-Middleware), Form-Helfer, `coach-metrics`/`predictive-health`-Berechnungen, Invite-Code-Lifecycle. Playwright erweitern: Login-Fehlerfälle, Mandanten-Trennung (User A sieht Team B nicht), Spieler-Check-in.
