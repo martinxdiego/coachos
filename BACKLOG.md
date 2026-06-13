@@ -121,9 +121,10 @@ Alle Sicherheits-Stories umgesetzt; Typecheck + Lint grün. **Ausstehende User-A
   - `MatchAnalysis`: `positives/negatives` vs. `wentWell/needsWork` — ein Paar behalten; `matchGoals` nur in einem Modell
   *AK:* Migration kopiert Bestandsdaten ins Zielfeld; alte Spalten entfernt; UI unverändert funktionsfähig.
 
-- [ ] **S3.3 (P1, 2 SP) `PlayerStatus`-Enum vereinheitlichen**
+- [x] **S3.3 (P1, 2 SP) `PlayerStatus`-Enum vereinheitlichen** ✅ 2026-06-13
   Zwei Generationen (`FIT/REHAB/INJURED` + `available/injured/limited/absent`) → ein Set: `AVAILABLE`, `LIMITED`, `INJURED`, `ABSENT`. Datenmigration mappt Altwerte.
   *AK:* Enum hat 4 Werte; zod-Schemas und UI-Filter angepasst.
+  *Umgesetzt:* Enum auf 4 Uppercase-Werte, Default AVAILABLE; Migration `20260613140000_consolidate_player_status` (transaktionssicher, remappt alle 7 Altwerte). Boundary: `toPlayerStatus()` in `lib/forms.ts` (Write, +2 Tests); Read-Mapper in allen Seiten/PDF/materials zu `status.toLowerCase()` vereinfacht; ai.ts vergleicht uppercase. UI-Union (lowercase) unverändert. PGlite-Kette + typecheck+lint+36 Tests+build grün.
 
 - [x] **S3.4 (P1, 2 SP) Indexe ergänzen** ✅ 2026-06-13
   `@@index([workspaceId])` auf allen mandantenbezogenen Modellen; `@@index([workspaceId, date])` auf `Training`, `Match`, `HealthCheck`, `WinnerPoint`, `Rating`.
