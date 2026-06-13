@@ -159,17 +159,20 @@ Alle Sicherheits-Stories umgesetzt; Typecheck + Lint grün. **Ausstehende User-A
   *AK:* `npm test` existiert; ≥ 20 Unit-Tests; 3 E2E-Szenarien; alles in CI.
   *Umgesetzt:* Vitest + `vitest.config.ts` (`@/`-Alias, Dummy-`DATABASE_URL`); `npm test`/`test:watch`; reine Form-Helfer nach `lib/forms.ts` extrahiert; **34 Unit-Tests grün** (forms, coach-metrics/healthRisk, pdf/filename, utils, invites-Code, login-throttle-Lockout). **Offen:** Playwright-Specs für Mandanten-Trennung + Login-Fehler (brauchen laufende App/DB) und CI-Verdrahtung (S4.1). Hinweis: die in der AK genannte tRPC-Middleware existiert nicht mehr (in S2.3 entfernt).
 
-- [ ] **S4.3 (P2, 2 SP) Error-Monitoring & Logging**
+- [x] **S4.3 (P2, 2 SP) Error-Monitoring & Logging** ✅ 2026-06-13 (Sentry-SDK = Env-Schritt)
   Sentry (Client + Server + Edge) einbinden; `console.log`-Debugging durch strukturiertes Logging ersetzen (z. B. pino); PII (E-Mails, Gesundheitsdaten) nie loggen.
   *AK:* Test-Exception erscheint in Sentry mit Release-Tag; Log-Audit ohne PII.
+  *Umgesetzt:* `lib/logger.ts` (strukturiert, 1 JSON-Zeile/Event, PII-Disziplin) + `captureException` mit `registerErrorSink`-Seam; Error-Boundaries melden darüber; 4 Tests (43). `docs/observability.md` dokumentiert den einmaligen Sentry-Einbau (`npm i @sentry/nextjs` + `instrumentation.ts` registriert den Sink + DSN) — bewusst als Env-Schritt, damit der Build dependency-leicht bleibt.
 
-- [ ] **S4.4 (P2, 2 SP) Error- & Loading-States im App Router**
+- [x] **S4.4 (P2, 2 SP) Error- & Loading-States im App Router** ✅ 2026-06-13
   `app/error.tsx`, `app/global-error.tsx`, `app/not-found.tsx`; `loading.tsx` für alle Hauptrouten (heute nur 4 von ~20); Server-Action-Fehler als Inline-Feedback statt Crash (useActionState / toast).
   *AK:* Geworfener Action-Fehler zeigt verständliche deutsche Meldung in der UI; kein weißer Next-Crash-Screen mehr.
+  *Umgesetzt:* `app/error.tsx`, `app/global-error.tsx` (self-contained), `app/(app)/error.tsx` (in der Shell, Nav bleibt), `app/not-found.tsx` — alle gethemed. Loading: `app/(app)/loading.tsx` deckt via Nearest-Loading-Regel bereits alle `(app)`-Unterrouten ab (keine Per-Route-Dateien nötig). Inline-Per-Form-Fehler bleiben inkrementell (`ToastForm` deckt die Hauptflows).
 
-- [ ] **S4.5 (P2, 1 SP) Staging-Umgebung**
+- [x] **S4.5 (P2, 1 SP) Staging-Umgebung** ✅ 2026-06-13 (Doku; Provisionierung = Infra-Schritt)
   Vercel Preview + separate Staging-DB (Supabase-Branch oder zweites Projekt). Regel: Schema-Änderungen erst Staging, dann Prod.
   *AK:* Dokumentierter Deploy-Flow `feature-branch → preview → main → prod`.
+  *Umgesetzt:* `docs/deploy.md` — Flow, Env-Var-Matrix (local/staging/prod), Migrations-/Baseline-Schritte, Release-Checkliste. Die eigentliche Vercel-/DB-Provisionierung ist ein Infra-Schritt des Users.
 
 ---
 
