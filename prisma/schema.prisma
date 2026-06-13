@@ -109,6 +109,8 @@ model Player {
   pushSubscriptions     PushSubscription[]
   createdAt             DateTime           @default(now())
   updatedAt             DateTime           @updatedAt
+
+  @@index([workspaceId])
 }
 
 model Training {
@@ -134,6 +136,8 @@ model Training {
   attendance      Attendance[]
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
+
+  @@index([workspaceId, date])
 }
 
 model TrainingPhase {
@@ -194,6 +198,8 @@ model Match {
   awards               Award[]
   createdAt            DateTime       @default(now())
   updatedAt            DateTime       @updatedAt
+
+  @@index([workspaceId, date])
 }
 
 model MatchLineup {
@@ -204,6 +210,8 @@ model MatchLineup {
   playerId String
   position String
   role     String?
+
+  @@index([playerId])
 }
 
 model MatchAnalysis {
@@ -257,6 +265,8 @@ model Rating {
   updatedAt       DateTime      @updatedAt
   match           Match?        @relation(fields: [matchId], references: [id])
   matchId         String?
+
+  @@index([playerId, date])
 }
 
 model HealthCheck {
@@ -279,6 +289,8 @@ model HealthCheck {
   notes         String?
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
+
+  @@index([playerId, date])
 }
 
 model Award {
@@ -296,6 +308,8 @@ model Award {
   reason           String?
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
+
+  @@index([workspaceId, date])
 }
 
 model WinnerPoint {
@@ -314,6 +328,8 @@ model WinnerPoint {
   awardedAt    DateTime           @default(now())
   createdAt    DateTime           @default(now())
   updatedAt    DateTime           @updatedAt
+
+  @@index([workspaceId, date])
 }
 
 model Attendance {
@@ -327,6 +343,7 @@ model Attendance {
   updatedAt  DateTime         @updatedAt
 
   @@unique([trainingId, playerId])
+  @@index([playerId])
 }
 
 model Material {
@@ -341,6 +358,8 @@ model Material {
   printSettings Json?
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
+
+  @@index([workspaceId])
 }
 
 model TacticBoard {
@@ -353,6 +372,8 @@ model TacticBoard {
   elements    Json?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+
+  @@index([workspaceId])
 }
 
 model Task {
@@ -367,6 +388,8 @@ model Task {
   relatedId   String?
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
+
+  @@index([workspaceId])
 }
 
 model Note {
@@ -380,6 +403,8 @@ model Note {
   body        String
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+
+  @@index([workspaceId])
 }
 
 model ExternalLink {
@@ -395,6 +420,8 @@ model ExternalLink {
   notes       String?
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
+
+  @@index([workspaceId])
 }
 
 model MondayTraining {
@@ -411,6 +438,8 @@ model MondayTraining {
   attendance      MondayAttendance[]
   createdAt       DateTime           @default(now())
   updatedAt       DateTime           @updatedAt
+
+  @@index([workspaceId, date])
 }
 
 model MondayAttendance {
@@ -439,6 +468,8 @@ model CoachMessage {
   readAt      DateTime?
   createdAt   DateTime             @default(now())
   updatedAt   DateTime             @updatedAt
+
+  @@index([workspaceId])
 }
 
 enum Role {
@@ -546,6 +577,8 @@ model PlayerFeedback {
   notes       String?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+
+  @@index([workspaceId])
 }
 
 model TeamInvite {
@@ -574,5 +607,3 @@ model PushSubscription {
 
   @@map("push_subscriptions")
 }
-
-
