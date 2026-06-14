@@ -1,6 +1,7 @@
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
+import { SUPABASE_CA_CERT } from "@/lib/supabase-ca";
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
@@ -31,8 +32,13 @@ const createPrismaClient = () => {
  * Order of preference:
  *  1. Local connections: no TLS.
  *  2. `DATABASE_CA_CERT` set: full verification against the provided CA
- *     (the secure production path — download Supabase's CA cert and set it).
- *  3. Otherwise: verified TLS via the system CA bundle.
+ *     (override path — use this if Supabase rotates its root CA).
+ *  3. `DATABASE_SSL_NO_VERIFY=true`: escape hatch, no verification.
+ *  4. Otherwise: full verification against the bundled Supabase root CA.
+ *     Supabase's self-signed root is NOT in the default Node CA bundle, so
+ *     verifying against the system bundle alone fails with
+ *     SELF_SIGNED_CERT_IN_CHAIN. Bundling the published root gives verified
+ *     TLS to Supabase with no env var required.
  *
  * Disabling certificate verification (the old `rejectUnauthorized:false`
  * default) is now opt-in via `DATABASE_SSL_NO_VERIFY=true` and must only be used
@@ -49,12 +55,12 @@ function resolveSslConfig(isLocal: boolean) {
   if (process.env.DATABASE_SSL_NO_VERIFY === "true") {
     console.warn(
       "[db] TLS certificate verification is DISABLED (DATABASE_SSL_NO_VERIFY). " +
-        "Set DATABASE_CA_CERT for a secure connection."
+        "Unset it to verify against the bundled Supabase root CA."
     );
     return { rejectUnauthorized: false };
   }
 
-  return { rejectUnauthorized: true };
+  return { ca: SUPABASE_CA_CERT, rejectUnauthorized: true };
 }
 
 export const db = globalForPrisma.prisma ?? createPrismaClient();
