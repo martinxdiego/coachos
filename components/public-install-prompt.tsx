@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useTranslations } from "next-intl";
 import { Download, X } from "lucide-react";
 
 interface BeforeInstallPromptEvent extends Event {
@@ -9,6 +10,7 @@ interface BeforeInstallPromptEvent extends Event {
 }
 
 export function PublicInstallPrompt() {
+  const t = useTranslations("install");
   const [deferredPrompt, setDeferredPrompt] =
     useState<BeforeInstallPromptEvent | null>(null);
   const [isIOS, setIsIOS] = useState(false);
@@ -49,17 +51,17 @@ export function PublicInstallPrompt() {
       </span>
       <span className="min-w-0 flex-1">
         <span className="block text-[14px] font-semibold tracking-tight text-foreground">
-          App installieren
+          {t("title")}
         </span>
         {isIOS ? (
           <span className="mt-0.5 block text-[12px] leading-5 text-muted-foreground">
-            Tippe auf{" "}
+            {t("ios_pre")}{" "}
             <strong className="text-foreground/80">
-              Teilen ↑
+              {t("ios_share")}
             </strong>{" "}
-            und dann{" "}
+            {t("ios_then")}{" "}
             <strong className="text-foreground/80">
-              Zum Startbildschirm
+              {t("ios_add")}
             </strong>
           </span>
         ) : (
@@ -68,12 +70,12 @@ export function PublicInstallPrompt() {
             onClick={install}
             type="button"
           >
-            Zum Startbildschirm hinzufügen →
+            {t("add_to_home")}
           </button>
         )}
       </span>
       <button
-        aria-label="Schließen"
+        aria-label={t("close")}
         className="ml-auto shrink-0 text-muted-foreground hover:text-foreground"
         onClick={() => setVisible(false)}
         type="button"

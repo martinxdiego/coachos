@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useTranslations } from "next-intl";
 import { CheckCheck, Inbox, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { markCoachMessageRead } from "@/app/actions-public";
@@ -25,6 +26,7 @@ interface PublicCoachInboxProps {
 }
 
 export function PublicCoachInbox({ accessToken, messages }: PublicCoachInboxProps) {
+  const t = useTranslations("inbox");
   const [showRead, setShowRead] = useState(false);
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [, startTransition] = useTransition();
@@ -38,9 +40,9 @@ export function PublicCoachInbox({ accessToken, messages }: PublicCoachInboxProp
     startTransition(async () => {
       try {
         await markCoachMessageRead(accessToken, id);
-        toast.success("Als gelesen markiert");
+        toast.success(t("toast_read"));
       } catch (err) {
-        const message = err instanceof Error ? err.message : "Konnte nicht speichern.";
+        const message = err instanceof Error ? err.message : t("error_generic");
         toast.error(message);
       } finally {
         setPendingId(null);
@@ -58,7 +60,7 @@ export function PublicCoachInbox({ accessToken, messages }: PublicCoachInboxProp
         <div className="flex items-center justify-between gap-2">
           <CardTitle className="flex items-center gap-2">
             <Inbox aria-hidden="true" className="h-4.5 w-4.5 text-primary" />
-            Vom Trainer
+            {t("title")}
             {unread.length > 0 ? (
               <span className="ml-1 rounded-full bg-red-600 px-2 py-0.5 text-[11px] font-semibold text-white">
                 {unread.length}
@@ -72,7 +74,7 @@ export function PublicCoachInbox({ accessToken, messages }: PublicCoachInboxProp
               type="button"
               variant="ghost"
             >
-              {showRead ? "Nur ungelesen" : `Alle (${messages.length})`}
+              {showRead ? t("only_unread") : t("all_count", { count: messages.length })}
             </Button>
           ) : null}
         </div>
@@ -80,7 +82,7 @@ export function PublicCoachInbox({ accessToken, messages }: PublicCoachInboxProp
       <CardContent className="space-y-2.5">
         {visible.length === 0 ? (
           <p className="rounded-xl border border-dashed border-border p-4 text-center text-[13px] text-muted-foreground">
-            Keine ungelesenen Mitteilungen.
+            {t("empty")}
           </p>
         ) : (
           visible.map((msg) => {
@@ -111,7 +113,9 @@ export function PublicCoachInbox({ accessToken, messages }: PublicCoachInboxProp
                     </p>
                     <p className="mt-2 text-[11px] opacity-70">
                       {formatDateTime(msg.created_at)}
-                      {msg.read_at ? ` · gelesen ${formatDateTime(msg.read_at)}` : ""}
+                      {msg.read_at
+                        ? t("read_suffix", { date: formatDateTime(msg.read_at) })
+                        : ""}
                     </p>
                   </div>
                   {!isRead ? (
@@ -128,7 +132,7 @@ export function PublicCoachInbox({ accessToken, messages }: PublicCoachInboxProp
                       ) : (
                         <CheckCheck aria-hidden="true" className="h-4 w-4" />
                       )}
-                      Gelesen
+                      {t("mark_read")}
                     </Button>
                   ) : null}
                 </div>

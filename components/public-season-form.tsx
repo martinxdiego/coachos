@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useTranslations } from "next-intl";
 import { ChevronRight, Loader2, UserRound } from "lucide-react";
 import { toast } from "sonner";
 import { submitPublicSeasonForm } from "@/app/actions-public";
@@ -15,6 +16,7 @@ interface PublicSeasonFormProps {
 }
 
 export function PublicSeasonForm({ accessToken, player }: PublicSeasonFormProps) {
+  const t = useTranslations("season");
   const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
   const filled = Boolean(player.season_form_completed_at);
@@ -23,10 +25,10 @@ export function PublicSeasonForm({ accessToken, player }: PublicSeasonFormProps)
     startTransition(async () => {
       try {
         await submitPublicSeasonForm(accessToken, formData);
-        toast.success("Saisonblatt gespeichert");
+        toast.success(t("toast_saved"));
         setOpen(false);
       } catch (err) {
-        const message = err instanceof Error ? err.message : "Konnte nicht speichern.";
+        const message = err instanceof Error ? err.message : t("error_generic");
         toast.error(message);
       }
     });
@@ -48,15 +50,15 @@ export function PublicSeasonForm({ accessToken, player }: PublicSeasonFormProps)
           </span>
           <div className="text-left">
             <p className="text-[15px] font-semibold tracking-tight">
-              Mein Saisonblatt
+              {t("title")}
               {filled ? (
                 <span className="ml-2 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-800">
-                  ✓ Ausgefüllt
+                  {t("filled_badge")}
                 </span>
               ) : null}
             </p>
             <p className="text-[12px] text-muted-foreground">
-              Kontaktdaten, Lieblingsteam, Ziele, Medizinisches
+              {t("subtitle")}
             </p>
           </div>
         </div>
@@ -72,87 +74,87 @@ export function PublicSeasonForm({ accessToken, player }: PublicSeasonFormProps)
               <Input
                 defaultValue={player.contact ?? ""}
                 name="contact"
-                placeholder="Eigener Kontakt"
+                placeholder={t("contact_ph")}
               />
               <Input
                 defaultValue={player.parent_contact ?? ""}
                 name="parent_contact"
-                placeholder="Elternkontakt"
+                placeholder={t("parent_ph")}
               />
               <Input
                 defaultValue={player.emergency_contact ?? ""}
                 name="emergency_contact"
-                placeholder="Notfallkontakt"
+                placeholder={t("emergency_ph")}
               />
               <select
                 className="flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 defaultValue={player.strong_foot ?? ""}
                 name="strong_foot"
               >
-                <option value="">Fuss offen</option>
-                <option value="left">Links</option>
-                <option value="right">Rechts</option>
-                <option value="both">Beide</option>
+                <option value="">{t("foot_open")}</option>
+                <option value="left">{t("foot_left")}</option>
+                <option value="right">{t("foot_right")}</option>
+                <option value="both">{t("foot_both")}</option>
               </select>
               <Input
                 defaultValue={player.favorite_team ?? ""}
                 name="favorite_team"
-                placeholder="Lieblingsteam"
+                placeholder={t("favteam_ph")}
               />
               <Input
                 defaultValue={player.favorite_player ?? ""}
                 name="favorite_player"
-                placeholder="Lieblingsspieler"
+                placeholder={t("favplayer_ph")}
               />
             </div>
             <Textarea
               defaultValue={player.football_goals ?? ""}
               name="football_goals"
-              placeholder="Meine Fussballziele"
+              placeholder={t("goals_ph")}
             />
             <Textarea
               defaultValue={player.strengths ?? ""}
               name="strengths"
-              placeholder="Meine Stärken"
+              placeholder={t("strengths_ph")}
             />
             <Textarea
               defaultValue={player.weaknesses ?? ""}
               name="weaknesses"
-              placeholder="Woran ich arbeiten will"
+              placeholder={t("weaknesses_ph")}
             />
             <Textarea
               defaultValue={player.motivation ?? ""}
               name="motivation"
-              placeholder="Was motiviert mich?"
+              placeholder={t("motivation_ph")}
             />
             <Textarea
               defaultValue={player.allergies ?? ""}
               name="allergies"
-              placeholder="Allergien"
+              placeholder={t("allergies_ph")}
             />
             <Textarea
               defaultValue={player.injuries ?? ""}
               name="injuries"
-              placeholder="Verletzungen"
+              placeholder={t("injuries_ph")}
             />
             <Textarea
               defaultValue={player.limitations ?? ""}
               name="limitations"
-              placeholder="Einschränkungen"
+              placeholder={t("limitations_ph")}
             />
             <Textarea
               defaultValue={player.medications ?? ""}
               name="medications"
-              placeholder="Medikamente"
+              placeholder={t("medications_ph")}
             />
             <Button className="h-11 w-full" disabled={isPending} type="submit">
               {isPending ? (
                 <>
                   <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
-                  Speichere…
+                  {t("saving")}
                 </>
               ) : (
-                "Saisonblatt speichern"
+                t("save")
               )}
             </Button>
           </form>

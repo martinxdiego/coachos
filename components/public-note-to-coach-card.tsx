@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useTranslations } from "next-intl";
 import { Loader2, MessageSquarePlus } from "lucide-react";
 import { toast } from "sonner";
 import { submitPlayerNoteToCoach } from "@/app/actions-public";
@@ -15,14 +16,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 
 const moodScale = [
-  { value: 2, label: "😞", description: "Schlecht" },
-  { value: 4, label: "😐", description: "Naja" },
-  { value: 6, label: "🙂", description: "Ok" },
-  { value: 8, label: "😊", description: "Gut" },
-  { value: 10, label: "🤩", description: "Top" }
-];
+  { value: 2, label: "😞", key: "mood_bad" },
+  { value: 4, label: "😐", key: "mood_meh" },
+  { value: 6, label: "🙂", key: "mood_ok" },
+  { value: 8, label: "😊", key: "mood_good" },
+  { value: 10, label: "🤩", key: "mood_top" }
+] as const;
 
 export function PublicNoteToCoachCard({ accessToken }: { accessToken: string }) {
+  const t = useTranslations("note");
   const [mood, setMood] = useState(8);
   const [body, setBody] = useState("");
   const [isPending, startTransition] = useTransition();
@@ -32,10 +34,10 @@ export function PublicNoteToCoachCard({ accessToken }: { accessToken: string }) 
     startTransition(async () => {
       try {
         await submitPlayerNoteToCoach(accessToken, formData);
-        toast.success("Notiz an Trainer gesendet");
+        toast.success(t("toast_sent"));
         setBody("");
       } catch (err) {
-        const message = err instanceof Error ? err.message : "Konnte nicht senden.";
+        const message = err instanceof Error ? err.message : t("error_send");
         toast.error(message);
       }
     });
@@ -49,14 +51,14 @@ export function PublicNoteToCoachCard({ accessToken }: { accessToken: string }) 
             aria-hidden="true"
             className="h-4.5 w-4.5 text-primary"
           />
-          Notiz an den Trainer
+          {t("title")}
         </CardTitle>
       </CardHeader>
       <CardContent>
         <form action={handle} className="space-y-3" id={formId}>
           <input name="rating" type="hidden" value={mood} />
           <p className="text-[12px] font-medium tracking-tight text-muted-foreground">
-            Wie geht es dir gerade?
+            {t("prompt")}
           </p>
           <div className="grid grid-cols-5 gap-2">
             {moodScale.map((item) => {
@@ -76,7 +78,7 @@ export function PublicNoteToCoachCard({ accessToken }: { accessToken: string }) 
                   <span aria-hidden="true" className="text-2xl">
                     {item.label}
                   </span>
-                  {item.description}
+                  {t(item.key)}
                 </button>
               );
             })}
@@ -84,7 +86,7 @@ export function PublicNoteToCoachCard({ accessToken }: { accessToken: string }) 
           <Textarea
             name="body"
             onChange={(event) => setBody(event.target.value)}
-            placeholder="Z.B. Habe Knieprobleme nach dem letzten Training. Bitte heute schonen."
+            placeholder={t("placeholder")}
             required
             value={body}
           />
@@ -96,10 +98,10 @@ export function PublicNoteToCoachCard({ accessToken }: { accessToken: string }) 
             {isPending ? (
               <>
                 <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
-                Sende…
+                {t("sending")}
               </>
             ) : (
-              "An Trainer senden"
+              t("send")
             )}
           </Button>
         </form>
