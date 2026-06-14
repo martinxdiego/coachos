@@ -107,6 +107,31 @@
     "unread": "{count} unread",
     "portrait_of": "Portrait of {name}"
   },
+  "checkin": {
+    "scale": {
+      "wellbeing": "Wellbeing",
+      "fatigue": "Fatigue",
+      "sleep_quality": "Sleep",
+      "energy": "Energy",
+      "pain": "Pain",
+      "soreness": "Soreness",
+      "stress": "Stress",
+      "motivation": "Motivation",
+      "injury_feeling": "Injury feeling"
+    },
+    "toast_saved": "Thanks! Check-in saved.",
+    "error_generic": "Could not save.",
+    "today": "Today · {date}",
+    "done": "Check-in done",
+    "prompt": "How do you feel today?",
+    "edit_hint": "Tap to edit your entry.",
+    "duration": "9 questions · about 30 seconds",
+    "note_label": "Note to the coach (optional)",
+    "note_ph": "E.g. knee twinges since yesterday.",
+    "saving": "Saving…",
+    "update": "Update check-in",
+    "save": "Save check-in"
+  },
   "nav": {
     "today": "Today",
     "training": "Training",

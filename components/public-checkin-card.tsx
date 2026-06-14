@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useTranslations } from "next-intl";
 import { CheckCircle2, ChevronDown, ChevronUp, HeartPulse, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { submitPublicCheckin } from "@/app/actions-public";
@@ -11,16 +12,16 @@ import { cn, formatDate, todayIsoDate } from "@/lib/utils";
 
 type Direction = "low-good" | "high-good";
 
-const checks: ReadonlyArray<readonly [string, string, Direction]> = [
-  ["wellbeing", "Wohlbefinden", "high-good"],
-  ["fatigue", "Müdigkeit", "low-good"],
-  ["sleep_quality", "Schlaf", "high-good"],
-  ["energy", "Energie", "high-good"],
-  ["pain", "Schmerzen", "low-good"],
-  ["soreness", "Muskelkater", "low-good"],
-  ["stress", "Stress", "low-good"],
-  ["motivation", "Motivation", "high-good"],
-  ["injury_feeling", "Verletzungsgefühl", "low-good"]
+const checks: ReadonlyArray<readonly [string, Direction]> = [
+  ["wellbeing", "high-good"],
+  ["fatigue", "low-good"],
+  ["sleep_quality", "high-good"],
+  ["energy", "high-good"],
+  ["pain", "low-good"],
+  ["soreness", "low-good"],
+  ["stress", "low-good"],
+  ["motivation", "high-good"],
+  ["injury_feeling", "low-good"]
 ];
 
 interface PublicCheckinCardProps {
@@ -34,6 +35,7 @@ export function PublicCheckinCard({
   alreadyDone,
   todayCheckin
 }: PublicCheckinCardProps) {
+  const t = useTranslations("checkin");
   const [expanded, setExpanded] = useState(!alreadyDone);
   const [isPending, startTransition] = useTransition();
   const today = todayIsoDate();
@@ -48,10 +50,10 @@ export function PublicCheckinCard({
     startTransition(async () => {
       try {
         await submitPublicCheckin(accessToken, formData);
-        toast.success("Danke! Check-in gespeichert.");
+        toast.success(t("toast_saved"));
         setExpanded(false);
       } catch (err) {
-        const message = err instanceof Error ? err.message : "Konnte nicht speichern.";
+        const message = err instanceof Error ? err.message : t("error_generic");
         toast.error(message);
       }
     });
@@ -89,15 +91,13 @@ export function PublicCheckinCard({
           </span>
           <div className="min-w-0">
             <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-700">
-              Heute · {formatDate(today)}
+              {t("today", { date: formatDate(today) })}
             </p>
             <p className="mt-0.5 text-[17px] font-semibold tracking-tight">
-              {alreadyDone ? "Check-in erledigt" : "Wie fühlst du dich heute?"}
+              {alreadyDone ? t("done") : t("prompt")}
             </p>
             <p className="mt-0.5 text-[13px] text-muted-foreground">
-              {alreadyDone
-                ? "Tippe, um deinen Eintrag zu bearbeiten."
-                : "9 Fragen · ca. 30 Sekunden"}
+              {alreadyDone ? t("edit_hint") : t("duration")}
             </p>
           </div>
         </div>
@@ -119,12 +119,12 @@ export function PublicCheckinCard({
             />
 
             <div className="grid gap-3 sm:grid-cols-2">
-              {checks.map(([name, label, direction]) => (
+              {checks.map(([name, direction]) => (
                 <ScoreScale
                   defaultValue={readScale(name)}
                   direction={direction}
                   key={name}
-                  label={label}
+                  label={t(`scale.${name}`)}
                   name={name}
                 />
               ))}
@@ -135,13 +135,13 @@ export function PublicCheckinCard({
                 className="text-[12px] font-medium tracking-tight"
                 htmlFor="public-checkin-notes"
               >
-                Notiz an den Trainer (optional)
+                {t("note_label")}
               </label>
               <Textarea
                 defaultValue={(todayCheckin?.notes as string) ?? ""}
                 id="public-checkin-notes"
                 name="notes"
-                placeholder="Z.B. Knie zwickt seit gestern."
+                placeholder={t("note_ph")}
               />
             </div>
 
@@ -153,12 +153,12 @@ export function PublicCheckinCard({
               {isPending ? (
                 <>
                   <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
-                  Speichere…
+                  {t("saving")}
                 </>
               ) : alreadyDone ? (
-                "Check-in aktualisieren"
+                t("update")
               ) : (
-                "Check-in speichern"
+                t("save")
               )}
             </Button>
           </form>

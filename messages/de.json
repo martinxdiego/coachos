@@ -107,6 +107,31 @@
     "unread": "{count} ungelesen",
     "portrait_of": "Portrait von {name}"
   },
+  "checkin": {
+    "scale": {
+      "wellbeing": "Wohlbefinden",
+      "fatigue": "Müdigkeit",
+      "sleep_quality": "Schlaf",
+      "energy": "Energie",
+      "pain": "Schmerzen",
+      "soreness": "Muskelkater",
+      "stress": "Stress",
+      "motivation": "Motivation",
+      "injury_feeling": "Verletzungsgefühl"
+    },
+    "toast_saved": "Danke! Check-in gespeichert.",
+    "error_generic": "Konnte nicht speichern.",
+    "today": "Heute · {date}",
+    "done": "Check-in erledigt",
+    "prompt": "Wie fühlst du dich heute?",
+    "edit_hint": "Tippe, um deinen Eintrag zu bearbeiten.",
+    "duration": "9 Fragen · ca. 30 Sekunden",
+    "note_label": "Notiz an den Trainer (optional)",
+    "note_ph": "Z.B. Knie zwickt seit gestern.",
+    "saving": "Speichere…",
+    "update": "Check-in aktualisieren",
+    "save": "Check-in speichern"
+  },
   "nav": {
     "today": "Heute",
     "training": "Training",
