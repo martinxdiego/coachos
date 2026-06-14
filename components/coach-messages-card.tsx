@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { CheckCircle2, MessageSquarePlus, Send, Trash2 } from "lucide-react";
 import { createCoachMessage, deleteCoachMessage } from "@/app/actions";
 import { ToastForm } from "@/components/toast-form";
@@ -15,8 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
   coachMessageCategoryAccent,
-  coachMessageCategoryEmoji,
-  coachMessageCategoryLabel
+  coachMessageCategoryEmoji
 } from "@/lib/coach-messages";
 import { cn, formatDateTime } from "@/lib/utils";
 import type { CoachMessage, CoachMessageCategory } from "@/lib/types";
@@ -27,11 +27,11 @@ interface CoachMessagesCardProps {
   messages: CoachMessage[];
 }
 
-const categories: { value: CoachMessageCategory; label: string; emoji: string }[] = [
-  { value: "training_goal", label: "Trainingsziel", emoji: "🎯" },
-  { value: "match_goal", label: "Spielziel", emoji: "⚽️" },
-  { value: "note", label: "Notiz", emoji: "📝" },
-  { value: "praise", label: "Lob", emoji: "🏆" }
+const categories: { value: CoachMessageCategory; emoji: string }[] = [
+  { value: "training_goal", emoji: "🎯" },
+  { value: "match_goal", emoji: "⚽️" },
+  { value: "note", emoji: "📝" },
+  { value: "praise", emoji: "🏆" }
 ];
 
 export function CoachMessagesCard({
@@ -39,6 +39,7 @@ export function CoachMessagesCard({
   playerName,
   messages
 }: CoachMessagesCardProps) {
+  const t = useTranslations("coachmsg");
   const [category, setCategory] = useState<CoachMessageCategory>("training_goal");
 
   return (
@@ -49,21 +50,21 @@ export function CoachMessagesCard({
             aria-hidden="true"
             className="h-4.5 w-4.5 text-primary"
           />
-          Mitteilung an {playerName.split(" ")[0]}
+          {t("title", { name: playerName.split(" ")[0] })}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         <ToastForm
           action={createCoachMessage}
           className="space-y-3"
-          successMessage="Mitteilung gesendet"
+          successMessage={t("sent")}
         >
           <input name="player_id" type="hidden" value={playerId} />
           <input name="category" type="hidden" value={category} />
 
           <div>
             <p className="mb-2 text-[12px] font-medium tracking-tight text-muted-foreground">
-              Kategorie
+              {t("category")}
             </p>
             <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
               {categories.map((item) => {
@@ -83,7 +84,7 @@ export function CoachMessagesCard({
                     <span aria-hidden="true" className="text-lg">
                       {item.emoji}
                     </span>
-                    {item.label}
+                    {t(`cat_${item.value}`)}
                   </button>
                 );
               })}
@@ -92,32 +93,32 @@ export function CoachMessagesCard({
 
           <Input
             name="title"
-            placeholder='Titel (optional, z.B. „Heute zwei Tore")'
+            placeholder={t("title_ph")}
           />
           <Textarea
             name="body"
-            placeholder="Was soll der Spieler sehen oder umsetzen?"
+            placeholder={t("body_ph")}
             required
           />
 
           <Button type="submit">
             <Send aria-hidden="true" className="h-4 w-4" />
-            An Spieler senden
+            {t("send")}
           </Button>
         </ToastForm>
 
         <div className="space-y-2 pt-2">
           <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-            Verlauf ({messages.length})
+            {t("history", { count: messages.length })}
           </p>
           {messages.length === 0 ? (
             <p className="rounded-xl border border-dashed border-border p-4 text-center text-[13px] text-muted-foreground">
-              Noch keine Mitteilungen verschickt.
+              {t("empty")}
             </p>
           ) : (
             messages.slice(0, 8).map((msg) => {
               const tone = coachMessageCategoryAccent[msg.category];
-              const label = coachMessageCategoryLabel[msg.category];
+              const label = t(`cat_${msg.category}`);
               const emoji = coachMessageCategoryEmoji[msg.category];
               const isRead = Boolean(msg.read_at);
               return (
@@ -147,11 +148,11 @@ export function CoachMessagesCard({
                               aria-hidden="true"
                               className="h-3 w-3 text-emerald-700"
                             />
-                            gelesen {formatDateTime(msg.read_at!)}
+                            {t("read_at", { date: formatDateTime(msg.read_at!) })}
                           </>
                         ) : (
                           <span className="text-amber-700">
-                            · noch nicht gelesen
+                            {t("not_read")}
                           </span>
                         )}
                       </p>
@@ -160,7 +161,7 @@ export function CoachMessagesCard({
                       <input name="id" type="hidden" value={msg.id} />
                       <input name="player_id" type="hidden" value={playerId} />
                       <Button
-                        aria-label="Mitteilung löschen"
+                        aria-label={t("delete")}
                         size="icon"
                         type="submit"
                         variant="ghost"

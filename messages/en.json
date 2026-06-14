@@ -298,6 +298,23 @@
     "task_ph": "Task",
     "create_task": "Create task"
   },
+  "coachmsg": {
+    "cat_training_goal": "Training goal",
+    "cat_match_goal": "Match goal",
+    "cat_note": "Note",
+    "cat_praise": "Praise",
+    "title": "Message to {name}",
+    "sent": "Message sent",
+    "category": "Category",
+    "title_ph": "Title (optional, e.g. “Two goals today”)",
+    "body_ph": "What should the player see or work on?",
+    "send": "Send to player",
+    "history": "History ({count})",
+    "empty": "No messages sent yet.",
+    "read_at": "read {date}",
+    "not_read": "· not read yet",
+    "delete": "Delete message"
+  },
   "nav": {
     "today": "Today",
     "training": "Training",

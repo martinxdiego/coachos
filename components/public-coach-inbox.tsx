@@ -14,8 +14,7 @@ import {
 } from "@/components/ui/card";
 import {
   coachMessageCategoryAccent,
-  coachMessageCategoryEmoji,
-  coachMessageCategoryLabel
+  coachMessageCategoryEmoji
 } from "@/lib/coach-messages";
 import { cn, formatDateTime } from "@/lib/utils";
 import type { CoachMessage } from "@/lib/types";
@@ -27,6 +26,7 @@ interface PublicCoachInboxProps {
 
 export function PublicCoachInbox({ accessToken, messages }: PublicCoachInboxProps) {
   const t = useTranslations("inbox");
+  const tCat = useTranslations("coachmsg");
   const [showRead, setShowRead] = useState(false);
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [, startTransition] = useTransition();
@@ -87,7 +87,7 @@ export function PublicCoachInbox({ accessToken, messages }: PublicCoachInboxProp
         ) : (
           visible.map((msg) => {
             const tone = coachMessageCategoryAccent[msg.category];
-            const label = coachMessageCategoryLabel[msg.category];
+            const label = tCat(`cat_${msg.category}`);
             const emoji = coachMessageCategoryEmoji[msg.category];
             const isRead = Boolean(msg.read_at);
             return (

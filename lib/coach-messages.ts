@@ -1,12 +1,7 @@
 import type { CoachMessageCategory } from "@/lib/types";
 
-export const coachMessageCategoryLabel: Record<CoachMessageCategory, string> = {
-  training_goal: "Trainingsziel",
-  match_goal: "Spielziel",
-  note: "Notiz",
-  praise: "Lob"
-};
-
+// Category labels live in the i18n catalog ("coachmsg.cat_*") so they
+// localise; only the locale-independent accent and emoji stay here.
 export const coachMessageCategoryAccent: Record<CoachMessageCategory, string> = {
   training_goal: "border-emerald-300 bg-emerald-50 text-emerald-900",
   match_goal: "border-amber-300 bg-amber-50 text-amber-900",

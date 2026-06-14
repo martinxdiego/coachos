@@ -298,6 +298,23 @@
     "task_ph": "Aufgabe",
     "create_task": "Aufgabe erstellen"
   },
+  "coachmsg": {
+    "cat_training_goal": "Trainingsziel",
+    "cat_match_goal": "Spielziel",
+    "cat_note": "Notiz",
+    "cat_praise": "Lob",
+    "title": "Mitteilung an {name}",
+    "sent": "Mitteilung gesendet",
+    "category": "Kategorie",
+    "title_ph": "Titel (optional, z.B. „Heute zwei Tore\")",
+    "body_ph": "Was soll der Spieler sehen oder umsetzen?",
+    "send": "An Spieler senden",
+    "history": "Verlauf ({count})",
+    "empty": "Noch keine Mitteilungen verschickt.",
+    "read_at": "gelesen {date}",
+    "not_read": "· noch nicht gelesen",
+    "delete": "Mitteilung löschen"
+  },
   "nav": {
     "today": "Heute",
     "training": "Training",
