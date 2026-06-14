@@ -3,6 +3,7 @@ import { createMaterial, deleteMaterial, updateMaterial } from "@/app/actions";
 import { ConfirmDeleteForm } from "@/components/confirm-delete-form";
 import { EmptyState } from "@/components/empty-state";
 import { MaterialTypePicker } from "@/components/material-type-picker";
+import { getTranslations } from "next-intl/server";
 import { PageHeader } from "@/components/page-header";
 import { PdfDownloadButton } from "@/components/pdf-download-button";
 import { ToastForm } from "@/components/toast-form";
@@ -173,6 +174,7 @@ function MaterialBody({
 
 export default async function MaterialsPage() {
   const { team } = await requireActiveTeam();
+  const t = await getTranslations("pages");
   const [materialsData, playersData] = await Promise.all([
     db.material.findMany({
       where: { workspaceId: team.id },
@@ -214,8 +216,8 @@ export default async function MaterialsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        description="Erstelle druckfreundliche Pläne, Listen und Taktikblätter mit passenden Vorlagen."
-        title="Material"
+        description={t("materials_desc")}
+        title={t("materials_title")}
       />
 
       <section className="grid gap-4 xl:grid-cols-[400px_1fr]">

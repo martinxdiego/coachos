@@ -48,7 +48,21 @@
     "calendar_title": "Kalender",
     "calendar_desc": "Tages-, Wochen-, Monats- und Jahresplanung mit Training und Spiel.",
     "health_title": "Gesundheit / Belastung",
-    "health_desc": "Belastungs-Check mit Ampelwarnungen für Training und Spiel."
+    "health_desc": "Belastungs-Check mit Ampelwarnungen für Training und Spiel.",
+    "materials_title": "Material",
+    "materials_desc": "Erstelle druckfreundliche Pläne, Listen und Taktikblätter mit passenden Vorlagen.",
+    "tactics_title": "Taktikboard",
+    "tactics_desc": "Zeichne Formationen, Laufwege, Zonen und Notizen direkt auf dem Feld.",
+    "playermode_title": "Spieler-Modus",
+    "playermode_desc": "Persönlicher Bereich für Spieler. Heute fühlen, Termine sehen, Feedback empfangen.",
+    "pitch_title": "Platz-Modus",
+    "pitch_desc": "Reduzierte mobile Ansicht für Training, Anwesenheit, Spieltag und Taktik auf dem Platz.",
+    "monday_title": "Montagstraining",
+    "monday_desc": "Separates Montagstraining für Spieler aus mehreren Kategorien mit Anwesenheit, Bewertung und Co-Trainer-Auswertung.",
+    "clubcorner_title": "Clubcorner / Quali",
+    "clubcorner_desc": "Externe Tools, Clubcorner-Links und kompakte Quali-Gesprächsgrundlagen pro Spieler.",
+    "points_title": "Winnerpunkte",
+    "points_desc": "Schnelle Punktevergabe während Training, Spiel oder Event mit Saison-Leaderboard."
   },
   "nav": {
     "today": "Heute",

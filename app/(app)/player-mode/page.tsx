@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { submitPlayerSeasonForm } from "@/app/actions";
 import { EmptyState } from "@/components/empty-state";
+import { getTranslations } from "next-intl/server";
 import { PageHeader } from "@/components/page-header";
 import { PlayerModeCheckin } from "@/components/player-mode-checkin";
 import { Badge } from "@/components/ui/badge";
@@ -61,6 +62,7 @@ export default async function PlayerModePage({
   searchParams
 }: PlayerModePageProps) {
   const { membership, team, user } = await requireActiveTeam();
+  const t = await getTranslations("pages");
   const params = await searchParams;
   const today = todayIsoDate();
   const todayStart = new Date(`${today}T00:00:00`);
@@ -309,8 +311,8 @@ export default async function PlayerModePage({
   return (
     <div className="space-y-6">
       <PageHeader
-        description="Persönlicher Bereich für Spieler. Heute fühlen, Termine sehen, Feedback empfangen."
-        title="Spieler-Modus"
+        description={t("playermode_desc")}
+        title={t("playermode_title")}
       />
 
       {isStaffPreview ? (

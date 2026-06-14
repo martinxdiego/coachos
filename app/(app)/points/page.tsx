@@ -6,6 +6,7 @@ import {
 } from "@/app/actions";
 import { WinnerPointsPanel } from "@/components/winner-points-panel";
 import { EmptyState } from "@/components/empty-state";
+import { getTranslations } from "next-intl/server";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -77,6 +78,7 @@ export default async function WinnerPointsPage({
   searchParams
 }: WinnerPointsPageProps) {
   const { team } = await requireActiveTeam();
+  const t = await getTranslations("pages");
   const resolvedSearchParams = await searchParams;
   const period = resolvedSearchParams?.period ?? "season";
   const category = resolvedSearchParams?.category ?? "all";
@@ -204,8 +206,8 @@ export default async function WinnerPointsPage({
   return (
     <div className="space-y-6">
       <PageHeader
-        description="Schnelle Punktevergabe waehrend Training, Spiel oder Event mit Saison-Leaderboard."
-        title="Winnerpunkte"
+        description={t("points_desc")}
+        title={t("points_title")}
       />
 
       <section className="grid gap-4 md:grid-cols-3">

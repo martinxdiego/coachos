@@ -1,5 +1,6 @@
 import { Shield } from "lucide-react";
 import { createTacticBoard } from "@/app/actions";
+import { getTranslations } from "next-intl/server";
 import { PageHeader } from "@/components/page-header";
 import { TacticBoardAccordion } from "@/components/tactic-board-accordion";
 import { Button } from "@/components/ui/button";
@@ -13,6 +14,7 @@ export const dynamic = "force-dynamic";
 
 export default async function TacticsPage() {
   const { team } = await requireActiveTeam();
+  const t = await getTranslations("pages");
   const [dbBoards, dbPlayers] = await Promise.all([
     db.tacticBoard.findMany({
       where: { workspaceId: team.id },
@@ -52,8 +54,8 @@ export default async function TacticsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        description="Zeichne Formationen, Laufwege, Zonen und Notizen direkt auf dem Feld."
-        title="Taktikboard"
+        description={t("tactics_desc")}
+        title={t("tactics_title")}
       />
 
       {/* Compact create form */}

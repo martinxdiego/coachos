@@ -7,6 +7,7 @@ import {
   savePlayerEvaluation,
   updateMondayTraining
 } from "@/app/actions";
+import { getTranslations } from "next-intl/server";
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
@@ -42,6 +43,7 @@ export default async function MondayTrainingPage({
   searchParams
 }: MondayPageProps) {
   const { team } = await requireActiveTeam();
+  const t = await getTranslations("pages");
   const params = await searchParams;
   const category = params?.category ?? "all";
   const position = params?.position ?? "all";
@@ -202,8 +204,8 @@ export default async function MondayTrainingPage({
   return (
     <div className="space-y-6">
       <PageHeader
-        description="Separates Montagstraining fuer Spieler aus mehreren Kategorien mit Anwesenheit, Bewertung und Co-Trainer-Auswertung."
-        title="Montagstraining"
+        description={t("monday_desc")}
+        title={t("monday_title")}
       />
 
       <section className="grid gap-4 md:grid-cols-3">

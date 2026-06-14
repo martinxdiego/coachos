@@ -12,6 +12,7 @@ import {
   updateExternalLink
 } from "@/app/actions";
 import { EmptyState } from "@/components/empty-state";
+import { getTranslations } from "next-intl/server";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -43,6 +44,7 @@ const linkLabels: Record<ExternalLinkType, string> = {
 
 export default async function ClubcornerPage() {
   const { team } = await requireActiveTeam();
+  const t = await getTranslations("pages");
 
   const [
     dbPlayers,
@@ -212,8 +214,8 @@ export default async function ClubcornerPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        description="Externe Tools, Clubcorner-Links und kompakte Quali-Gesprächsgrundlagen pro Spieler."
-        title="Clubcorner / Quali"
+        description={t("clubcorner_desc")}
+        title={t("clubcorner_title")}
       />
 
       <section className="grid gap-4 xl:grid-cols-[420px_1fr]">

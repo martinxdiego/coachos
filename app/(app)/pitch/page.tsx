@@ -7,6 +7,7 @@ import {
   UsersRound
 } from "lucide-react";
 import { saveAttendance } from "@/app/actions";
+import { getTranslations } from "next-intl/server";
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
@@ -26,6 +27,7 @@ export const dynamic = "force-dynamic";
 
 export default async function PitchPage() {
   const { team } = await requireActiveTeam();
+  const t = await getTranslations("pages");
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
 
@@ -134,8 +136,8 @@ export default async function PitchPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        description="Reduzierte mobile Ansicht für Training, Anwesenheit, Spieltag und Taktik auf dem Platz."
-        title="Platz-Modus"
+        description={t("pitch_desc")}
+        title={t("pitch_title")}
       />
 
       <section className="grid gap-4 lg:grid-cols-[1fr_0.85fr]">

@@ -48,7 +48,21 @@
     "calendar_title": "Calendar",
     "calendar_desc": "Daily, weekly, monthly and yearly planning with training and matches.",
     "health_title": "Health / Load",
-    "health_desc": "Load check with traffic-light warnings for training and matches."
+    "health_desc": "Load check with traffic-light warnings for training and matches.",
+    "materials_title": "Materials",
+    "materials_desc": "Create print-friendly plans, lists and tactics sheets from ready-made templates.",
+    "tactics_title": "Tactics Board",
+    "tactics_desc": "Draw formations, runs, zones and notes directly on the pitch.",
+    "playermode_title": "Player Mode",
+    "playermode_desc": "Personal area for players. Check in today, see dates, receive feedback.",
+    "pitch_title": "Pitch Mode",
+    "pitch_desc": "Reduced mobile view for training, attendance, matchday and tactics on the pitch.",
+    "monday_title": "Monday Training",
+    "monday_desc": "Separate Monday training for players from multiple categories with attendance, ratings and assistant-coach review.",
+    "clubcorner_title": "Clubcorner / Quali",
+    "clubcorner_desc": "External tools, Clubcorner links and concise qualification talking points per player.",
+    "points_title": "Winner Points",
+    "points_desc": "Fast point allocation during training, match or event with a season leaderboard."
   },
   "nav": {
     "today": "Today",
