@@ -63,6 +63,12 @@ This is the first outward-facing action. `origin/main` currently trails by
 The DB predates the migration history → **baseline each environment once**,
 then deploy migrations. Full detail in `deploy.md` and `prisma/MIGRATIONS.md`.
 
+> ⚠️ **Set `DIRECT_URL` first.** Prisma migrate needs a direct connection
+> (port 5432). Supabase's pooled `DATABASE_URL` (PgBouncer, port 6543) makes
+> `migrate` hang. Set `DIRECT_URL` to the direct connection string per
+> environment; `prisma.config.ts` uses it automatically (falls back to
+> `DATABASE_URL`). See `prisma/MIGRATIONS.md`.
+
 ```bash
 # Once per environment (STAGING first, then PRODUCTION), with that env's DATABASE_URL:
 npm run db:baseline           # = prisma migrate resolve --applied 0_init

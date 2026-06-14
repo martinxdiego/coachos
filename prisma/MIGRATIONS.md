@@ -4,6 +4,22 @@ Ab sofort ist das Prisma-Schema die Single Source of Truth und Änderungen
 laufen über **Migrationen** — kein `prisma db push` mehr gegen geteilte
 Umgebungen (Staging/Prod).
 
+## ⚠️ Direkte Verbindung für Migrationen (`DIRECT_URL`)
+
+Supabase liefert zwei Verbindungs-URLs. Die **gepoolte** URL (PgBouncer
+Transaction-Mode, **Port 6543**) ist für die App-Laufzeit (serverless) —
+`prisma migrate` **hängt** darüber, weil der Pooler die nötigen
+Session-Features nicht unterstützt. Migrationen brauchen die **direkte**
+Verbindung (**Port 5432**).
+
+Setze daher pro Umgebung **beide**:
+
+- `DATABASE_URL` → gepoolt, Port 6543 (App-Laufzeit)
+- `DIRECT_URL` → direkt, Port 5432 (Prisma-CLI/Migrationen)
+
+`prisma.config.ts` nutzt automatisch `DIRECT_URL`, sonst Fallback auf
+`DATABASE_URL`. Alle `db:*`-Befehle unten setzen das voraus.
+
 ## Einmalige Baseline (S3.1)
 
 Die bestehende Datenbank wurde bisher per `db push` aufgebaut, es gab keine
