@@ -89,6 +89,24 @@
     "creating": "Lege an…",
     "submit": "Anmelden und Link erhalten"
   },
+  "player": {
+    "my_team": "Mein Team",
+    "hello": "Hallo {name}",
+    "position_open": "Position offen",
+    "last_check": "Letzter Check · {date}",
+    "streak": "Streak",
+    "days_in_a_row": "{count, plural, one {Tag} other {Tage}} in Folge",
+    "winnerpoints": "Winnerpunkte",
+    "avg_rating": "Ø Bewertung",
+    "awards": "Auszeichnungen",
+    "my_schedule": "Mein Spielplan",
+    "training": "Training",
+    "match": "Spiel",
+    "no_dates": "Aktuell keine Termine geplant.",
+    "footer": "Persönlicher Spieler-Bereich · CoachOS",
+    "unread": "{count} ungelesen",
+    "portrait_of": "Portrait von {name}"
+  },
   "nav": {
     "today": "Heute",
     "training": "Training",

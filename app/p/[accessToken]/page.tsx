@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
+import { getTranslations } from "next-intl/server";
 import {
   Award,
   CalendarDays,
@@ -300,6 +301,7 @@ export default async function PlayerPublicPage({ params }: PlayerPagePublicProps
   const checkinDates = Array.from(new Set(checkins.map((row) => row.checkin_date)));
   const streak = streakLength(checkinDates);
   const unreadCount = messages.filter((msg) => !msg.read_at).length;
+  const t = await getTranslations("player");
 
   return (
     <div className="min-h-dvh bg-secondary/30 pb-12">
@@ -316,13 +318,13 @@ export default async function PlayerPublicPage({ params }: PlayerPagePublicProps
         />
         <div className="relative mx-auto max-w-3xl">
           <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-300">
-            {team?.name ?? "Mein Team"}
+            {team?.name ?? t("my_team")}
           </p>
           <div className="mt-3 flex items-center gap-4">
             <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-white/10 ring-1 ring-white/20">
               {player.photo_url ? (
                 <div
-                  aria-label={`Portrait von ${player.name}`}
+                  aria-label={t("portrait_of", { name: player.name })}
                   className="h-full w-full bg-cover bg-center"
                   role="img"
                   style={{ backgroundImage: `url(${player.photo_url})` }}
@@ -333,10 +335,10 @@ export default async function PlayerPublicPage({ params }: PlayerPagePublicProps
             </div>
             <div className="min-w-0">
               <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
-                Hallo {player.first_name ?? player.name}
+                {t("hello", { name: player.first_name ?? player.name })}
               </h1>
               <p className="mt-1 text-[13px] text-slate-300">
-                {player.position ?? "Position offen"}
+                {player.position ?? t("position_open")}
                 {player.team_category ? ` · ${player.team_category}` : ""}
                 {player.jersey_number ? ` · #${player.jersey_number}` : ""}
               </p>
@@ -348,7 +350,7 @@ export default async function PlayerPublicPage({ params }: PlayerPagePublicProps
                 {risk === "red" ? "🔴" : risk === "yellow" ? "🟡" : "🟢"}
               </span>
               <span className="text-[13px] font-medium">
-                Letzter Check · {formatDate(latestHealth!.checkin_date)}
+                {t("last_check", { date: formatDate(latestHealth!.checkin_date) })}
               </span>
             </div>
           ) : null}
@@ -377,13 +379,13 @@ export default async function PlayerPublicPage({ params }: PlayerPagePublicProps
             <CardContent className="p-4">
               <Flame aria-hidden="true" className="h-5 w-5 text-orange-600" />
               <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-orange-700">
-                Streak
+                {t("streak")}
               </p>
               <p className="mt-1 text-3xl font-semibold tracking-tight text-orange-950">
                 {streak}
               </p>
               <p className="text-[12px] text-orange-700/80">
-                {streak === 1 ? "Tag" : "Tage"} in Folge
+                {t("days_in_a_row", { count: streak })}
               </p>
             </CardContent>
           </Card>
@@ -391,7 +393,7 @@ export default async function PlayerPublicPage({ params }: PlayerPagePublicProps
             <CardContent className="p-4">
               <Medal aria-hidden="true" className="h-5 w-5 text-amber-600" />
               <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                Winnerpunkte
+                {t("winnerpoints")}
               </p>
               <p className="mt-1 text-3xl font-semibold tracking-tight">
                 {winnerPointTotal(points)}
@@ -402,7 +404,7 @@ export default async function PlayerPublicPage({ params }: PlayerPagePublicProps
             <CardContent className="p-4">
               <TrendingUp aria-hidden="true" className="h-5 w-5 text-emerald-600" />
               <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                Ø Bewertung
+                {t("avg_rating")}
               </p>
               <p className="mt-1 text-3xl font-semibold tracking-tight">
                 {avgEvaluation !== null ? avgEvaluation.toFixed(1) : "–"}
@@ -413,7 +415,7 @@ export default async function PlayerPublicPage({ params }: PlayerPagePublicProps
             <CardContent className="p-4">
               <Award aria-hidden="true" className="h-5 w-5 text-violet-600" />
               <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                Auszeichnungen
+                {t("awards")}
               </p>
               <p className="mt-1 text-3xl font-semibold tracking-tight">
                 {awards.length}
@@ -430,7 +432,7 @@ export default async function PlayerPublicPage({ params }: PlayerPagePublicProps
                 aria-hidden="true"
                 className="h-4.5 w-4.5 text-primary"
               />
-              Mein Spielplan
+              {t("my_schedule")}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2.5">
@@ -443,7 +445,7 @@ export default async function PlayerPublicPage({ params }: PlayerPagePublicProps
                       time: item.start_time,
                       title: item.focus,
                       location: item.location,
-                      label: "Training",
+                      label: t("training"),
                       tone: "border-emerald-200 bg-emerald-50/60 text-emerald-900",
                       icon: <CalendarDays className="h-4 w-4" />
                     }
@@ -453,7 +455,7 @@ export default async function PlayerPublicPage({ params }: PlayerPagePublicProps
                       time: item.kickoff_time,
                       title: `vs. ${item.opponent}`,
                       location: item.location,
-                      label: "Spiel",
+                      label: t("match"),
                       tone: "border-amber-200 bg-amber-50/60 text-amber-900",
                       icon: <Trophy className="h-4 w-4" />
                     }
@@ -488,7 +490,7 @@ export default async function PlayerPublicPage({ params }: PlayerPagePublicProps
               ))}
             {trainings.length === 0 && matches.length === 0 ? (
               <p className="rounded-xl border border-dashed border-border p-6 text-center text-[13px] text-muted-foreground">
-                Aktuell keine Termine geplant.
+                {t("no_dates")}
               </p>
             ) : null}
           </CardContent>
@@ -507,11 +509,11 @@ export default async function PlayerPublicPage({ params }: PlayerPagePublicProps
         <PublicSeasonForm accessToken={accessToken} player={player} />
 
         <p className="pt-4 text-center text-[11px] text-muted-foreground">
-          Persönlicher Spieler-Bereich · CoachOS
+          {t("footer")}
           {unreadCount > 0 ? (
             <Badge className="ml-2" variant="destructive">
               <Inbox aria-hidden="true" className="mr-1 h-3 w-3" />
-              {unreadCount} ungelesen
+              {t("unread", { count: unreadCount })}
             </Badge>
           ) : null}
         </p>
