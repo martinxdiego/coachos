@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import {
   CalendarPlus,
   ClipboardList,
@@ -42,13 +43,13 @@ type QuickPlayer = {
 };
 
 const quickCreateModes = [
-  { id: "player", label: "Spieler", icon: UserPlus },
-  { id: "training", label: "Training", icon: CalendarPlus },
-  { id: "match", label: "Spiel", icon: Trophy },
-  { id: "winner", label: "Winner", icon: Medal },
-  { id: "health", label: "Check-in", icon: HeartPulse },
-  { id: "task", label: "Aufgabe", icon: ClipboardList }
-] satisfies { id: QuickCreateMode; label: string; icon: typeof Plus }[];
+  { id: "player", labelKey: "mode_player", icon: UserPlus },
+  { id: "training", labelKey: "mode_training", icon: CalendarPlus },
+  { id: "match", labelKey: "mode_match", icon: Trophy },
+  { id: "winner", labelKey: "mode_winner", icon: Medal },
+  { id: "health", labelKey: "mode_health", icon: HeartPulse },
+  { id: "task", labelKey: "mode_task", icon: ClipboardList }
+] satisfies { id: QuickCreateMode; labelKey: string; icon: typeof Plus }[];
 
 function ModeButton({
   active,
@@ -83,6 +84,8 @@ export function QuickCreate({
   enabled: boolean;
   players: QuickPlayer[];
 }) {
+  const t = useTranslations("quickcreate");
+  const tScale = useTranslations("checkin");
   const [isOpen, setIsOpen] = useState(false);
   const [mode, setMode] = useState<QuickCreateMode>("training");
   const today = todayIsoDate();
@@ -94,7 +97,7 @@ export function QuickCreate({
   return (
     <>
       <button
-        aria-label="Schnell erstellen"
+        aria-label={t("fab_label")}
         className="fixed bottom-24 right-5 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-[0_12px_32px_rgba(16,185,129,0.32),0_2px_6px_rgba(15,23,42,0.18)] transition-transform duration-200 ease-spring hover:scale-105 active:scale-95 md:bottom-7 md:right-7"
         onClick={() => setIsOpen(true)}
         type="button"
@@ -105,7 +108,7 @@ export function QuickCreate({
       {isOpen ? (
         <div className="fixed inset-0 z-50">
           <button
-            aria-label="Schnell erstellen schließen"
+            aria-label={t("close_overlay")}
             className="absolute inset-0 bg-slate-950/40 backdrop-blur-sm animate-fade-in"
             onClick={() => setIsOpen(false)}
             type="button"
@@ -114,14 +117,14 @@ export function QuickCreate({
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-primary">
-                  Schnellerfassung
+                  {t("eyebrow")}
                 </p>
                 <h2 className="mt-1 text-2xl font-semibold tracking-tight">
-                  Was möchtest du anlegen?
+                  {t("heading")}
                 </h2>
               </div>
               <Button
-                aria-label="Schließen"
+                aria-label={t("close")}
                 onClick={() => setIsOpen(false)}
                 size="icon"
                 type="button"
@@ -137,7 +140,7 @@ export function QuickCreate({
                   active={mode === item.id}
                   icon={item.icon}
                   key={item.id}
-                  label={item.label}
+                  label={t(item.labelKey)}
                   onClick={() => setMode(item.id)}
                 />
               ))}
@@ -149,25 +152,25 @@ export function QuickCreate({
                   action={createPlayer}
                   className="space-y-4"
                   onComplete={() => setIsOpen(false)}
-                  successMessage="Spieler gespeichert"
+                  successMessage={t("player_saved")}
                 >
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div className="space-y-2">
-                      <Label htmlFor="qc-first-name">Vorname</Label>
+                      <Label htmlFor="qc-first-name">{t("first_name")}</Label>
                       <Input id="qc-first-name" name="first_name" required />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="qc-last-name">Nachname</Label>
+                      <Label htmlFor="qc-last-name">{t("last_name")}</Label>
                       <Input id="qc-last-name" name="last_name" required />
                     </div>
                   </div>
                   <div className="grid gap-3 sm:grid-cols-3">
-                    <Input name="position" placeholder="Position" />
-                    <Input name="birth_year" placeholder="Jahrgang" type="number" />
-                    <Input name="jersey_number" placeholder="Nummer" type="number" />
+                    <Input name="position" placeholder={t("position_ph")} />
+                    <Input name="birth_year" placeholder={t("birth_year_ph")} type="number" />
+                    <Input name="jersey_number" placeholder={t("number_ph")} type="number" />
                   </div>
                   <Button className="w-full" type="submit">
-                    Spieler speichern
+                    {t("save_player")}
                   </Button>
                 </ToastForm>
               ) : null}
@@ -177,7 +180,7 @@ export function QuickCreate({
                   action={createTraining}
                   className="space-y-4"
                   onComplete={() => setIsOpen(false)}
-                  successMessage="Training erstellt"
+                  successMessage={t("training_created")}
                 >
                   <div className="grid gap-3 sm:grid-cols-2">
                     <Input defaultValue={today} name="date" required type="date" />
@@ -185,16 +188,16 @@ export function QuickCreate({
                   </div>
                   <Input
                     name="focus"
-                    placeholder="Schwerpunkt, z.B. Pressing"
+                    placeholder={t("focus_ph")}
                     required
                   />
                   <div className="grid gap-3 sm:grid-cols-2">
                     <Input defaultValue="90" name="duration_minutes" type="number" />
-                    <Input name="location" placeholder="Ort" />
+                    <Input name="location" placeholder={t("location_ph")} />
                   </div>
-                  <Textarea name="goal" placeholder="Trainingsziel optional" />
+                  <Textarea name="goal" placeholder={t("goal_ph")} />
                   <Button className="w-full" type="submit">
-                    Training erstellen
+                    {t("create_training")}
                   </Button>
                 </ToastForm>
               ) : null}
@@ -204,16 +207,16 @@ export function QuickCreate({
                   action={createMatch}
                   className="space-y-4"
                   onComplete={() => setIsOpen(false)}
-                  successMessage="Spiel geplant"
+                  successMessage={t("match_planned")}
                 >
-                  <Input name="opponent" placeholder="Gegner" required />
+                  <Input name="opponent" placeholder={t("opponent_ph")} required />
                   <div className="grid gap-3 sm:grid-cols-2">
                     <Input defaultValue={today} name="date" required type="date" />
                     <Input name="kickoff_time" type="time" />
                   </div>
                   <div className="grid gap-3 sm:grid-cols-2">
-                    <Input name="location" placeholder="Ort" />
-                    <Input name="meeting_point" placeholder="Treffpunkt" />
+                    <Input name="location" placeholder={t("location_ph")} />
+                    <Input name="meeting_point" placeholder={t("meeting_ph")} />
                   </div>
                   <select
                     className="flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -226,7 +229,7 @@ export function QuickCreate({
                     <option value="4-4-2">4-4-2</option>
                   </select>
                   <Button className="w-full" type="submit">
-                    Spiel planen
+                    {t("plan_match")}
                   </Button>
                 </ToastForm>
               ) : null}
@@ -237,7 +240,7 @@ export function QuickCreate({
                     action={addWinnerPoints}
                     className="space-y-4"
                     onComplete={() => setIsOpen(false)}
-                    successMessage="Winnerpunkte gespeichert"
+                    successMessage={t("winner_saved")}
                   >
                     <div className="grid gap-3 sm:grid-cols-2">
                       <select
@@ -266,27 +269,26 @@ export function QuickCreate({
                         defaultValue="training"
                         name="context_type"
                       >
-                        <option value="training">Training</option>
-                        <option value="match">Spiel</option>
-                        <option value="event">Event</option>
-                        <option value="monday_training">Montag</option>
-                        <option value="other">Sonstiges</option>
+                        <option value="training">{t("ctx_training")}</option>
+                        <option value="match">{t("ctx_match")}</option>
+                        <option value="event">{t("ctx_event")}</option>
+                        <option value="monday_training">{t("ctx_monday")}</option>
+                        <option value="other">{t("ctx_other")}</option>
                       </select>
                       <Input defaultValue={today} name="awarded_at" type="date" />
                     </div>
                     <Input
                       name="context_label"
-                      placeholder="Kontext, Gegner oder Event"
+                      placeholder={t("context_label_ph")}
                     />
-                    <Textarea name="reason" placeholder="Begründung optional" />
+                    <Textarea name="reason" placeholder={t("reason_ph")} />
                     <Button className="w-full" type="submit">
-                      Winnerpunkte speichern
+                      {t("save_winner")}
                     </Button>
                   </ToastForm>
                 ) : (
                   <p className="rounded-xl border border-dashed border-border p-4 text-sm text-muted-foreground">
-                    Erfasse zuerst Spieler, damit Winnerpunkte vergeben werden
-                    können.
+                    {t("no_players_winner")}
                   </p>
                 )
               ) : null}
@@ -297,7 +299,7 @@ export function QuickCreate({
                     action={saveHealthCheckin}
                     className="space-y-4"
                     onComplete={() => setIsOpen(false)}
-                    successMessage="Check-in gespeichert"
+                    successMessage={t("checkin_saved")}
                   >
                     <div className="grid gap-3 sm:grid-cols-2">
                       <select
@@ -318,41 +320,40 @@ export function QuickCreate({
                       defaultValue="training"
                       name="context_type"
                     >
-                      <option value="training">Vor Training</option>
-                      <option value="match">Vor Spiel</option>
-                      <option value="free">Freier Check</option>
+                      <option value="training">{t("chk_training")}</option>
+                      <option value="match">{t("chk_match")}</option>
+                      <option value="free">{t("chk_free")}</option>
                     </select>
                     <div className="grid gap-3 sm:grid-cols-2">
                       {([
-                        ["wellbeing", "Wohlbefinden", "high-good"],
-                        ["fatigue", "Müdigkeit", "low-good"],
-                        ["sleep_quality", "Schlaf", "high-good"],
-                        ["energy", "Energie", "high-good"],
-                        ["pain", "Schmerz", "low-good"],
-                        ["soreness", "Muskelkater", "low-good"],
-                        ["stress", "Stress", "low-good"],
-                        ["motivation", "Motivation", "high-good"],
-                        ["injury_feeling", "Verletzungsgefühl", "low-good"]
-                      ] as const).map(([name, label, direction]) => (
+                        ["wellbeing", "high-good"],
+                        ["fatigue", "low-good"],
+                        ["sleep_quality", "high-good"],
+                        ["energy", "high-good"],
+                        ["pain", "low-good"],
+                        ["soreness", "low-good"],
+                        ["stress", "low-good"],
+                        ["motivation", "high-good"],
+                        ["injury_feeling", "low-good"]
+                      ] as const).map(([name, direction]) => (
                         <ScoreScale
                           defaultValue={3}
                           direction={direction}
                           key={name}
-                          label={label}
+                          label={tScale(`scale.${name}`)}
                           name={name}
                           size="sm"
                         />
                       ))}
                     </div>
-                    <Textarea name="notes" placeholder="Hinweis optional" />
+                    <Textarea name="notes" placeholder={t("notes_ph")} />
                     <Button className="w-full" type="submit">
-                      Check-in speichern
+                      {t("save_checkin")}
                     </Button>
                   </ToastForm>
                 ) : (
                   <p className="rounded-xl border border-dashed border-border p-4 text-sm text-muted-foreground">
-                    Erfasse zuerst Spieler, damit Check-ins gespeichert werden
-                    können.
+                    {t("no_players_checkin")}
                   </p>
                 )
               ) : null}
@@ -362,12 +363,12 @@ export function QuickCreate({
                   action={createTask}
                   className="space-y-4"
                   onComplete={() => setIsOpen(false)}
-                  successMessage="Aufgabe erstellt"
+                  successMessage={t("task_created")}
                 >
-                  <Input name="title" placeholder="Aufgabe" required />
+                  <Input name="title" placeholder={t("task_ph")} required />
                   <Input name="due_date" type="date" />
                   <Button className="w-full" type="submit">
-                    Aufgabe erstellen
+                    {t("create_task")}
                   </Button>
                 </ToastForm>
               ) : null}

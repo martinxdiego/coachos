@@ -8,6 +8,7 @@ import {
   useRef,
   useState
 } from "react";
+import { useTranslations } from "next-intl";
 import { AlertTriangle, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -34,6 +35,7 @@ interface ActiveConfirm {
 }
 
 export function ConfirmProvider({ children }: { children: React.ReactNode }) {
+  const t = useTranslations("confirm");
   const [active, setActive] = useState<ActiveConfirm | null>(null);
   const confirmButtonRef = useRef<HTMLButtonElement | null>(null);
 
@@ -82,7 +84,7 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
       {active && options ? (
         <div className="fixed inset-0 z-[60] flex items-end justify-center sm:items-center">
           <button
-            aria-label="Schließen"
+            aria-label={t("close")}
             className="absolute inset-0 bg-slate-950/55 backdrop-blur-sm"
             onClick={() => close(false)}
             type="button"
@@ -131,7 +133,7 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
                 type="button"
                 variant="ghost"
               >
-                {options.cancelLabel ?? "Abbrechen"}
+                {options.cancelLabel ?? t("cancel")}
               </Button>
               <Button
                 onClick={() => close(true)}
@@ -140,7 +142,7 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
                 type="button"
                 variant={destructive ? "destructive" : "default"}
               >
-                {options.confirmLabel ?? "Bestätigen"}
+                {options.confirmLabel ?? t("confirm")}
               </Button>
             </div>
           </div>
