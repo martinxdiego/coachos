@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import {
   ArrowLeft,
   ArrowRight,
@@ -20,10 +21,7 @@ const STORAGE_KEY = "coachos.onboarding.dismissed.v1";
 
 interface Step {
   icon: LucideIcon;
-  eyebrow: string;
-  title: string;
-  body: string;
-  ctaLabel: string;
+  key: string;
   ctaHref: string;
   accent: string;
 }
@@ -31,43 +29,32 @@ interface Step {
 const steps: Step[] = [
   {
     icon: Compass,
-    eyebrow: "Schritt 1 · Überblick",
-    title: "Willkommen im Trainer-Cockpit",
-    body: "Heute, nächste Termine, offene Aufgaben und Belastungssignale auf einen Blick. Du siehst sofort, wo du als Erstes hin musst.",
-    ctaLabel: "Cockpit verstehen",
+    key: "step1",
     ctaHref: "/",
     accent: "from-emerald-500/15 to-emerald-500/0 text-emerald-700"
   },
   {
     icon: CalendarPlus,
-    eyebrow: "Schritt 2 · Training",
-    title: "Training in 30 Sekunden planen",
-    body: "Vorlagen mit Filter (U11, U13, Taktik, Fitness), Phasen, Material und Coachingpunkte sind bereits vorausgefüllt.",
-    ctaLabel: "Training planen",
+    key: "step2",
     ctaHref: "/trainings",
     accent: "from-sky-500/15 to-sky-500/0 text-sky-700"
   },
   {
     icon: HeartPulse,
-    eyebrow: "Schritt 3 · Wellness",
-    title: "Belastung im Blick behalten",
-    body: "Wellness-Check pro Spieler in unter 30 Sekunden. Kritische Werte erscheinen automatisch oben im Dashboard.",
-    ctaLabel: "Check-in starten",
+    key: "step3",
     ctaHref: "/health",
     accent: "from-red-500/15 to-red-500/0 text-red-700"
   },
   {
     icon: Trophy,
-    eyebrow: "Schritt 4 · Spieltag",
-    title: "Matchday vorbereiten",
-    body: "Aufstellung, Formation, Materialliste und Matchziele bündig an einem Ort. Kein Zettelchaos mehr am Spieltag.",
-    ctaLabel: "Matchday öffnen",
+    key: "step4",
     ctaHref: "/matches",
     accent: "from-amber-500/15 to-amber-500/0 text-amber-700"
   }
 ];
 
 export function DashboardOnboarding() {
+  const t = useTranslations("onboarding");
   const [visible, setVisible] = useState(false);
   const [step, setStep] = useState(0);
 
@@ -103,7 +90,7 @@ export function DashboardOnboarding() {
           type="button"
         >
           <Sparkles aria-hidden="true" className="h-3.5 w-3.5" />
-          Tour öffnen
+          {t("open_tour")}
         </button>
       </div>
     );
@@ -115,7 +102,7 @@ export function DashboardOnboarding() {
 
   return (
     <section
-      aria-label="Erste Schritte"
+      aria-label={t("aria_section")}
       className="relative overflow-hidden rounded-2xl border border-border/70 bg-card p-5 shadow-soft"
     >
       <span
@@ -136,18 +123,18 @@ export function DashboardOnboarding() {
             </span>
             <div className="min-w-0">
               <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-foreground/70">
-                {current.eyebrow}
+                {t(`${current.key}_eyebrow`)}
               </p>
               <h2 className="mt-1 text-[18px] font-semibold tracking-tight">
-                {current.title}
+                {t(`${current.key}_title`)}
               </h2>
               <p className="mt-1.5 max-w-xl text-[13px] leading-6 text-muted-foreground">
-                {current.body}
+                {t(`${current.key}_body`)}
               </p>
             </div>
           </div>
           <button
-            aria-label="Tour schliessen"
+            aria-label={t("close_tour")}
             className="rounded-full p-1.5 text-muted-foreground transition hover:bg-secondary hover:text-foreground"
             onClick={dismiss}
             type="button"
@@ -157,17 +144,20 @@ export function DashboardOnboarding() {
         </div>
 
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-          <div aria-label="Fortschritt" className="flex gap-1.5">
+          <div aria-label={t("progress")} className="flex gap-1.5">
             {steps.map((stepItem, index) => {
               const reached = index <= step;
               return (
                 <button
-                  aria-label={`Schritt ${index + 1}: ${stepItem.title}`}
+                  aria-label={t("step_aria", {
+                    n: index + 1,
+                    title: t(`${stepItem.key}_title`)
+                  })}
                   className={cn(
                     "h-1.5 w-8 rounded-full transition",
                     reached ? "bg-foreground" : "bg-secondary"
                   )}
-                  key={stepItem.title}
+                  key={stepItem.key}
                   onClick={() => setStep(index)}
                   type="button"
                 />
@@ -183,15 +173,15 @@ export function DashboardOnboarding() {
                 variant="ghost"
               >
                 <ArrowLeft aria-hidden="true" className="h-4 w-4" />
-                Zurück
+                {t("back")}
               </Button>
             ) : null}
             <Button asChild size="sm" variant="outline">
-              <Link href={current.ctaHref}>{current.ctaLabel}</Link>
+              <Link href={current.ctaHref}>{t(`${current.key}_cta`)}</Link>
             </Button>
             {isLast ? (
               <Button onClick={dismiss} size="sm" type="button">
-                Tour beenden
+                {t("finish")}
               </Button>
             ) : (
               <Button
@@ -199,7 +189,7 @@ export function DashboardOnboarding() {
                 size="sm"
                 type="button"
               >
-                Weiter
+                {t("next")}
                 <ArrowRight aria-hidden="true" className="h-4 w-4" />
               </Button>
             )}

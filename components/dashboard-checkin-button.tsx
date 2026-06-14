@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { HeartPulse } from "lucide-react";
 import { saveHealthCheckin } from "@/app/actions";
 import { ScoreScale } from "@/components/score-scale";
@@ -20,16 +21,16 @@ type CheckPlayer = {
 
 type Direction = "low-good" | "high-good";
 
-const checks: ReadonlyArray<readonly [string, string, Direction]> = [
-  ["wellbeing", "Wohlbefinden", "high-good"],
-  ["fatigue", "Müdigkeit", "low-good"],
-  ["sleep_quality", "Schlaf", "high-good"],
-  ["energy", "Energie", "high-good"],
-  ["pain", "Schmerzen", "low-good"],
-  ["soreness", "Muskelkater", "low-good"],
-  ["stress", "Stress", "low-good"],
-  ["motivation", "Motivation", "high-good"],
-  ["injury_feeling", "Verletzungsgefühl", "low-good"]
+const checks: ReadonlyArray<readonly [string, Direction]> = [
+  ["wellbeing", "high-good"],
+  ["fatigue", "low-good"],
+  ["sleep_quality", "high-good"],
+  ["energy", "high-good"],
+  ["pain", "low-good"],
+  ["soreness", "low-good"],
+  ["stress", "low-good"],
+  ["motivation", "high-good"],
+  ["injury_feeling", "low-good"]
 ];
 
 export function DashboardCheckinButton({
@@ -37,6 +38,8 @@ export function DashboardCheckinButton({
 }: {
   players: CheckPlayer[];
 }) {
+  const t = useTranslations("wellness");
+  const tScale = useTranslations("checkin");
   const [isOpen, setIsOpen] = useState(false);
   const today = todayIsoDate();
 
@@ -56,36 +59,36 @@ export function DashboardCheckinButton({
           </span>
           <span className="min-w-0">
             <span className="block text-[14px] font-semibold tracking-tight text-foreground">
-              Wellness-Check starten
+              {t("start_title")}
             </span>
             <span className="mt-0.5 block text-[12px] leading-5 text-muted-foreground">
-              Tagesform in unter 30 Sekunden
+              {t("start_subtitle")}
             </span>
           </span>
         </span>
       </button>
 
       <SideDrawer
-        description="Skala 1–5 pro Kriterium · grün = ok · rot = Warnsignal."
-        eyebrow="Wellness"
+        description={t("drawer_desc")}
+        eyebrow={t("drawer_eyebrow")}
         isOpen={isOpen}
         onClose={() => setIsOpen(false)}
-        title="Schnell-Check-in"
+        title={t("drawer_title")}
       >
         {players.length === 0 ? (
           <p className="rounded-xl border border-dashed border-border p-4 text-sm text-muted-foreground">
-            Erfasse zuerst Spieler, damit Check-ins gespeichert werden können.
+            {t("no_players")}
           </p>
         ) : (
           <ToastForm
             action={saveHealthCheckin}
             className="space-y-4"
             onComplete={() => { triggerConfetti({ x: 0.5, y: 0.4 }); setTimeout(() => setIsOpen(false), 80); }}
-            successMessage="Check-in gespeichert"
+            successMessage={t("success")}
           >
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="dash-checkin-player">Spieler</Label>
+                <Label htmlFor="dash-checkin-player">{t("player_label")}</Label>
                 <select
                   className="flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   id="dash-checkin-player"
@@ -100,7 +103,7 @@ export function DashboardCheckinButton({
                 </select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="dash-checkin-date">Datum</Label>
+                <Label htmlFor="dash-checkin-date">{t("date_label")}</Label>
                 <Input
                   defaultValue={today}
                   id="dash-checkin-date"
@@ -114,25 +117,25 @@ export function DashboardCheckinButton({
               defaultValue="training"
               name="context_type"
             >
-              <option value="training">Vor Training</option>
-              <option value="match">Vor Spiel</option>
-              <option value="free">Freier Check</option>
+              <option value="training">{t("ctx_training")}</option>
+              <option value="match">{t("ctx_match")}</option>
+              <option value="free">{t("ctx_free")}</option>
             </select>
             <div className="grid gap-3 sm:grid-cols-2">
-              {checks.map(([name, label, direction]) => (
+              {checks.map(([name, direction]) => (
                 <ScoreScale
                   defaultValue={3}
                   direction={direction}
                   key={name}
-                  label={label}
+                  label={tScale(`scale.${name}`)}
                   name={name}
                   size="sm"
                 />
               ))}
             </div>
-            <Textarea name="notes" placeholder="Hinweis, Schmerzen, Anpassung" />
+            <Textarea name="notes" placeholder={t("notes_ph")} />
             <Button className="w-full" type="submit">
-              Check-in speichern
+              {t("save")}
             </Button>
           </ToastForm>
         )}

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { getTranslations } from "next-intl/server";
 import {
   CalendarPlus,
   Shield,
@@ -11,8 +12,8 @@ import { cn } from "@/lib/utils";
 
 interface QuickAction {
   href: string;
-  label: string;
-  description: string;
+  labelKey: string;
+  descKey: string;
   icon: LucideIcon;
   accent: string;
 }
@@ -20,41 +21,42 @@ interface QuickAction {
 const actions: QuickAction[] = [
   {
     href: "/trainings",
-    label: "Training erstellen",
-    description: "Phasen, Material & Coachingpunkte",
+    labelKey: "training_label",
+    descKey: "training_desc",
     icon: CalendarPlus,
     accent: "from-emerald-500/15 to-emerald-500/0 text-emerald-700"
   },
   {
     href: "/matches",
-    label: "Matchday planen",
-    description: "Aufstellung, Formation, Ziele",
+    labelKey: "match_label",
+    descKey: "match_desc",
     icon: Trophy,
     accent: "from-amber-500/15 to-amber-500/0 text-amber-700"
   },
   {
     href: "/players",
-    label: "Spieler hinzufügen",
-    description: "Schnellerfassung oder Detail",
+    labelKey: "player_label",
+    descKey: "player_desc",
     icon: UserPlus,
     accent: "from-sky-500/15 to-sky-500/0 text-sky-700"
   },
   {
     href: "/tactics",
-    label: "Taktikboard öffnen",
-    description: "Spielzüge & Animationen",
+    labelKey: "tactics_label",
+    descKey: "tactics_desc",
     icon: Shield,
     accent: "from-violet-500/15 to-violet-500/0 text-violet-700"
   }
 ];
 
-export function DashboardQuickActions({
+export async function DashboardQuickActions({
   players
 }: {
   players: { id: string; name: string }[];
 }) {
+  const t = await getTranslations("quickactions");
   return (
-    <section aria-label="Schnellaktionen">
+    <section aria-label={t("aria")}>
       <div className="grid gap-3 grid-cols-2 lg:grid-cols-5">
         <DashboardCheckinButton players={players} />
         {actions.map((action) => {
@@ -81,10 +83,10 @@ export function DashboardQuickActions({
                 </span>
                 <span className="min-w-0">
                   <span className="block text-[14px] font-semibold tracking-tight text-foreground">
-                    {action.label}
+                    {t(action.labelKey)}
                   </span>
                   <span className="mt-0.5 block text-[12px] leading-5 text-muted-foreground">
-                    {action.description}
+                    {t(action.descKey)}
                   </span>
                 </span>
               </span>
