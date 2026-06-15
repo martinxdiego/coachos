@@ -219,7 +219,7 @@ Alle Sicherheits-Stories umgesetzt; Typecheck + Lint grün. **Ausstehende User-A
   First-Run-Wizard: Team anlegen → Spieler einladen (QR/Link) → erstes Training planen. Empty-States mit Call-to-Action auf allen Listen-Seiten. Optional Demo-Daten ("Beispielteam laden").
   *AK:* Neuer Account erreicht ohne Doku ein angelegtes Training; Abbruchquote im Wizard messbar (S7.4).
 
-- [ ] **S6.4 (P2, 2 SP) Formular-UX**
+- [x] **S6.4 (P2, 2 SP) Formular-UX** ✅ (`63c12a3`) — Login/Signup Inline-Validierung + Pending-State (useActionState) + Toasts statt ?message=
   Login/Signup: Inline-Validierung statt `?message=`-Query-Param; Submit-Buttons mit Pending-State (useFormStatus); Erfolgs-/Fehler-Toasts konsistent.
   *AK:* Falsches Passwort zeigt Inline-Fehler ohne Page-Reload-Roundtrip-Verwirrung.
 
