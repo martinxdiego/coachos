@@ -44,7 +44,6 @@ import type { Role } from "@prisma/client";
 import {
   phaseTypes,
   trainingPresets,
-  redirectWithMessage,
   canManageWorkspace,
   inviteCode,
   playerName,
@@ -70,9 +69,23 @@ import {
   looksLikeMatchImportHeader
 } from "./_shared";
 
-export async function signIn(formData: FormData) {
-  const email = requiredString(formData, "email", "Email");
-  const password = requiredString(formData, "password", "Password");
+// S6.4: Auth-Formulare geben einen serialisierbaren Zustand mit einem stabilen
+// Code zurück (statt per ?message=-Redirect), damit der Client Fehler inline +
+// als Toast anzeigen kann. Die Codes werden client-seitig übersetzt.
+export type AuthFormState =
+  | { status: "error"; code: string }
+  | { status: "success"; code: string }
+  | null;
+
+export async function signIn(
+  _prevState: AuthFormState,
+  formData: FormData
+): Promise<AuthFormState> {
+  const email = String(formData.get("email") ?? "").trim();
+  const password = String(formData.get("password") ?? "");
+  if (!email || !password) {
+    return { status: "error", code: "missing_fields" };
+  }
 
   try {
     await nextAuthSignIn("credentials", {
@@ -81,39 +94,46 @@ export async function signIn(formData: FormData) {
       redirectTo: "/"
     });
   } catch (error: any) {
-    if (error.digest?.startsWith("NEXT_REDIRECT")) {
+    // Erfolg löst einen NEXT_REDIRECT aus — den durchreichen, damit Next
+    // navigiert. Alles andere ist ein fehlgeschlagener Login (generisch,
+    // verrät nicht, ob die E-Mail existiert — siehe S1.6).
+    if (error?.digest?.startsWith("NEXT_REDIRECT")) {
       throw error;
     }
-    redirectWithMessage("/login", "UngÃ¼ltige E-Mail-Adresse oder Passwort.");
+    return { status: "error", code: "invalid_credentials" };
   }
+  return null;
 }
 
-export async function signUp(formData: FormData) {
-  const email = requiredString(formData, "email", "Email").toLowerCase();
-  const password = requiredString(formData, "password", "Password");
+export async function signUp(
+  _prevState: AuthFormState,
+  formData: FormData
+): Promise<AuthFormState> {
+  const email = String(formData.get("email") ?? "").trim().toLowerCase();
+  const password = String(formData.get("password") ?? "");
 
+  if (!email || !password) {
+    return { status: "error", code: "missing_fields" };
+  }
   if (password.length < 10) {
-    redirectWithMessage("/login", "Das Passwort muss mindestens 10 Zeichen lang sein.");
+    return { status: "error", code: "password_too_short" };
   }
 
   try {
     const existingUser = await db.user.findUnique({ where: { email } });
-
     if (existingUser) {
-      redirectWithMessage("/login", "Ein Benutzer mit dieser E-Mail existiert bereits.");
+      return { status: "error", code: "email_exists" };
     }
 
     const passwordHash = await bcrypt.hash(password, 10);
-
     await db.user.create({
       data: { email, passwordHash, role: "COACH" },
     });
 
-    redirectWithMessage("/login", "Registrierung erfolgreich. Bitte melde dich an.");
+    return { status: "success", code: "signup_success" };
   } catch (err: any) {
-    if (err?.digest?.startsWith("NEXT_REDIRECT")) throw err;
-    console.error("[signUp] error:", err?.code, err?.message, err);
-    redirectWithMessage("/login", "Registrierung fehlgeschlagen â€“ bitte versuche es erneut.");
+    console.error("[signUp] error:", err?.code, err?.message);
+    return { status: "error", code: "signup_failed" };
   }
 }
 

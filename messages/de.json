@@ -28,7 +28,13 @@
     "signin_button": "Einloggen",
     "signup_title": "Account erstellen",
     "signup_subtitle": "Danach erstellst du einen Workspace oder trittst per Code bei.",
-    "signup_button": "Account erstellen"
+    "signup_button": "Account erstellen",
+    "err_missing_fields": "Bitte E-Mail und Passwort ausfüllen.",
+    "err_invalid_credentials": "Ungültige E-Mail-Adresse oder Passwort.",
+    "err_password_too_short": "Das Passwort muss mindestens 10 Zeichen lang sein.",
+    "err_email_exists": "Ein Benutzer mit dieser E-Mail existiert bereits.",
+    "err_signup_failed": "Registrierung fehlgeschlagen – bitte versuche es erneut.",
+    "notice_signup_success": "Registrierung erfolgreich. Bitte melde dich an."
   },
   "join": {
     "badge": "Team-Beitritt",

@@ -28,7 +28,13 @@
     "signin_button": "Sign in",
     "signup_title": "Create account",
     "signup_subtitle": "Then create a workspace or join with a code.",
-    "signup_button": "Create account"
+    "signup_button": "Create account",
+    "err_missing_fields": "Please enter email and password.",
+    "err_invalid_credentials": "Invalid email address or password.",
+    "err_password_too_short": "The password must be at least 10 characters long.",
+    "err_email_exists": "A user with this email already exists.",
+    "err_signup_failed": "Sign-up failed — please try again.",
+    "notice_signup_success": "Sign-up successful. Please sign in."
   },
   "join": {
     "badge": "Team join",

@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
-import { KeyRound, ShieldCheck, UsersRound } from "lucide-react";
-import { signIn, signUp } from "@/app/actions";
+import { KeyRound, Loader2, ShieldCheck, UsersRound } from "lucide-react";
+import { toast } from "sonner";
+import { signIn, signUp, type AuthFormState } from "@/app/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -38,6 +39,31 @@ const FEATURES = [
 export default function LoginPage() {
   const t = useTranslations("auth");
   const [revealed, setRevealed] = useState(false);
+
+  const [signinState, signinAction, signinPending] = useActionState<
+    AuthFormState,
+    FormData
+  >(signIn, null);
+  const [signupState, signupAction, signupPending] = useActionState<
+    AuthFormState,
+    FormData
+  >(signUp, null);
+
+  // Konsistente Toasts zusätzlich zur Inline-Anzeige.
+  useEffect(() => {
+    if (signinState?.status === "error") {
+      toast.error(t(`err_${signinState.code}`));
+    }
+  }, [signinState, t]);
+
+  useEffect(() => {
+    if (!signupState) return;
+    if (signupState.status === "success") {
+      toast.success(t(`notice_${signupState.code}`));
+    } else {
+      toast.error(t(`err_${signupState.code}`));
+    }
+  }, [signupState, t]);
 
   useEffect(() => {
     // Prefers-reduced-motion: Intro überspringen
@@ -198,7 +224,7 @@ export default function LoginPage() {
                 </p>
               </div>
               <div className="px-6 py-5">
-                <form action={signIn} className="space-y-4">
+                <form action={signinAction} className="space-y-4">
                   <div className="space-y-1.5">
                     <Label className="text-slate-700" htmlFor="signin-email">{t("email")}</Label>
                     <Input
@@ -214,6 +240,10 @@ export default function LoginPage() {
                   <div className="space-y-1.5">
                     <Label className="text-slate-700" htmlFor="signin-password">{t("password")}</Label>
                     <Input
+                      aria-describedby={
+                        signinState?.status === "error" ? "signin-error" : undefined
+                      }
+                      aria-invalid={signinState?.status === "error"}
                       autoComplete="current-password"
                       className="border-slate-200 bg-slate-50 text-slate-900 transition-shadow placeholder:text-slate-400 focus:border-emerald-400 focus:bg-white focus:shadow-[0_0_0_3px_rgba(16,185,129,.12)] focus:ring-0"
                       id="signin-password"
@@ -222,11 +252,28 @@ export default function LoginPage() {
                       type="password"
                     />
                   </div>
+                  {signinState?.status === "error" ? (
+                    <p
+                      className="rounded-lg bg-red-50 px-3 py-2 text-[13px] font-medium text-red-700"
+                      id="signin-error"
+                      role="alert"
+                    >
+                      {t(`err_${signinState.code}`)}
+                    </p>
+                  ) : null}
                   <Button
                     className="relative w-full overflow-hidden bg-emerald-600 text-white shadow-[0_2px_12px_rgba(16,185,129,.35)] transition-all duration-200 hover:bg-emerald-500 hover:shadow-[0_4px_20px_rgba(16,185,129,.45)] active:scale-[.98]"
+                    disabled={signinPending}
                     type="submit"
                   >
-                    {t("signin_button")}
+                    {signinPending ? (
+                      <>
+                        <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
+                        {t("signin_button")}
+                      </>
+                    ) : (
+                      t("signin_button")
+                    )}
                   </Button>
                 </form>
               </div>
@@ -243,7 +290,7 @@ export default function LoginPage() {
                 </p>
               </div>
               <div className="px-6 py-5">
-                <form action={signUp} className="space-y-4">
+                <form action={signupAction} className="space-y-4">
                   <div className="space-y-1.5">
                     <Label className="text-slate-300" htmlFor="signup-email">{t("email")}</Label>
                     <Input
@@ -259,6 +306,10 @@ export default function LoginPage() {
                   <div className="space-y-1.5">
                     <Label className="text-slate-300" htmlFor="signup-password">{t("password")}</Label>
                     <Input
+                      aria-describedby={
+                        signupState ? "signup-message" : undefined
+                      }
+                      aria-invalid={signupState?.status === "error"}
                       autoComplete="new-password"
                       className="border-white/10 bg-white/10 text-white placeholder:text-slate-500 focus:border-emerald-400/50 focus:bg-white/15 focus:shadow-[0_0_0_3px_rgba(16,185,129,.1)] focus:ring-0"
                       id="signup-password"
@@ -268,12 +319,35 @@ export default function LoginPage() {
                       type="password"
                     />
                   </div>
+                  {signupState ? (
+                    <p
+                      className={
+                        signupState.status === "success"
+                          ? "rounded-lg bg-emerald-500/15 px-3 py-2 text-[13px] font-medium text-emerald-300"
+                          : "rounded-lg bg-red-500/15 px-3 py-2 text-[13px] font-medium text-red-300"
+                      }
+                      id="signup-message"
+                      role={signupState.status === "success" ? "status" : "alert"}
+                    >
+                      {signupState.status === "success"
+                        ? t(`notice_${signupState.code}`)
+                        : t(`err_${signupState.code}`)}
+                    </p>
+                  ) : null}
                   <Button
                     className="w-full border border-white/15 bg-white/10 text-white transition-all duration-200 hover:bg-white/18 active:scale-[.98]"
+                    disabled={signupPending}
                     type="submit"
                     variant="ghost"
                   >
-                    {t("signup_button")}
+                    {signupPending ? (
+                      <>
+                        <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
+                        {t("signup_button")}
+                      </>
+                    ) : (
+                      t("signup_button")
+                    )}
                   </Button>
                 </form>
               </div>
