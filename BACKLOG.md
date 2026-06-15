@@ -211,7 +211,7 @@ Alle Sicherheits-Stories umgesetzt; Typecheck + Lint grün. **Ausstehende User-A
   Kern-Navigation: Heute / Training / Spiele / Team / Einstellungen. Sekundäres (Analyse, Material, Taktikboard, Kalender) als Unterpunkte. Max. 5 Bottom-Nav-Items mobil.
   *AK:* Nav-Review mit 2 Test-Trainern (Think-aloud); Aufgabenerfolg "neues Training anlegen" < 30 s.
 
-- [ ] **S6.2 (P2, 5 SP) Vereins-Spezifika generalisieren**
+- [x] **S6.2 (P2, 5 SP) Vereins-Spezifika generalisieren** ✅ (`0a4bd65`) — Punkte/Auszeichnungen/Vereinslinks pro Workspace konfigurierbar (neutrale Defaults, Bestand behält Begriffe via i18n-Overlay). Offen separat: „Montagstraining"→wiederkehrende Serie (Scheduling-Feature), SC-Emmen-Logo
   "Hut-System" → konfigurierbares "Auszeichnungen"-Modul (Name/Icon pro Workspace einstellbar); "Winnerpunkte" → "Teampunkte" (umbenennbar); "Montagstraining" → wiederkehrende Trainingsserie (beliebiger Wochentag); "Clubcorner/Quali" → generische "Vereinslinks".
   *AK:* Neuer Workspace startet mit neutralen Defaults; Bestands-Workspace behält seine Begriffe via Konfiguration.
 
