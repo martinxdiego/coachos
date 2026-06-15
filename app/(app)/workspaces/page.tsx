@@ -166,6 +166,48 @@ export default async function WorkspacesPage({
                         />
                       </div>
                     </div>
+
+                    <div className="space-y-3 rounded-xl border border-border/70 bg-secondary/30 p-4">
+                      <div>
+                        <p className="text-sm font-medium tracking-tight">
+                          Eigene Begriffe
+                        </p>
+                        <p className="mt-0.5 text-[12px] text-muted-foreground">
+                          Leer lassen für die neutralen Standardbegriffe. Wirkt
+                          auf Navigation und Seitentitel.
+                        </p>
+                      </div>
+                      <div className="grid gap-4 sm:grid-cols-3">
+                        <div className="space-y-2">
+                          <Label htmlFor="points_label">Punkte</Label>
+                          <Input
+                            defaultValue={team.pointsLabel ?? ""}
+                            id="points_label"
+                            name="points_label"
+                            placeholder="Teampunkte"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="awards_label">Auszeichnungen</Label>
+                          <Input
+                            defaultValue={team.awardsLabel ?? ""}
+                            id="awards_label"
+                            name="awards_label"
+                            placeholder="Auszeichnungen"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="links_label">Vereinslinks</Label>
+                          <Input
+                            defaultValue={team.linksLabel ?? ""}
+                            id="links_label"
+                            name="links_label"
+                            placeholder="Vereinslinks"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
                     <Button type="submit">Workspace speichern</Button>
                   </form>
                 ) : (

@@ -39,7 +39,7 @@
   "pages": {
     "workspaces_title": "Workspaces",
     "workspaces_desc": "Create, switch or extend your private coaching workspaces.",
-    "awards_title": "Hat System",
+    "awards_title": "Awards",
     "awards_desc": "Man of the Week / hat system with current winner, handover and hall of fame.",
     "evaluations_title": "Player ratings",
     "evaluations_desc": "Quick 1-to-5 ratings per training, match or event with a coach overview.",
@@ -59,9 +59,9 @@
     "pitch_desc": "Reduced mobile view for training, attendance, matchday and tactics on the pitch.",
     "monday_title": "Monday Training",
     "monday_desc": "Separate Monday training for players from multiple categories with attendance, ratings and assistant-coach review.",
-    "clubcorner_title": "Clubcorner / Quali",
+    "clubcorner_title": "Club Links",
     "clubcorner_desc": "External tools, Clubcorner links and concise qualification talking points per player.",
-    "points_title": "Winner Points",
+    "points_title": "Team Points",
     "points_desc": "Fast point allocation during training, match or event with a season leaderboard."
   },
   "register": {
@@ -338,10 +338,10 @@
     "players": "Players",
     "evaluations": "Evaluations",
     "health": "Health",
-    "awards": "Hat System",
-    "winnerpoints": "Winner Points",
+    "awards": "Awards",
+    "winnerpoints": "Team Points",
     "club": "Club",
-    "clubcorner": "Clubcorner / Quali",
+    "clubcorner": "Club Links",
     "playermode": "Player Mode",
     "settings": "Settings",
     "section": "Section"

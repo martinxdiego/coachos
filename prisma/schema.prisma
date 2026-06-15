@@ -23,6 +23,9 @@ model Workspace {
   name            String
   season          String?
   ageGroup        String?
+  pointsLabel     String?
+  awardsLabel     String?
+  linksLabel      String?
   members         WorkspaceMember[]
   players         Player[]
   trainings       Training[]

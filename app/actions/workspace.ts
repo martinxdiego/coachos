@@ -108,11 +108,14 @@ export async function updateTeam(formData: FormData) {
     data: {
       name: requiredString(formData, "name", "Workspace name"),
       season: optionalString(formData, "season"),
-      ageGroup: optionalString(formData, "age_group")
+      ageGroup: optionalString(formData, "age_group"),
+      pointsLabel: optionalString(formData, "points_label"),
+      awardsLabel: optionalString(formData, "awards_label"),
+      linksLabel: optionalString(formData, "links_label")
     }
   });
 
-  revalidatePath("/");
+  revalidatePath("/", "layout");
   revalidatePath("/workspaces");
 }
 

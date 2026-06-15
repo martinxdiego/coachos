@@ -39,7 +39,7 @@
   "pages": {
     "workspaces_title": "Workspaces",
     "workspaces_desc": "Erstelle, wechsle oder erweitere deine privaten Trainer-Workspaces.",
-    "awards_title": "Hut-System",
+    "awards_title": "Auszeichnungen",
     "awards_desc": "Man of the Week / Hut-System mit aktuellem Gewinner, Übergabe und Hall of Fame.",
     "evaluations_title": "Spielerbewertungen",
     "evaluations_desc": "Schnelle 1-bis-5-Bewertungen pro Training, Spiel oder Event mit Trainerübersicht.",
@@ -59,9 +59,9 @@
     "pitch_desc": "Reduzierte mobile Ansicht für Training, Anwesenheit, Spieltag und Taktik auf dem Platz.",
     "monday_title": "Montagstraining",
     "monday_desc": "Separates Montagstraining für Spieler aus mehreren Kategorien mit Anwesenheit, Bewertung und Co-Trainer-Auswertung.",
-    "clubcorner_title": "Clubcorner / Quali",
+    "clubcorner_title": "Vereinslinks",
     "clubcorner_desc": "Externe Tools, Clubcorner-Links und kompakte Quali-Gesprächsgrundlagen pro Spieler.",
-    "points_title": "Winnerpunkte",
+    "points_title": "Teampunkte",
     "points_desc": "Schnelle Punktevergabe während Training, Spiel oder Event mit Saison-Leaderboard."
   },
   "register": {
@@ -338,10 +338,10 @@
     "players": "Spieler",
     "evaluations": "Bewertungen",
     "health": "Gesundheit",
-    "awards": "Hut-System",
-    "winnerpoints": "Winnerpunkte",
+    "awards": "Auszeichnungen",
+    "winnerpoints": "Teampunkte",
     "club": "Verein",
-    "clubcorner": "Clubcorner / Quali",
+    "clubcorner": "Vereinslinks",
     "playermode": "Spieler-Modus",
     "settings": "Einstellungen",
     "section": "Bereich"
