@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 
 type Direction = "low-good" | "high-good";
@@ -42,6 +42,40 @@ export function ScoreScale({
   const [popped, setPopped] = useState<number | null>(null);
   const active = colorFor(value, direction);
   const heightClass = size === "sm" ? "h-9 text-[13px]" : "h-11 text-[14px]";
+  const buttonRefs = useRef<(HTMLButtonElement | null)[]>([]);
+
+  function select(option: number) {
+    setValue(option);
+    setPopped(option);
+    setTimeout(() => setPopped(null), 300);
+  }
+
+  // Arrow/Home/End move the selection within the radiogroup (WCAG 2.1.1) and
+  // keep focus on the newly selected option, matching native radio behaviour.
+  function handleKeyDown(event: React.KeyboardEvent<HTMLButtonElement>) {
+    let next: number | null = null;
+    switch (event.key) {
+      case "ArrowRight":
+      case "ArrowDown":
+        next = value === 5 ? 1 : value + 1;
+        break;
+      case "ArrowLeft":
+      case "ArrowUp":
+        next = value === 1 ? 5 : value - 1;
+        break;
+      case "Home":
+        next = 1;
+        break;
+      case "End":
+        next = 5;
+        break;
+      default:
+        return;
+    }
+    event.preventDefault();
+    select(next);
+    buttonRefs.current[next - 1]?.focus();
+  }
 
   return (
     <div className="space-y-1.5">
@@ -71,6 +105,7 @@ export function ScoreScale({
           return (
             <button
               aria-checked={isActive}
+              aria-label={`${option}/5`}
               className={cn(
                 "flex items-center justify-center rounded-lg border font-semibold tracking-tight transition-all duration-150 active:scale-[0.97]",
                 heightClass,
@@ -79,10 +114,10 @@ export function ScoreScale({
                   : "border-border bg-card text-muted-foreground hover:border-foreground/30 hover:text-foreground"
               )}
               key={option}
-              onClick={() => {
-                setValue(option);
-                setPopped(option);
-                setTimeout(() => setPopped(null), 300);
+              onClick={() => select(option)}
+              onKeyDown={handleKeyDown}
+              ref={(el) => {
+                buttonRefs.current[option - 1] = el;
               }}
               role="radio"
               tabIndex={isActive ? 0 : -1}

@@ -19,13 +19,14 @@ export function LanguageSwitcher() {
 
   return (
     <Button
+      aria-label={locale === "de" ? "Sprache wechseln zu Englisch" : "Switch language to German"}
       onClick={handleToggle}
       disabled={isPending}
       size="sm"
       variant="ghost"
       className="flex items-center gap-2 text-slate-300 hover:bg-slate-800 hover:text-white"
     >
-      <Globe className="h-4 w-4" />
+      <Globe aria-hidden="true" className="h-4 w-4" />
       <span className="text-xs font-semibold uppercase">{locale}</span>
     </Button>
   );

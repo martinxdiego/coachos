@@ -36,6 +36,12 @@ export function AppShell({
     <ConfirmProvider>
     <MoreNavProvider>
       <div className="min-h-screen bg-background">
+        <a
+          className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-emerald-600 focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-white focus:shadow-lg"
+          href="#main-content"
+        >
+          Zum Hauptinhalt springen
+        </a>
         <header className="sticky top-0 z-30 border-b border-white/5 bg-slate-950/85 text-white shadow-[0_12px_40px_rgba(15,23,42,0.18)] backdrop-blur-xl">
           <div className="mx-auto flex max-w-7xl items-center gap-4 px-4 py-3 sm:px-6">
             <Link className="flex items-center gap-2.5" href="/">
@@ -98,7 +104,11 @@ export function AppShell({
           </div>
         </header>
 
-        <main className="mx-auto max-w-7xl px-4 pb-32 pt-6 sm:px-6 sm:pt-8">
+        <main
+          className="mx-auto max-w-7xl px-4 pb-32 pt-6 sm:px-6 sm:pt-8"
+          id="main-content"
+          tabIndex={-1}
+        >
           <PageTransition>{children}</PageTransition>
         </main>
 

@@ -69,6 +69,8 @@ export function PublicCheckinCard({
       )}
     >
       <button
+        aria-controls="public-checkin-panel"
+        aria-expanded={expanded}
         className="flex w-full items-center justify-between gap-3 p-4 text-left"
         onClick={() => setExpanded((value) => !value)}
         type="button"
@@ -109,7 +111,10 @@ export function PublicCheckinCard({
       </button>
 
       {expanded ? (
-        <div className="border-t border-emerald-200/70 bg-white px-4 py-5">
+        <div
+          className="border-t border-emerald-200/70 bg-white px-4 py-5"
+          id="public-checkin-panel"
+        >
           <form action={handle} className="space-y-4">
             <input name="checkin_date" type="hidden" value={today} />
             <input
