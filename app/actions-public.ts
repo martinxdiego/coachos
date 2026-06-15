@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { resolvePlayerSignupInvite } from "@/lib/invites";
+import { CURRENT_CONSENT_VERSION } from "@/lib/consent";
 import type { HealthContextType, PlayerStatus } from "@/lib/types";
 
 const UUID_RE =
@@ -79,6 +80,20 @@ export async function selfRegisterPlayer(
     throw new Error("Beitritts-Link ist ungültig oder abgelaufen.");
   }
 
+  // S6.6: Ohne erteilte Eltern-/Erziehungsberechtigten-Einwilligung keine
+  // Registrierung — serverseitig erzwungen, nicht nur per Checkbox im Browser.
+  const consentGiven = String(formData.get("consent") ?? "").trim();
+  if (consentGiven !== "on" && consentGiven !== "true") {
+    throw new Error(
+      "Die Einwilligung der Eltern/Erziehungsberechtigten ist erforderlich."
+    );
+  }
+  const parentContact = reqString(
+    formData,
+    "parent_contact",
+    "Kontakt der Eltern/Erziehungsberechtigten"
+  );
+
   const firstName = reqString(formData, "first_name", "Vorname");
   const lastName = reqString(formData, "last_name", "Nachname");
   const birthDate = optString(formData, "birth_date");
@@ -102,8 +117,11 @@ export async function selfRegisterPlayer(
       weight: weightKg,
       position,
       jerseyNumber,
+      parentContact,
       status: "AVAILABLE",
       selfRegisteredAt: new Date(),
+      consentAcceptedAt: new Date(),
+      consentVersion: CURRENT_CONSENT_VERSION,
     },
     select: {
       id: true,

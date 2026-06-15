@@ -87,7 +87,14 @@
     "position_ph": "z.B. Stürmer",
     "jersey": "Trikotnummer",
     "creating": "Lege an…",
-    "submit": "Anmelden und Link erhalten"
+    "submit": "Anmelden und Link erhalten",
+    "parent_contact": "Kontakt Eltern/Erziehungsberechtigte *",
+    "parent_contact_ph": "E-Mail oder Telefon",
+    "consent_label": "Als Elternteil/erziehungsberechtigte Person willige ich in die Verarbeitung der hier erfassten Daten – einschliesslich Gesundheitsdaten (z. B. Verletzungen, Wohlbefinden) – zur Trainingsbetreuung ein.",
+    "consent_privacy_prefix": "Es gilt die",
+    "consent_privacy_link": "Datenschutzerklärung",
+    "consent_privacy_plain": "Es gilt die Datenschutzerklärung des Vereins",
+    "consent_health_note": "Die Gesundheits-Check-ins sind freiwillig. Die Einwilligung kann jederzeit beim Trainer widerrufen werden."
   },
   "player": {
     "my_team": "Mein Team",

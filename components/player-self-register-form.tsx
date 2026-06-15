@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import { CheckCircle2, Copy, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { selfRegisterPlayer } from "@/app/actions-public";
+import { PRIVACY_URL } from "@/lib/consent";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -143,6 +144,50 @@ export function PlayerSelfRegisterForm({ teamToken }: { teamToken: string }) {
             type="number"
           />
         </div>
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="parent_contact">{t("parent_contact")}</Label>
+        <Input
+          id="parent_contact"
+          name="parent_contact"
+          placeholder={t("parent_contact_ph")}
+          required
+        />
+      </div>
+
+      <div className="rounded-xl border border-border bg-secondary/40 p-3.5">
+        <label className="flex items-start gap-3 text-[13px] leading-6">
+          <input
+            className="mt-0.5 h-4 w-4 shrink-0 rounded border-input accent-emerald-600"
+            id="consent"
+            name="consent"
+            required
+            type="checkbox"
+          />
+          <span className="text-foreground/90">
+            {t("consent_label")}{" "}
+            {PRIVACY_URL ? (
+              <>
+                {t("consent_privacy_prefix")}{" "}
+                <a
+                  className="font-medium text-emerald-700 underline underline-offset-2"
+                  href={PRIVACY_URL}
+                  rel="noopener noreferrer"
+                  target="_blank"
+                >
+                  {t("consent_privacy_link")}
+                </a>
+                .
+              </>
+            ) : (
+              <>{t("consent_privacy_plain")}.</>
+            )}
+          </span>
+        </label>
+        <p className="mt-2 pl-7 text-[12px] leading-5 text-muted-foreground">
+          {t("consent_health_note")}
+        </p>
       </div>
 
       <Button className="h-12 w-full text-[15px]" disabled={isPending} type="submit">

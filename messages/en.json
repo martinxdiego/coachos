@@ -87,7 +87,14 @@
     "position_ph": "e.g. Striker",
     "jersey": "Jersey number",
     "creating": "Creating…",
-    "submit": "Register and get link"
+    "submit": "Register and get link",
+    "parent_contact": "Parent/guardian contact *",
+    "parent_contact_ph": "Email or phone",
+    "consent_label": "As a parent/legal guardian, I consent to the processing of the data entered here – including health data (e.g. injuries, well-being) – for coaching purposes.",
+    "consent_privacy_prefix": "See the",
+    "consent_privacy_link": "privacy policy",
+    "consent_privacy_plain": "The club’s privacy policy applies",
+    "consent_health_note": "Health check-ins are voluntary. Consent can be withdrawn at any time via the coach."
   },
   "player": {
     "my_team": "My team",

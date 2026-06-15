@@ -94,6 +94,8 @@ model Player {
   rating                Float?
   accessToken           String             @default(uuid())
   selfRegisteredAt      DateTime?
+  consentAcceptedAt     DateTime?
+  consentVersion        String?
   ratings               Rating[]
   healthChecks          HealthCheck[]
   awards                Award[]
