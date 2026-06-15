@@ -223,7 +223,7 @@ Alle Sicherheits-Stories umgesetzt; Typecheck + Lint grün. **Ausstehende User-A
   Login/Signup: Inline-Validierung statt `?message=`-Query-Param; Submit-Buttons mit Pending-State (useFormStatus); Erfolgs-/Fehler-Toasts konsistent.
   *AK:* Falsches Passwort zeigt Inline-Fehler ohne Page-Reload-Roundtrip-Verwirrung.
 
-- [ ] **S6.5 (P2, 3 SP) Accessibility-Basis (EAA-Pflicht seit 06/2025)**
+- [x] **S6.5 (P2, 3 SP) Accessibility-Basis (EAA-Pflicht seit 06/2025)** ✅ (`ade7b87`)
   Audit der Kern-Flows: Kontraste, Fokus-Reihenfolge, Labels, Touch-Targets ≥ 44 px, Screenreader auf Check-in-Flow (wird von Kindern/Eltern genutzt).
   *AK:* axe-core ohne Critical Issues auf Dashboard, Spieler-Check-in, Login.
 
