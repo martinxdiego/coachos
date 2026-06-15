@@ -16,6 +16,7 @@ import {
 import { toggleTask } from "@/app/actions";
 import { DashboardOnboarding } from "@/components/dashboard-onboarding";
 import { DashboardQuickActions } from "@/components/dashboard-quick-actions";
+import { FirstRunChecklist } from "@/components/first-run-checklist";
 import { EmptyState } from "@/components/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -324,7 +325,8 @@ function DashboardSectionsSkeleton() {
   );
 }
 
-async function DashboardSections({ teamId }: { teamId: string }) {
+async function DashboardSections({ team }: { team: Workspace }) {
+  const teamId = team.id;
   const today = todayIsoDate();
   const startOfToday = new Date(`${today}T00:00:00.000Z`);
 
@@ -706,10 +708,23 @@ async function DashboardSections({ teamId }: { teamId: string }) {
     ? `Nächstes Spiel · ${formatDate(nextMatch.date.toISOString().slice(0, 10))}`
     : null;
 
+  const hasTraining = trainings.length > 0;
+  const hasPlayers = players.length > 0;
+  const hasBasics = Boolean(team.season && team.ageGroup);
+
   return (
     <>
       {/* Onboarding-Tour (einmalig) */}
       <DashboardOnboarding />
+
+      {/* Erste-Schritte-Pfad für neue Trainer (bis zum ersten Training) */}
+      {!hasTraining ? (
+        <FirstRunChecklist
+          hasBasics={hasBasics}
+          hasPlayers={hasPlayers}
+          hasTraining={hasTraining}
+        />
+      ) : null}
 
       {/* Heute im Fokus */}
       {(feedbackWithPlayer.length > 0 || wellnessAlerts.length > 0) && players.length > 0 ? (
@@ -1298,7 +1313,7 @@ export default async function DashboardPage() {
     <div className="space-y-8">
       <Hero team={team} />
       <Suspense fallback={<DashboardSectionsSkeleton />}>
-        <DashboardSections teamId={team.id} />
+        <DashboardSections team={team} />
       </Suspense>
     </div>
   );

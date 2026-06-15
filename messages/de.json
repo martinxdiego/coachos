@@ -382,5 +382,20 @@
     "week": "Woche",
     "month": "Monat",
     "season": "Saison"
+  },
+  "firstrun": {
+    "title": "Erste Schritte",
+    "subtitle": "In drei Schritten zu deinem ersten geplanten Training.",
+    "progress": "{done} von {total}",
+    "done_label": "Erledigt",
+    "basics_title": "Team-Basisdaten ergänzen",
+    "basics_body": "Saison und Altersklasse hinterlegen — erscheint überall im Dashboard und auf Ausdrucken.",
+    "basics_cta": "Öffnen",
+    "players_title": "Spieler hinzufügen oder einladen",
+    "players_body": "Kader anlegen oder Spieler per QR-Code/Link selbst beitreten lassen.",
+    "players_cta": "Kader",
+    "training_title": "Erstes Training planen",
+    "training_body": "Datum, Ziel und Phasen festlegen — danach ist das Onboarding abgeschlossen.",
+    "training_cta": "Planen"
   }
 }

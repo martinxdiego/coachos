@@ -382,5 +382,20 @@
     "week": "Week",
     "month": "Month",
     "season": "Season"
+  },
+  "firstrun": {
+    "title": "Getting started",
+    "subtitle": "Three steps to your first planned training session.",
+    "progress": "{done} of {total}",
+    "done_label": "Done",
+    "basics_title": "Add team basics",
+    "basics_body": "Set season and age group — shown across the dashboard and on printouts.",
+    "basics_cta": "Open",
+    "players_title": "Add or invite players",
+    "players_body": "Create your squad or let players join themselves via QR code/link.",
+    "players_cta": "Squad",
+    "training_title": "Plan your first training",
+    "training_body": "Set date, goal and phases — onboarding is complete afterwards.",
+    "training_cta": "Plan"
   }
 }
