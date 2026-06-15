@@ -227,7 +227,7 @@ Alle Sicherheits-Stories umgesetzt; Typecheck + Lint grün. **Ausstehende User-A
   Audit der Kern-Flows: Kontraste, Fokus-Reihenfolge, Labels, Touch-Targets ≥ 44 px, Screenreader auf Check-in-Flow (wird von Kindern/Eltern genutzt).
   *AK:* axe-core ohne Critical Issues auf Dashboard, Spieler-Check-in, Login.
 
-- [ ] **S6.6 (P2, 2 SP) Eltern-Einwilligung im Spieler-Flow**
+- [x] **S6.6 (P2, 2 SP) Eltern-Einwilligung im Spieler-Flow** ✅ (`08d0d2c`)
   Selbstregistrierung Minderjähriger: Einwilligungs-Schritt (Checkbox + Eltern-Kontakt), Hinweistext zu Gesundheitsdaten, Datenschutzerklärung verlinkt.
   *AK:* Ohne Einwilligung keine Registrierung; Zeitpunkt + Version der Einwilligung gespeichert.
 
