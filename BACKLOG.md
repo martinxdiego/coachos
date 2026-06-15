@@ -215,7 +215,7 @@ Alle Sicherheits-Stories umgesetzt; Typecheck + Lint grün. **Ausstehende User-A
   "Hut-System" → konfigurierbares "Auszeichnungen"-Modul (Name/Icon pro Workspace einstellbar); "Winnerpunkte" → "Teampunkte" (umbenennbar); "Montagstraining" → wiederkehrende Trainingsserie (beliebiger Wochentag); "Clubcorner/Quali" → generische "Vereinslinks".
   *AK:* Neuer Workspace startet mit neutralen Defaults; Bestands-Workspace behält seine Begriffe via Konfiguration.
 
-- [ ] **S6.3 (P2, 3 SP) Onboarding-Flow**
+- [x] **S6.3 (P2, 3 SP) Onboarding-Flow** ✅ (`2acaa89`) — Erste-Schritte-Checkliste (datengetrieben) führt zum ersten Training; Empty-States/Demo-Daten optional offen
   First-Run-Wizard: Team anlegen → Spieler einladen (QR/Link) → erstes Training planen. Empty-States mit Call-to-Action auf allen Listen-Seiten. Optional Demo-Daten ("Beispielteam laden").
   *AK:* Neuer Account erreicht ohne Doku ein angelegtes Training; Abbruchquote im Wizard messbar (S7.4).
 
