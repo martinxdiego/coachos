@@ -2,16 +2,46 @@ import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
 import { SUPABASE_CA_CERT } from "@/lib/supabase-ca";
+import { logger } from "@/lib/logger";
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };
+
+/**
+ * Boot-time sanity check on the connection target. Supabase's DIRECT host
+ * (`db.<ref>.supabase.co`) is IPv6-only on the free tier, and Vercel functions
+ * have no IPv6 egress — so a misconfigured DATABASE_URL pointing there fails
+ * every DB route with an opaque "Can't reach database server", surfaced only as
+ * the generic error boundary. Warn loudly and point at the fix (the IPv4
+ * pooler) instead of leaving it to log forensics. Never logs the full string —
+ * it carries the password.
+ */
+function warnIfUnreachableHost(connectionString: string): void {
+  let host: string;
+  try {
+    host = new URL(connectionString).hostname;
+  } catch {
+    return;
+  }
+  if (/^db\.[a-z0-9]+\.supabase\.co$/i.test(host)) {
+    logger.warn(
+      "DATABASE_URL points at the Supabase DIRECT host, which is IPv6-only " +
+        "and unreachable from Vercel functions. Use the pooler host " +
+        "(aws-<region>.pooler.supabase.com:6543) for the app runtime; the " +
+        "direct host is only for `prisma migrate` (DIRECT_URL).",
+      { host }
+    );
+  }
+}
 
 const createPrismaClient = () => {
   const connectionString = process.env.DATABASE_URL;
   if (!connectionString) {
     throw new Error("DATABASE_URL is not defined in environment variables.");
   }
+
+  warnIfUnreachableHost(connectionString);
 
   const isLocal =
     connectionString.includes("localhost") ||
