@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
 import { ShieldCheck } from "lucide-react";
 import { PlayerSelfRegisterForm } from "@/components/player-self-register-form";
@@ -6,6 +7,15 @@ import { Card, CardContent } from "@/components/ui/card";
 import { resolvePlayerSignupInvite } from "@/lib/invites";
 
 export const dynamic = "force-dynamic";
+export const metadata: Metadata = {
+  referrer: "no-referrer",
+  robots: {
+    index: false,
+    follow: false,
+    noarchive: true,
+    nosnippet: true
+  }
+};
 
 interface JoinPageProps {
   params: Promise<{
@@ -29,7 +39,7 @@ export default async function JoinPage({ params }: JoinPageProps) {
   };
 
   return (
-    <div className="min-h-dvh bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950 px-4 py-8 text-white sm:py-14">
+    <div className="min-h-dvh bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950 pb-[calc(2rem+env(safe-area-inset-bottom))] pl-[calc(1rem+env(safe-area-inset-left))] pr-[calc(1rem+env(safe-area-inset-right))] pt-[calc(2rem+env(safe-area-inset-top))] text-white sm:pb-[calc(3.5rem+env(safe-area-inset-bottom))] sm:pt-[calc(3.5rem+env(safe-area-inset-top))]">
       <div className="mx-auto max-w-xl space-y-6">
         <header className="text-center">
           <span

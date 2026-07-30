@@ -8,14 +8,26 @@ import { submitPublicSeasonForm } from "@/app/actions-public";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import type { Player } from "@/lib/types";
 
-interface PublicSeasonFormProps {
-  accessToken: string;
-  player: Player;
+export interface PublicSeasonFormPlayer {
+  contact: string | null;
+  parent_contact: string | null;
+  emergency_contact: string | null;
+  strong_foot: string | null;
+  favorite_team: string | null;
+  favorite_player: string | null;
+  football_goals: string | null;
+  strengths: string | null;
+  weaknesses: string | null;
+  motivation: string | null;
+  season_form_completed_at: string | null;
 }
 
-export function PublicSeasonForm({ accessToken, player }: PublicSeasonFormProps) {
+interface PublicSeasonFormProps {
+  player: PublicSeasonFormPlayer;
+}
+
+export function PublicSeasonForm({ player }: PublicSeasonFormProps) {
   const t = useTranslations("season");
   const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -24,7 +36,7 @@ export function PublicSeasonForm({ accessToken, player }: PublicSeasonFormProps)
   function handle(formData: FormData) {
     startTransition(async () => {
       try {
-        await submitPublicSeasonForm(accessToken, formData);
+        await submitPublicSeasonForm(formData);
         toast.success(t("toast_saved"));
         setOpen(false);
       } catch (err) {
@@ -73,21 +85,24 @@ export function PublicSeasonForm({ accessToken, player }: PublicSeasonFormProps)
             <div className="grid gap-3 sm:grid-cols-2">
               <Input
                 defaultValue={player.contact ?? ""}
+                maxLength={250}
                 name="contact"
                 placeholder={t("contact_ph")}
               />
               <Input
                 defaultValue={player.parent_contact ?? ""}
+                maxLength={250}
                 name="parent_contact"
                 placeholder={t("parent_ph")}
               />
               <Input
                 defaultValue={player.emergency_contact ?? ""}
+                maxLength={250}
                 name="emergency_contact"
                 placeholder={t("emergency_ph")}
               />
               <select
-                className="flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="flex h-11 w-full rounded-xl border border-input bg-background px-3.5 py-2 text-base shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 defaultValue={player.strong_foot ?? ""}
                 name="strong_foot"
               >
@@ -98,54 +113,40 @@ export function PublicSeasonForm({ accessToken, player }: PublicSeasonFormProps)
               </select>
               <Input
                 defaultValue={player.favorite_team ?? ""}
+                maxLength={120}
                 name="favorite_team"
                 placeholder={t("favteam_ph")}
               />
               <Input
                 defaultValue={player.favorite_player ?? ""}
+                maxLength={120}
                 name="favorite_player"
                 placeholder={t("favplayer_ph")}
               />
             </div>
             <Textarea
               defaultValue={player.football_goals ?? ""}
+              maxLength={2000}
               name="football_goals"
               placeholder={t("goals_ph")}
             />
             <Textarea
               defaultValue={player.strengths ?? ""}
+              maxLength={2000}
               name="strengths"
               placeholder={t("strengths_ph")}
             />
             <Textarea
               defaultValue={player.weaknesses ?? ""}
+              maxLength={2000}
               name="weaknesses"
               placeholder={t("weaknesses_ph")}
             />
             <Textarea
               defaultValue={player.motivation ?? ""}
+              maxLength={2000}
               name="motivation"
               placeholder={t("motivation_ph")}
-            />
-            <Textarea
-              defaultValue={player.allergies ?? ""}
-              name="allergies"
-              placeholder={t("allergies_ph")}
-            />
-            <Textarea
-              defaultValue={player.injuries ?? ""}
-              name="injuries"
-              placeholder={t("injuries_ph")}
-            />
-            <Textarea
-              defaultValue={player.limitations ?? ""}
-              name="limitations"
-              placeholder={t("limitations_ph")}
-            />
-            <Textarea
-              defaultValue={player.medications ?? ""}
-              name="medications"
-              placeholder={t("medications_ph")}
             />
             <Button className="h-11 w-full" disabled={isPending} type="submit">
               {isPending ? (

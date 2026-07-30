@@ -1,19 +1,18 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
-import { Camera, ImagePlus, Trash2, UserRound } from "lucide-react";
+import { Camera, ImagePlus, Loader2, Trash2, UserRound } from "lucide-react";
 import { toast } from "sonner";
 import { removePlayerPhoto, uploadPlayerPhoto } from "@/app/actions";
 import { SideDrawer } from "@/components/side-drawer";
 import { Button } from "@/components/ui/button";
+import { prepareBrowserImageUpload } from "@/lib/browser-image-upload";
 
 interface PlayerPhotoUploadProps {
   playerId: string;
   playerName: string;
   photoUrl: string | null;
 }
-
-const MAX_BYTES = 6 * 1024 * 1024;
 
 export function PlayerPhotoUpload({
   playerId,
@@ -23,8 +22,12 @@ export function PlayerPhotoUpload({
   const [isOpen, setIsOpen] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isPreparing, setIsPreparing] = useState(false);
+  const [preparationError, setPreparationError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const selectionRequestRef = useRef(0);
+  const isBusy = isPreparing || isPending;
 
   useEffect(() => {
     if (!previewUrl) return;
@@ -34,10 +37,10 @@ export function PlayerPhotoUpload({
   }, [previewUrl]);
 
   function reset() {
-    setPreviewUrl((current) => {
-      if (current) URL.revokeObjectURL(current);
-      return null;
-    });
+    selectionRequestRef.current += 1;
+    setIsPreparing(false);
+    setPreparationError(null);
+    setPreviewUrl(null);
     setSelectedFile(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
@@ -47,20 +50,36 @@ export function PlayerPhotoUpload({
     reset();
   }
 
-  function pick(file: File) {
-    if (file.size > MAX_BYTES) {
-      toast.error("Bild ist zu groß (max 6 MB).");
-      return;
+  async function pick(file: File) {
+    const requestId = selectionRequestRef.current + 1;
+    selectionRequestRef.current = requestId;
+    setPreparationError(null);
+    setSelectedFile(null);
+    setPreviewUrl(null);
+    setIsPreparing(true);
+
+    try {
+      if (file.type.toLowerCase() === "image/gif" || /\.gif$/i.test(file.name)) {
+        throw new Error("Spielerfotos müssen JPG, PNG, WEBP oder HEIC sein.");
+      }
+      const preparedFile = await prepareBrowserImageUpload(file);
+      if (selectionRequestRef.current !== requestId) return;
+
+      setSelectedFile(preparedFile);
+      setPreviewUrl(URL.createObjectURL(preparedFile));
+    } catch (error) {
+      if (selectionRequestRef.current !== requestId) return;
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Das Bild konnte nicht vorbereitet werden.";
+      setPreparationError(message);
+      toast.error(message);
+    } finally {
+      if (selectionRequestRef.current === requestId) {
+        setIsPreparing(false);
+      }
     }
-    if (!file.type.startsWith("image/")) {
-      toast.error("Nur Bilddateien sind erlaubt.");
-      return;
-    }
-    setSelectedFile(file);
-    setPreviewUrl((current) => {
-      if (current) URL.revokeObjectURL(current);
-      return URL.createObjectURL(file);
-    });
   }
 
   function handleUpload() {
@@ -101,7 +120,7 @@ export function PlayerPhotoUpload({
     <>
       <button
         aria-label="Foto ändern"
-        className="absolute bottom-3 right-3 inline-flex h-9 items-center gap-2 rounded-full bg-card/90 px-3 text-[12px] font-medium tracking-tight text-foreground shadow-elevated backdrop-blur-md transition-transform duration-200 ease-spring hover:bg-card active:scale-95"
+        className="absolute bottom-3 right-3 inline-flex h-11 items-center gap-2 rounded-full bg-card/90 px-3 text-[12px] font-medium tracking-tight text-foreground shadow-elevated backdrop-blur-md transition-transform duration-200 ease-spring hover:bg-card active:scale-95 sm:h-9"
         onClick={() => setIsOpen(true)}
         type="button"
       >
@@ -110,13 +129,13 @@ export function PlayerPhotoUpload({
       </button>
 
       <SideDrawer
-        description={`Lade ein neues Bild für ${playerName} hoch oder entferne das aktuelle. JPG, PNG, WEBP oder HEIC, max 6 MB.`}
+        description={`Lade ein neues Bild für ${playerName} hoch oder entferne das aktuelle. JPG, PNG, WEBP oder HEIC bis 20 MB werden vor dem Upload automatisch optimiert.`}
         eyebrow="Spielerfoto"
         isOpen={isOpen}
         onClose={close}
         title="Foto verwalten"
       >
-        <div className="space-y-5">
+        <div aria-busy={isBusy} className="space-y-5">
           <div className="relative aspect-[4/5] overflow-hidden rounded-2xl border border-border/70 bg-secondary/40">
             {previewUrl || photoUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
@@ -138,12 +157,13 @@ export function PlayerPhotoUpload({
           </div>
 
           <input
-            accept="image/*"
+            accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
             className="sr-only"
             id="player-photo-input"
             onChange={(event) => {
               const file = event.target.files?.[0];
-              if (file) pick(file);
+              event.currentTarget.value = "";
+              if (file) void pick(file);
             }}
             ref={fileInputRef}
             type="file"
@@ -151,24 +171,60 @@ export function PlayerPhotoUpload({
 
           <div className="flex flex-col gap-2 sm:flex-row">
             <Button
-              className="flex-1"
+              className="h-11 flex-1"
+              disabled={isBusy}
               onClick={() => fileInputRef.current?.click()}
               type="button"
               variant="outline"
             >
-              <ImagePlus aria-hidden="true" className="h-4 w-4" />
-              {selectedFile ? "Anderes Bild" : "Bild wählen"}
+              {isPreparing ? (
+                <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
+              ) : (
+                <ImagePlus aria-hidden="true" className="h-4 w-4" />
+              )}
+              {isPreparing
+                ? "Bild wird optimiert…"
+                : selectedFile
+                  ? "Anderes Bild"
+                  : "Bild wählen"}
             </Button>
             <Button
-              className="flex-1"
-              disabled={!selectedFile || isPending}
+              className="h-11 flex-1"
+              disabled={!selectedFile || isBusy}
               onClick={handleUpload}
               type="button"
             >
-              <Camera aria-hidden="true" className="h-4 w-4" />
+              {isPending ? (
+                <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
+              ) : (
+                <Camera aria-hidden="true" className="h-4 w-4" />
+              )}
               {isPending ? "Wird hochgeladen…" : "Foto speichern"}
             </Button>
           </div>
+
+          {isPreparing ? (
+            <div
+              aria-live="polite"
+              className="flex items-center gap-2 rounded-xl border border-border/70 bg-secondary/40 px-3 py-2.5 text-[12px] text-muted-foreground"
+              role="status"
+            >
+              <Loader2
+                aria-hidden="true"
+                className="h-4 w-4 shrink-0 animate-spin"
+              />
+              Das Bild wird für einen schnellen mobilen Upload vorbereitet.
+            </div>
+          ) : null}
+
+          {preparationError ? (
+            <p
+              className="rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2.5 text-[12px] text-destructive"
+              role="alert"
+            >
+              {preparationError}
+            </p>
+          ) : null}
 
           {selectedFile ? (
             <div className="rounded-xl border border-border/70 bg-secondary/40 px-3 py-2.5 text-[12px] text-muted-foreground">
@@ -185,7 +241,8 @@ export function PlayerPhotoUpload({
                 Aktuelles Foto entfernen
               </p>
               <Button
-                disabled={isPending}
+                className="h-11"
+                disabled={isBusy}
                 onClick={handleRemove}
                 size="sm"
                 type="button"

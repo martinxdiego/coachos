@@ -42,6 +42,16 @@ html {
   font-feature-settings: "rlig" 1, "calt" 1, "ss01" 1, "cv11" 1;
 }
 
+/* iOS zooms focused form controls below 16px. Width breakpoints are not a
+   reliable proxy for touch devices because phones exceed `sm` in landscape. */
+@media (hover: none) and (pointer: coarse) {
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
 body {
   @apply bg-background text-foreground antialiased;
   font-family:

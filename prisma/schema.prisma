@@ -1,21 +1,56 @@
-datasource db {
-  provider = "postgresql"
-}
-
 generator client {
   provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
 }
 
 model User {
   id           String            @id @default(uuid())
   email        String            @unique
   passwordHash String
+  authVersion  Int               @default(1)
+  billingPlan  BillingPlan       @default(FREE)
+  stripeCustomerId String?       @unique
+  stripeSubscriptionId String?   @unique
+  stripeSubscriptionStatus String?
+  subscriptionCurrentPeriodEnd DateTime?
+  emailVerifiedAt DateTime?
   name         String?
   role         Role              @default(COACH)
-  workspaces   WorkspaceMember[]
-  ratings      Rating[]
   createdAt    DateTime          @default(now())
   updatedAt    DateTime          @updatedAt
+  ratings      Rating[]
+  workspaces   WorkspaceMember[]
+  passwordResetTokens PasswordResetToken[]
+  emailVerificationTokens EmailVerificationToken[]
+}
+
+model PasswordResetToken {
+  id        String    @id @default(uuid())
+  userId    String    @map("user_id")
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique @map("token_hash")
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@index([userId, expiresAt], map: "password_reset_tokens_user_expiry_idx")
+  @@map("password_reset_tokens")
+}
+
+model EmailVerificationToken {
+  id        String    @id @default(uuid())
+  userId    String    @map("user_id")
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique @map("token_hash")
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@index([userId, expiresAt], map: "email_verification_tokens_user_expiry_idx")
+  @@map("email_verification_tokens")
 }
 
 model Workspace {
@@ -23,42 +58,44 @@ model Workspace {
   name            String
   season          String?
   ageGroup        String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
   pointsLabel     String?
   awardsLabel     String?
   linksLabel      String?
-  members         WorkspaceMember[]
-  players         Player[]
-  trainings       Training[]
-  matches         Match[]
+  dataRetentionDays   Int               @default(730)
+  healthRetentionDays Int               @default(365)
   awards          Award[]
-  winnerPoints    WinnerPoint[]
+  coachMessages   CoachMessage[]
+  externalLinks   ExternalLink[]
+  matches         Match[]
   materials       Material[]
+  mondayTrainings MondayTraining[]
+  notes           Note[]
+  players         Player[]
+  feedbacks       PlayerFeedback[]
   tacticBoards    TacticBoard[]
   tasks           Task[]
-  notes           Note[]
-  externalLinks   ExternalLink[]
-  mondayTrainings MondayTraining[]
-  coachMessages   CoachMessage[]
-  feedbacks       PlayerFeedback[]
+  trainings       Training[]
+  winnerPoints    WinnerPoint[]
+  members         WorkspaceMember[]
   invites         TeamInvite[]
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
+  availabilityResponses AvailabilityResponse[]
 }
 
 model WorkspaceMember {
   id          String    @id @default(uuid())
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId      String
-  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   workspaceId String
   role        Role      @default(ASSISTANT)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@unique([workspaceId, userId])
 }
 
 model Player {
   id                    String             @id @default(uuid())
-  workspace             Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   workspaceId           String
   firstName             String?
   lastName              String?
@@ -95,31 +132,33 @@ model Player {
   personalNotes         String?
   notes                 String?
   rating                Float?
-  accessToken           String             @default(uuid())
+  accessToken           String             @unique @default(uuid())
   selfRegisteredAt      DateTime?
-  consentAcceptedAt     DateTime?
-  consentVersion        String?
-  ratings               Rating[]
-  healthChecks          HealthCheck[]
-  awards                Award[]
-  winnerPoints          WinnerPoint[]
-  lineups               MatchLineup[]
-  matchEvents           MatchEvent[]
-  attendance            Attendance[]
-  externalLinks         ExternalLink[]
-  mondayAttendance      MondayAttendance[]
-  coachMessages         CoachMessage[]
-  feedbacks             PlayerFeedback[]
-  pushSubscriptions     PushSubscription[]
   createdAt             DateTime           @default(now())
   updatedAt             DateTime           @updatedAt
+  consentAcceptedAt     DateTime?
+  consentVersion        String?
+  attendance            Attendance[]
+  awards                Award[]
+  coachMessages         CoachMessage[]
+  externalLinks         ExternalLink[]
+  healthChecks          HealthCheck[]
+  matchEvents           MatchEvent[]
+  lineups               MatchLineup[]
+  mondayAttendance      MondayAttendance[]
+  workspace             Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  feedbacks             PlayerFeedback[]
+  ratings               Rating[]
+  winnerPoints          WinnerPoint[]
+  pushSubscriptions     PushSubscription[]
+  portalSessions        PlayerPortalSession[]
+  availabilityResponses AvailabilityResponse[]
 
   @@index([workspaceId])
 }
 
 model Training {
   id              String          @id @default(uuid())
-  workspace       Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   workspaceId     String
   userId          String
   title           String
@@ -129,23 +168,23 @@ model Training {
   startTime       String?
   durationMinutes Int             @default(90)
   type            TrainingType    @default(REGULAR)
-  intensity       String? // "low", "medium", "high"
+  intensity       String?
   location        String?
   participants    String?
   notes           String?
   isTemplate      Boolean         @default(false)
   templateName    String?
-  phases          TrainingPhase[]
-  attendance      Attendance[]
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
+  attendance      Attendance[]
+  workspace       Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  phases          TrainingPhase[]
 
   @@index([workspaceId, date])
 }
 
 model TrainingPhase {
   id              String            @id @default(uuid())
-  training        Training          @relation(fields: [trainingId], references: [id], onDelete: Cascade)
   trainingId      String
   phaseType       TrainingPhaseType @default(technique)
   title           String
@@ -163,11 +202,11 @@ model TrainingPhase {
   sortOrder       Int
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
+  training        Training          @relation(fields: [trainingId], references: [id], onDelete: Cascade)
 }
 
 model Match {
   id                   String         @id @default(uuid())
-  workspace            Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   workspaceId          String
   userId               String
   opponent             String
@@ -175,7 +214,7 @@ model Match {
   date                 DateTime
   kickoffTime          String?
   location             String?
-  homeAway             String? // "home", "away", "neutral"
+  homeAway             String?
   formation            String?
   notes                String?
   goals                Int?
@@ -194,36 +233,29 @@ model Match {
   cards                String?
   playerRatings        Json?
   conclusion           String?
-  lineup               MatchLineup[]
-  analysis             MatchAnalysis?
-  ratings              Rating[]
-  awards               Award[]
-  events               MatchEvent[]
   createdAt            DateTime       @default(now())
   updatedAt            DateTime       @updatedAt
+  awards               Award[]
+  workspace            Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  analysis             MatchAnalysis?
+  events               MatchEvent[]
+  lineup               MatchLineup[]
+  ratings              Rating[]
 
   @@index([workspaceId, date])
 }
 
-enum MatchEventType {
-  GOAL
-  ASSIST
-  YELLOW_CARD
-  RED_CARD
-  SUBSTITUTION
-}
-
 model MatchEvent {
   id        String         @id @default(uuid())
-  match     Match          @relation(fields: [matchId], references: [id], onDelete: Cascade)
   matchId   String
-  player    Player         @relation(fields: [playerId], references: [id], onDelete: Cascade)
   playerId  String
   type      MatchEventType
   minute    Int?
   note      String?
   createdAt DateTime       @default(now())
   updatedAt DateTime       @updatedAt
+  match     Match          @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  player    Player         @relation(fields: [playerId], references: [id], onDelete: Cascade)
 
   @@index([matchId])
   @@index([playerId, type])
@@ -231,19 +263,18 @@ model MatchEvent {
 
 model MatchLineup {
   id       String  @id @default(uuid())
-  match    Match   @relation(fields: [matchId], references: [id], onDelete: Cascade)
   matchId  String
-  player   Player  @relation(fields: [playerId], references: [id], onDelete: Cascade)
   playerId String
   position String
   role     String?
+  match    Match   @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  player   Player  @relation(fields: [playerId], references: [id], onDelete: Cascade)
 
   @@index([playerId])
 }
 
 model MatchAnalysis {
   id                     String   @id @default(uuid())
-  match                  Match    @relation(fields: [matchId], references: [id], onDelete: Cascade)
   matchId                String   @unique
   opponentAnalysis       String?
   preparation            String?
@@ -263,13 +294,12 @@ model MatchAnalysis {
   nextTrainingFocus      String?
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
+  match                  Match    @relation(fields: [matchId], references: [id], onDelete: Cascade)
 }
 
 model Rating {
   id              String        @id @default(uuid())
-  player          Player        @relation(fields: [playerId], references: [id], onDelete: Cascade)
   playerId        String
-  rater           User          @relation(fields: [raterId], references: [id], onDelete: Cascade)
   raterId         String
   date            DateTime
   context         RatingContext @default(TRAINING)
@@ -289,15 +319,16 @@ model Rating {
   notes           String?
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
-  match           Match?        @relation(fields: [matchId], references: [id])
   matchId         String?
+  match           Match?        @relation(fields: [matchId], references: [id])
+  player          Player        @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  rater           User          @relation(fields: [raterId], references: [id], onDelete: Cascade)
 
   @@index([playerId, date])
 }
 
 model HealthCheck {
   id            String        @id @default(uuid())
-  player        Player        @relation(fields: [playerId], references: [id], onDelete: Cascade)
   playerId      String
   date          DateTime
   context       HealthContext @default(PRE_TRAINING)
@@ -315,38 +346,37 @@ model HealthCheck {
   notes         String?
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
+  player        Player        @relation(fields: [playerId], references: [id], onDelete: Cascade)
 
   @@index([playerId, date])
 }
 
 model Award {
   id               String    @id @default(uuid())
-  workspace        Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   workspaceId      String
-  player           Player    @relation(fields: [playerId], references: [id], onDelete: Cascade)
   playerId         String
   previousPlayerId String?
   matchId          String?
-  match            Match?    @relation(fields: [matchId], references: [id], onDelete: SetNull)
   eventLabel       String?
   date             DateTime
   event            String
   reason           String?
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
+  match            Match?    @relation(fields: [matchId], references: [id])
+  player           Player    @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  workspace        Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@index([workspaceId, date])
 }
 
 model WinnerPoint {
   id           String             @id @default(uuid())
-  workspace    Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   workspaceId  String
-  player       Player             @relation(fields: [playerId], references: [id], onDelete: Cascade)
   playerId     String
   date         DateTime
   context      WinnerPointContext @default(TRAINING)
-  contextType  String? // "training", "match", etc.
+  contextType  String?
   contextId    String?
   contextLabel String?
   points       Int
@@ -354,19 +384,21 @@ model WinnerPoint {
   awardedAt    DateTime           @default(now())
   createdAt    DateTime           @default(now())
   updatedAt    DateTime           @updatedAt
+  player       Player             @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  workspace    Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@index([workspaceId, date])
 }
 
 model Attendance {
   id         String           @id @default(uuid())
-  training   Training         @relation(fields: [trainingId], references: [id], onDelete: Cascade)
   trainingId String
-  player     Player           @relation(fields: [playerId], references: [id], onDelete: Cascade)
   playerId   String
   status     AttendanceStatus @default(present)
   createdAt  DateTime         @default(now())
   updatedAt  DateTime         @updatedAt
+  player     Player           @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  training   Training         @relation(fields: [trainingId], references: [id], onDelete: Cascade)
 
   @@unique([trainingId, playerId])
   @@index([playerId])
@@ -374,7 +406,6 @@ model Attendance {
 
 model Material {
   id            String       @id @default(uuid())
-  workspace     Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   workspaceId   String
   userId        String
   title         String
@@ -384,13 +415,13 @@ model Material {
   printSettings Json?
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
+  workspace     Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@index([workspaceId])
 }
 
 model TacticBoard {
   id          String    @id @default(uuid())
-  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   workspaceId String
   userId      String
   title       String
@@ -398,13 +429,13 @@ model TacticBoard {
   elements    Json?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@index([workspaceId])
 }
 
 model Task {
   id          String     @id @default(uuid())
-  workspace   Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   workspaceId String
   userId      String
   title       String
@@ -414,13 +445,13 @@ model Task {
   relatedId   String?
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
+  workspace   Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@index([workspaceId])
 }
 
 model Note {
   id          String    @id @default(uuid())
-  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   workspaceId String
   userId      String
   relatedType String?
@@ -429,30 +460,30 @@ model Note {
   body        String
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@index([workspaceId])
 }
 
 model ExternalLink {
   id          String           @id @default(uuid())
-  workspace   Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   workspaceId String
   userId      String
   playerId    String?
-  player      Player?          @relation(fields: [playerId], references: [id], onDelete: Cascade)
   linkType    ExternalLinkType @default(other)
   title       String
   url         String
   notes       String?
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
+  player      Player?          @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  workspace   Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@index([workspaceId])
 }
 
 model MondayTraining {
   id              String             @id @default(uuid())
-  workspace       Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   workspaceId     String
   userId          String
   date            DateTime
@@ -461,47 +492,177 @@ model MondayTraining {
   durationMinutes Int?
   staffNotes      String?
   assistantNotes  String?
-  attendance      MondayAttendance[]
   createdAt       DateTime           @default(now())
   updatedAt       DateTime           @updatedAt
+  attendance      MondayAttendance[]
+  workspace       Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@index([workspaceId, date])
 }
 
 model MondayAttendance {
   id               String                 @id @default(uuid())
-  mondayTraining   MondayTraining         @relation(fields: [mondayTrainingId], references: [id], onDelete: Cascade)
   mondayTrainingId String
-  player           Player                 @relation(fields: [playerId], references: [id], onDelete: Cascade)
   playerId         String
   status           MondayAttendanceStatus @default(present)
   note             String?
   createdAt        DateTime               @default(now())
   updatedAt        DateTime               @updatedAt
+  mondayTraining   MondayTraining         @relation(fields: [mondayTrainingId], references: [id], onDelete: Cascade)
+  player           Player                 @relation(fields: [playerId], references: [id], onDelete: Cascade)
 
   @@unique([mondayTrainingId, playerId])
 }
 
 model CoachMessage {
   id          String               @id @default(uuid())
-  workspace   Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   workspaceId String
   userId      String
-  player      Player               @relation(fields: [playerId], references: [id], onDelete: Cascade)
   playerId    String
   category    CoachMessageCategory @default(note)
   body        String
   readAt      DateTime?
   createdAt   DateTime             @default(now())
   updatedAt   DateTime             @updatedAt
+  player      Player               @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  workspace   Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@index([workspaceId])
+}
+
+model PlayerFeedback {
+  id          String    @id @default(uuid())
+  workspaceId String
+  playerId    String
+  rating      Int
+  notes       String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  player      Player    @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+}
+
+model TeamInvite {
+  id          String    @id @default(uuid())
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspaceId String    @map("team_id")
+  code        String    @unique
+  role        String
+  createdBy   String?   @map("created_by")
+  expiresAt   DateTime  @map("expires_at") @db.Timestamptz(6)
+  usedAt      DateTime? @map("used_at") @db.Timestamptz(6)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("team_invites")
+}
+
+model PushSubscription {
+  id        String   @id @default(uuid())
+  playerId  String   @map("player_id")
+  player    Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([playerId], map: "push_subscriptions_player_id_idx")
+  @@map("push_subscriptions")
+}
+
+model PlayerPortalSession {
+  id            String    @id @default(uuid())
+  playerId      String    @map("player_id")
+  player        Player    @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  tokenHash     String    @unique @map("token_hash")
+  deviceLabel   String    @map("device_label")
+  userAgentHash String?   @map("user_agent_hash")
+  expiresAt     DateTime  @map("expires_at")
+  lastUsedAt    DateTime  @default(now()) @map("last_used_at")
+  revokedAt     DateTime? @map("revoked_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  @@index([playerId, revokedAt, expiresAt], map: "player_portal_sessions_player_status_idx")
+  @@map("player_portal_sessions")
+}
+
+model AuditLog {
+  id            String    @id @default(uuid())
+  workspaceId   String    @map("workspace_id")
+  actorUserId   String?   @map("actor_user_id")
+  actorPlayerId String?   @map("actor_player_id")
+  event         String
+  targetType    String?   @map("target_type")
+  targetId      String?   @map("target_id")
+  metadata      Json?
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  @@index([workspaceId, createdAt], map: "audit_logs_workspace_created_idx")
+  @@map("audit_logs")
+}
+
+model AvailabilityResponse {
+  id          String                     @id @default(uuid())
+  workspaceId String                     @map("workspace_id")
+  workspace   Workspace                  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  playerId    String                     @map("player_id")
+  player      Player                     @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  eventType   AvailabilityEventType      @map("event_type")
+  eventId     String                     @map("event_id")
+  status      AvailabilityResponseStatus
+  comment     String?
+  respondedAt DateTime                   @default(now()) @map("responded_at")
+  createdAt   DateTime                   @default(now()) @map("created_at")
+  updatedAt   DateTime                   @updatedAt @map("updated_at")
+
+  @@unique([playerId, eventType, eventId], map: "availability_responses_player_event_key")
+  @@index([workspaceId, eventType, eventId], map: "availability_responses_workspace_event_idx")
+  @@map("availability_responses")
+}
+
+/// Durable outbox/tombstone for private Storage removals. This intentionally
+/// has no Workspace relation: deleting a workspace must not cascade away the
+/// cleanup jobs for that workspace's objects.
+model StorageDeletionJob {
+  id            String    @id @default(uuid())
+  workspaceId   String    @map("workspace_id")
+  bucket        String
+  objectPath    String    @map("object_path")
+  generation    Int       @default(0)
+  attempts      Int       @default(0)
+  nextAttemptAt DateTime  @default(now()) @map("next_attempt_at")
+  lastAttemptAt DateTime? @map("last_attempt_at")
+  lockedAt      DateTime? @map("locked_at")
+  lockToken     String?   @map("lock_token")
+  lastError     String?   @map("last_error")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  @@unique([bucket, objectPath], map: "storage_deletion_jobs_bucket_object_path_key")
+  @@index([nextAttemptAt, lockedAt], map: "storage_deletion_jobs_due_idx")
+  @@index([workspaceId, bucket], map: "storage_deletion_jobs_workspace_bucket_idx")
+  @@map("storage_deletion_jobs")
+}
+
+enum MatchEventType {
+  GOAL
+  ASSIST
+  YELLOW_CARD
+  RED_CARD
+  SUBSTITUTION
 }
 
 enum Role {
   OWNER
   COACH
   ASSISTANT
+}
+
+enum BillingPlan {
+  FREE
+  PRO
 }
 
 enum PlayerStatus {
@@ -590,43 +751,13 @@ enum TrainingPhaseType {
   cooldown
 }
 
-model PlayerFeedback {
-  id          String    @id @default(uuid())
-  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  workspaceId String
-  player      Player    @relation(fields: [playerId], references: [id], onDelete: Cascade)
-  playerId    String
-  rating      Int
-  notes       String?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-
-  @@index([workspaceId])
+enum AvailabilityEventType {
+  TRAINING
+  MATCH
 }
 
-model TeamInvite {
-  id          String    @id @default(uuid())
-  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  workspaceId String    @map("team_id")
-  code        String    @unique
-  role        String
-  createdBy   String?   @map("created_by")
-  expiresAt   DateTime  @map("expires_at")
-  usedAt      DateTime? @map("used_at")
-  createdAt   DateTime  @default(now()) @map("created_at")
-
-  @@map("team_invites")
-}
-
-model PushSubscription {
-  id        String   @id @default(uuid())
-  playerId  String   @map("player_id")
-  player    Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
-  endpoint  String   @unique
-  p256dh    String
-  auth      String
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-
-  @@map("push_subscriptions")
+enum AvailabilityResponseStatus {
+  YES
+  MAYBE
+  NO
 }

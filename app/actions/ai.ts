@@ -1,185 +1,136 @@
 "use server";
 
-import { generateTrainingPlan } from "@/lib/ai";
-import { randomUUID } from "crypto";
-import { cookies, headers } from "next/headers";
-import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
-import { healthRisk } from "@/lib/coach-metrics";
-import { ACTIVE_TEAM_COOKIE, requireActiveTeam, requireUser } from "@/lib/auth";
-import { signIn as nextAuthSignIn, signOut as nextAuthSignOut } from "@/lib/auth";
-import bcrypt from "bcryptjs";
-import { getSiteUrl } from "@/lib/env";
-import { createClient } from "@/lib/supabase/server";
+import {
+  aggregateTeamLoadSignals,
+  generateTrainingPlan,
+  normalizeAiAgeGroup,
+  normalizeAiTrainingFocus,
+  summarizeRecentTrainingIntensity,
+} from "@/lib/ai";
+import { requireActiveTeam } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { rotatePlayerSignupInvite } from "@/lib/invites";
-import {
-  enumValue,
-  normalizeExternalUrl,
-  optionalNumber,
-  optionalScaleFive,
-  optionalString,
-  requiredRating,
-  requiredString,
-  scaleFive
-} from "@/lib/forms";
-import { cacheDel } from "@/lib/redis";
-import type {
-  AttendanceStatus,
-  CoachMessageCategory,
-  EvaluationContextType,
-  ExternalLinkType,
-  HealthContextType,
-  HomeAway,
-  Json,
-  MaterialType,
-  MondayAttendanceStatus,
-  PlayerStatus,
-  StrongFoot,
-  TrainingIntensity,
-  TrainingPhaseType,
-  WinnerPointContextType
-} from "@/lib/types";
-import type { Role } from "@prisma/client";
-import {
-  phaseTypes,
-  trainingPresets,
-  redirectWithMessage,
-  canManageWorkspace,
-  inviteCode,
-  playerName,
-  splitPlayerImportLine,
-  looksLikePlayerImportHeader,
-  setActiveTeamCookie,
-  PLAYER_PHOTO_BUCKET,
-  PLAYER_PHOTO_MAX_BYTES,
-  PLAYER_PHOTO_MIME_TYPES,
-  pathFromPublicUrl,
-  TRAINING_IMAGE_BUCKET,
-  TRAINING_IMAGE_MAX_BYTES,
-  TRAINING_IMAGE_MAX_PER_PHASE,
-  TRAINING_IMAGE_MIME_TYPES,
-  trainingPayload,
-  phaseRows,
-  matchPayload,
-  tacticRosterPositions,
-  tacticRosterPosition,
-  tacticInitials,
-  tacticRosterElements,
-  splitImportLine,
-  looksLikeMatchImportHeader
-} from "./_shared";
+import { optionalNumber, optionalString, requiredString } from "@/lib/forms";
+import { rateLimit } from "@/lib/rate-limit";
+import { assertProFeature } from "@/lib/billing";
+import type { TrainingIntensity, TrainingPhaseType } from "@/lib/types";
+import { revalidatePath } from "next/cache";
+
+const AI_USER_DAILY_LIMIT = 10;
+const AI_WORKSPACE_DAILY_LIMIT = 20;
+const AI_LIMIT_WINDOW_SECONDS = 24 * 60 * 60;
 
 export async function createAiTrainingDraft(formData: FormData) {
   const { user, team } = await requireActiveTeam();
+  await assertProFeature(team.id, "KI-Trainingsplanung");
   const focus = requiredString(formData, "focus", "Schwerpunkt");
   const duration = optionalNumber(formData, "duration_minutes") ?? 90;
   const ageGroup = optionalString(formData, "age_group") ?? team.ageGroup;
   const date = requiredString(formData, "date", "Datum");
-  const additionalContext = optionalString(formData, "context") ?? "";
+
+  if (focus.length > 120 || (ageGroup?.length ?? 0) > 40) {
+    throw new Error("Schwerpunkt oder Altersstufe ist zu lang.");
+  }
+  if (!Number.isInteger(duration) || duration < 30 || duration > 240) {
+    throw new Error("Die Trainingsdauer muss zwischen 30 und 240 Minuten liegen.");
+  }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    throw new Error("Das Trainingsdatum ist ungültig.");
+  }
 
   if (!process.env.ANTHROPIC_API_KEY) {
     throw new Error("ANTHROPIC_API_KEY ist nicht konfiguriert. Bitte in .env.local setzen.");
   }
 
+  const [userLimit, workspaceLimit] = await Promise.all([
+    rateLimit(
+      `ai-draft-user:${user.id}`,
+      AI_USER_DAILY_LIMIT,
+      AI_LIMIT_WINDOW_SECONDS
+    ),
+    rateLimit(
+      `ai-draft-workspace:${team.id}`,
+      AI_WORKSPACE_DAILY_LIMIT,
+      AI_LIMIT_WINDOW_SECONDS
+    )
+  ]);
+  if (!userLimit.success || !workspaceLimit.success) {
+    throw new Error(
+      "Das tägliche KI-Kontingent ist erreicht. Bitte morgen erneut versuchen."
+    );
+  }
+
+  const trainingDate = new Date(`${date}T00:00:00.000Z`);
+  if (
+    Number.isNaN(trainingDate.getTime()) ||
+    trainingDate.toISOString().slice(0, 10) !== date
+  ) {
+    throw new Error("Das Trainingsdatum ist ungültig.");
+  }
   const sevenDaysAgo = new Date(Date.now() - 7 * 86400000);
 
   const [players, checkins, recentTrainings, nextMatch] = await Promise.all([
     db.player.findMany({
       where: { workspaceId: team.id },
-      orderBy: { name: "asc" }
+      select: {
+        id: true,
+        status: true,
+      },
     }),
     db.healthCheck.findMany({
       where: {
         player: { workspaceId: team.id },
-        date: { gte: sevenDaysAgo }
+        date: { gte: sevenDaysAgo },
       },
-      orderBy: { date: "desc" }
+      orderBy: { date: "desc" },
+      select: {
+        playerId: true,
+        fatigue: true,
+        sleepQuality: true,
+        soreness: true,
+        pain: true,
+        stress: true,
+        motivation: true,
+        energy: true,
+        injuryFeeling: true,
+        wellbeing: true,
+      },
     }),
     db.training.findMany({
       where: {
         workspaceId: team.id,
-        date: { lt: new Date(date) }
+        date: { lt: trainingDate },
       },
       orderBy: { date: "desc" },
-      take: 4
+      take: 4,
+      select: {
+        intensity: true,
+      },
     }),
     db.match.findFirst({
       where: {
         workspaceId: team.id,
-        date: { gte: new Date(date) }
+        date: { gte: trainingDate },
       },
-      orderBy: { date: "asc" }
-    })
+      orderBy: { date: "asc" },
+      select: {
+        date: true,
+      },
+    }),
   ]);
 
-  const latestByPlayer = new Map<string, typeof checkins[number]>();
-  for (const c of checkins) {
-    if (!latestByPlayer.has(c.playerId)) {
-      latestByPlayer.set(c.playerId, c);
-    }
-  }
-
-  const available = players.filter((p: any) => p.status === "AVAILABLE" || !p.status);
-  const limited = players.filter((p: any) => p.status === "LIMITED");
-  const injured = players.filter((p: any) => p.status === "INJURED");
-
-  const wellnessLines = players
-    .map((player: any) => {
-      const c = latestByPlayer.get(player.id);
-      if (!c) return `- ${player.name}: Kein aktueller Check-in`;
-
-      const snakeCaseCheckin = {
-        player_id: c.playerId,
-        checkin_date: c.date.toISOString().slice(0, 10),
-        fatigue: c.fatigue,
-        sleep_quality: c.sleepQuality ?? 3,
-        soreness: c.soreness,
-        pain: c.pain,
-        stress: c.stress,
-        motivation: c.motivation,
-        energy: c.energy ?? 3,
-        injury_feeling: c.injuryFeeling ?? 3,
-        wellbeing: c.wellbeing ?? 3,
-      };
-
-      const risk = healthRisk(snakeCaseCheckin);
-      const label =
-        risk === "red"
-          ? "ðŸ”´ ROT â€“ unbedingt schonen!"
-          : risk === "yellow"
-            ? "ðŸŸ¡ GELB â€“ beobachten"
-            : "âœ… GUT";
-      return `- ${player.name}: MÃ¼digkeit ${c.fatigue}/5, Schmerzen ${c.pain}/5, Energie ${c.energy ?? 3}/5, Stress ${c.stress}/5, Schlaf ${c.sleepQuality ?? 3}/5 â†’ ${label}`;
-    })
-    .join("\n");
-
-  const recentLines =
-    recentTrainings.length > 0
-      ? recentTrainings.map((t: any) => `- ${t.date.toISOString().slice(0, 10)}: ${t.focus} (${t.intensity ?? "?"} IntensitÃ¤t)`).join("\n")
-      : "- Noch keine Trainings erfasst";
-
-  const daysToMatch = nextMatch
-    ? Math.round((new Date(nextMatch.date).getTime() - new Date(date).getTime()) / 86400000)
+  const teamLoadSummary = aggregateTeamLoadSignals(players, checkins);
+  const recentTrainingSummary = summarizeRecentTrainingIntensity(recentTrainings);
+  const daysUntilNextMatch = nextMatch
+    ? Math.max(0, Math.round((nextMatch.date.getTime() - trainingDate.getTime()) / 86400000))
     : null;
-  const matchLine = nextMatch
-    ? `${nextMatch.date.toISOString().slice(0, 10)} gegen ${nextMatch.opponent}${nextMatch.kickoffTime ? ` Â· Anpfiff ${nextMatch.kickoffTime.slice(0, 5)} Uhr` : ""} â€” ${daysToMatch} Tag(e) bis zum Spiel`
-    : "Kein Spiel in den nÃ¤chsten 14 Tagen geplant";
 
   const plan = await generateTrainingPlan({
-    teamName: team.name,
-    ageGroup,
-    totalPlayers: players.length,
-    availableCount: available.length,
-    limitedCount: limited.length,
-    injuredCount: injured.length,
-    date,
+    ...teamLoadSummary,
+    ...recentTrainingSummary,
+    ageGroup: normalizeAiAgeGroup(ageGroup),
     durationMinutes: duration,
-    focus,
-    additionalContext,
-    wellnessLines,
-    recentLines,
-    matchLine
+    focusCategory: normalizeAiTrainingFocus(focus),
+    daysUntilNextMatch,
   });
 
   const validIntensities: TrainingIntensity[] = ["low", "medium", "high"];
@@ -192,16 +143,16 @@ export async function createAiTrainingDraft(formData: FormData) {
       workspaceId: team.id,
       userId: user.id,
       title: plan.focus || focus,
-      date: new Date(date),
+      date: trainingDate,
       durationMinutes: duration,
       focus: plan.focus || focus,
       goal: plan.goal,
       intensity,
-      notes: plan.notes
-    }
+      notes: plan.notes,
+    },
   });
 
-  const phaseRows = (plan.phases ?? []).map((phase: any, index: number) => ({
+  const phaseRows = (plan.phases ?? []).map((phase, index) => ({
     trainingId: training.id,
     phaseType: (phase.phase_type ?? "technique") as TrainingPhaseType,
     title: phase.title ?? "",
@@ -212,13 +163,13 @@ export async function createAiTrainingDraft(formData: FormData) {
     material: phase.material ?? null,
     variations: phase.variations ?? null,
     loadManagement: phase.load_management ?? null,
-    diagram: (phase.diagram ?? null) as any,
-    sortOrder: index
+    diagram: (phase.diagram ?? null) as never,
+    sortOrder: index,
   }));
 
   if (phaseRows.length > 0) {
     await db.trainingPhase.createMany({
-      data: phaseRows
+      data: phaseRows,
     });
   }
 
@@ -227,4 +178,3 @@ export async function createAiTrainingDraft(formData: FormData) {
   revalidatePath("/pitch");
   revalidatePath("/trainings");
 }
-

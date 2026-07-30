@@ -13,6 +13,7 @@ import { getSiteUrl } from "@/lib/env";
 import { createClient } from "@/lib/supabase/server";
 import { db } from "@/lib/db";
 import { rotatePlayerSignupInvite } from "@/lib/invites";
+import { requirePlayerInWorkspace } from "@/lib/team-relations";
 import {
   enumValue,
   normalizeExternalUrl,
@@ -94,6 +95,8 @@ export async function saveHealthCheckin(formData: FormData) {
   const wellbeing = scaleFive(formData, "wellbeing", "Wellbeing");
   const notes = optionalString(formData, "notes");
 
+  await requirePlayerInWorkspace(team.id, playerId);
+
   const contextEnum =
     typeStr === "match"
       ? "PRE_MATCH"
@@ -167,6 +170,8 @@ export async function updateHealthCheckin(formData: FormData) {
   const parsedDate = new Date(checkinDateStr);
   const typeStr = contextType ?? "training";
 
+  await requirePlayerInWorkspace(team.id, playerId);
+
   const checkin = await db.healthCheck.findFirst({
     where: {
       id,
@@ -227,7 +232,6 @@ export async function updateHealthCheckin(formData: FormData) {
 export async function deleteHealthCheckin(formData: FormData) {
   const { team } = await requireActiveTeam();
   const id = requiredString(formData, "id", "Health check-in");
-  const playerId = optionalString(formData, "player_id");
 
   const checkin = await db.healthCheck.findFirst({
     where: {
@@ -249,8 +253,6 @@ export async function deleteHealthCheckin(formData: FormData) {
   revalidatePath("/");
   revalidatePath("/health");
   revalidatePath("/player-mode");
-  if (playerId) {
-    revalidatePath(`/players/${playerId}`);
-  }
+  revalidatePath(`/players/${checkin.playerId}`);
 }
 

@@ -1,17 +1,17 @@
 import { NextResponse } from "next/server";
 
-export async function GET(
-  _req: Request,
-  { params }: { params: Promise<{ accessToken: string }> }
-) {
-  const { accessToken } = await params;
+export async function GET() {
   const manifest = {
     name: "CoachOS – Mein Bereich",
     short_name: "CoachOS",
     description: "Dein persönlicher Spieler-Bereich",
-    start_url: `/p/${accessToken}`,
+    id: "/player",
+    start_url: "/player",
+    scope: "/",
+    lang: "de-CH",
     display: "standalone",
-    orientation: "portrait",
+    orientation: "any",
+    categories: ["sports", "health"],
     background_color: "#0f172a",
     theme_color: "#10b981",
     icons: [
@@ -30,6 +30,11 @@ export async function GET(
     ],
   };
   return NextResponse.json(manifest, {
-    headers: { "Content-Type": "application/manifest+json" },
+    headers: {
+      "Cache-Control": "private, no-store",
+      "Content-Type": "application/manifest+json",
+      "Referrer-Policy": "no-referrer",
+      "X-Robots-Tag": "noindex, nofollow, noarchive"
+    },
   });
 }

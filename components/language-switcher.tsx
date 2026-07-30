@@ -24,7 +24,7 @@ export function LanguageSwitcher() {
       disabled={isPending}
       size="sm"
       variant="ghost"
-      className="flex items-center gap-2 text-slate-300 hover:bg-slate-800 hover:text-white"
+      className="flex h-11 items-center gap-2 text-slate-300 hover:bg-slate-800 hover:text-white lg:h-8"
     >
       <Globe aria-hidden="true" className="h-4 w-4" />
       <span className="text-xs font-semibold uppercase">{locale}</span>

@@ -9,38 +9,36 @@ import { EmptyState } from "@/components/empty-state";
 import { Input } from "@/components/ui/input";
 import { cn, formatDate } from "@/lib/utils";
 
-export type Risk = "red" | "yellow" | "green";
+export type LoadLevel = "red" | "yellow" | "green";
 
 export interface HealthRow {
   playerId: string;
   playerName: string;
   position: string | null;
   category: string | null;
-  risk: Risk | null;
-  riskLabel: string;
-  riskScore: number;
+  loadLevel: LoadLevel | null;
+  loadLabel: string;
+  loadScore: number;
   checkinDate: string | null;
   fatigue: number | null;
   energy: number | null;
   pain: number | null;
-  predictiveReasons?: string[];
-  predictiveRecommendation?: string;
+  signalReasons?: string[];
+  signalRecommendation?: string;
 }
 
-type SortKey = "name" | "risk" | "date" | "energy" | "pain";
+type SortKey = "name" | "load" | "date" | "energy" | "pain";
 
-const riskOrder: Record<Risk, number> = { red: 3, yellow: 2, green: 1 };
-
-const riskClass: Record<Risk, string> = {
+const loadClass: Record<LoadLevel, string> = {
   red: "bg-red-100 text-red-900 ring-red-300",
   yellow: "bg-amber-100 text-amber-900 ring-amber-300",
   green: "bg-emerald-100 text-emerald-900 ring-emerald-300"
 };
 
-function rowAccent(risk: Risk | null) {
-  if (risk === "red") return "border-l-red-500";
-  if (risk === "yellow") return "border-l-amber-500";
-  if (risk === "green") return "border-l-emerald-500";
+function rowAccent(level: LoadLevel | null) {
+  if (level === "red") return "border-l-red-500";
+  if (level === "yellow") return "border-l-amber-500";
+  if (level === "green") return "border-l-emerald-500";
   return "border-l-slate-200";
 }
 
@@ -66,9 +64,10 @@ function SortIcon({ active, dir }: { active: boolean; dir: "asc" | "desc" }) {
 }
 
 export function HealthRoster({ rows }: { rows: HealthRow[] }) {
-  const [filter, setFilter] = useState<"all" | Risk | "no-checkin">("all");
+  const [filter, setFilter] =
+    useState<"all" | LoadLevel | "no-checkin">("all");
   const [sort, setSort] = useState<{ key: SortKey; dir: "asc" | "desc" }>({
-    key: "risk",
+    key: "load",
     dir: "desc"
   });
   const [search, setSearch] = useState("");
@@ -76,8 +75,12 @@ export function HealthRoster({ rows }: { rows: HealthRow[] }) {
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
     return rows.filter((row) => {
-      if (filter === "no-checkin" && row.risk !== null) return false;
-      if (filter !== "all" && filter !== "no-checkin" && row.risk !== filter)
+      if (filter === "no-checkin" && row.loadLevel !== null) return false;
+      if (
+        filter !== "all" &&
+        filter !== "no-checkin" &&
+        row.loadLevel !== filter
+      )
         return false;
       if (term && !row.playerName.toLowerCase().includes(term)) return false;
       return true;
@@ -92,8 +95,8 @@ export function HealthRoster({ rows }: { rows: HealthRow[] }) {
         case "name":
           diff = a.playerName.localeCompare(b.playerName, "de");
           break;
-        case "risk":
-          diff = a.riskScore - b.riskScore;
+        case "load":
+          diff = a.loadScore - b.loadScore;
           break;
         case "date":
           diff =
@@ -122,10 +125,10 @@ export function HealthRoster({ rows }: { rows: HealthRow[] }) {
 
   const counts = useMemo(() => {
     return {
-      red: rows.filter((row) => row.risk === "red").length,
-      yellow: rows.filter((row) => row.risk === "yellow").length,
-      green: rows.filter((row) => row.risk === "green").length,
-      none: rows.filter((row) => row.risk === null).length
+      red: rows.filter((row) => row.loadLevel === "red").length,
+      yellow: rows.filter((row) => row.loadLevel === "yellow").length,
+      green: rows.filter((row) => row.loadLevel === "green").length,
+      none: rows.filter((row) => row.loadLevel === null).length
     };
   }, [rows]);
 
@@ -193,11 +196,11 @@ export function HealthRoster({ rows }: { rows: HealthRow[] }) {
               <th className="px-3 py-2">
                 <button
                   className="inline-flex items-center gap-1"
-                  onClick={() => toggleSort("risk")}
+                  onClick={() => toggleSort("load")}
                   type="button"
                 >
-                  Belastung / Risiko
-                  <SortIcon active={sort.key === "risk"} dir={sort.dir} />
+                  Belastungshinweis
+                  <SortIcon active={sort.key === "load"} dir={sort.dir} />
                 </button>
               </th>
               <th className="hidden px-3 py-2 sm:table-cell">
@@ -269,7 +272,7 @@ export function HealthRoster({ rows }: { rows: HealthRow[] }) {
                 <tr
                   className={cn(
                     "border-t border-border border-l-4 bg-background/70",
-                    rowAccent(row.risk)
+                    rowAccent(row.loadLevel)
                   )}
                   key={row.playerId}
                 >
@@ -279,9 +282,9 @@ export function HealthRoster({ rows }: { rows: HealthRow[] }) {
                       {row.position ?? "Position offen"}
                       {row.category ? ` · ${row.category}` : ""}
                     </p>
-                    {row.predictiveReasons && row.predictiveReasons.length > 0 && (
+                    {row.signalReasons && row.signalReasons.length > 0 && (
                       <div className="mt-1 flex flex-wrap gap-1">
-                        {row.predictiveReasons.map((reason, idx) => (
+                        {row.signalReasons.map((reason, idx) => (
                           <span
                             key={idx}
                             className="inline-flex items-center rounded bg-red-50 px-1.5 py-0.5 text-[10px] font-medium text-red-700 ring-1 ring-inset ring-red-600/10 dark:bg-red-950/30 dark:text-red-400 dark:ring-red-500/20"
@@ -293,32 +296,37 @@ export function HealthRoster({ rows }: { rows: HealthRow[] }) {
                     )}
                   </td>
                   <td className="px-3 py-3 align-top">
-                    {row.risk ? (
+                    {row.loadLevel ? (
                       <div className="space-y-1">
                         <span
                           className={cn(
                             "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1",
-                            riskClass[row.risk]
+                            loadClass[row.loadLevel]
                           )}
                         >
                           <span
                             aria-hidden="true"
                             className={cn(
                               "h-1.5 w-1.5 rounded-full",
-                              row.risk === "red"
+                              row.loadLevel === "red"
                                 ? "bg-red-600"
-                                : row.risk === "yellow"
+                                : row.loadLevel === "yellow"
                                   ? "bg-amber-500"
                                   : "bg-emerald-600"
                             )}
                           />
-                          {row.riskLabel}
+                          {row.loadLabel}
                         </span>
-                        {row.riskScore > 0 && (
+                        {row.loadScore > 0 && (
                           <div className="text-[11px] text-muted-foreground font-medium pl-1">
-                            Risiko: {row.riskScore}%
+                            Belastungswert: {row.loadScore}/100
                           </div>
                         )}
+                        {row.signalRecommendation ? (
+                          <p className="max-w-sm text-[11px] leading-4 text-muted-foreground">
+                            {row.signalRecommendation}
+                          </p>
+                        ) : null}
                       </div>
                     ) : (
                       <Badge variant="outline">Kein Check</Badge>

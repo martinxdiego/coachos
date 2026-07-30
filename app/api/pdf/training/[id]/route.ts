@@ -5,6 +5,11 @@ import { db } from "@/lib/db";
 import { pdfDateString, safeFilename } from "@/lib/pdf/filename";
 import { TrainingDocument } from "@/lib/pdf/training-document";
 import type { TrainingPhase } from "@/lib/types";
+import {
+  createSignedStorageUrls,
+  TRAINING_IMAGE_BUCKET
+} from "@/lib/storage";
+import { assertProFeature } from "@/lib/billing";
 
 const isoDate = (value: Date) => value.toISOString().slice(0, 10);
 
@@ -55,6 +60,7 @@ export async function GET(_request: Request, { params }: RouteParams) {
   }
 
   const { team } = await requireActiveTeam();
+  await assertProFeature(team.id, "PDF-Export");
 
   const trainingRow = await db.training.findFirst({
     where: { id, workspaceId: team.id },
@@ -89,8 +95,18 @@ export async function GET(_request: Request, { params }: RouteParams) {
     notes: trainingRow.notes
   };
 
+  const phaseImageUrls = await Promise.all(
+    trainingRow.phases.map((phase) =>
+      createSignedStorageUrls(
+        TRAINING_IMAGE_BUCKET,
+        phase.imageUrls,
+        `${team.id}/`
+      )
+    )
+  );
+
   // Map Prisma (camelCase) phases onto the snake_case shape the PDF expects.
-  const phases = trainingRow.phases.map((phase) => ({
+  const phases = trainingRow.phases.map((phase, index) => ({
     id: phase.id,
     training_id: phase.trainingId,
     phase_type: phase.phaseType,
@@ -104,7 +120,9 @@ export async function GET(_request: Request, { params }: RouteParams) {
     field_size: phase.fieldSize,
     variations: phase.variations,
     load_management: phase.loadManagement,
-    image_urls: phase.imageUrls,
+    image_urls: phaseImageUrls[index].filter(
+      (url): url is string => Boolean(url)
+    ),
     diagram: phase.diagram,
     sort_order: phase.sortOrder
   })) as unknown as TrainingPhase[];

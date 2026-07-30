@@ -47,7 +47,7 @@ Schätzung in Story Points (SP): 1 ≈ halber Tag, 2 ≈ 1 Tag, 3 ≈ 2 Tage, 5 
 - [x] **S1.5 (P0, 2 SP) DB-TLS korrekt konfigurieren** ✅ 2026-06-12
   `rejectUnauthorized: false` in `lib/db.ts` entfernen; Supabase-CA-Zertifikat einbinden (`ssl: { ca: ... }`) oder `sslmode=verify-full` in der Connection-URL.
   *AK:* Verbindung verifiziert Zertifikat; Deployment auf Vercel funktioniert.
-  *Umgesetzt:* `resolveSslConfig()` verifiziert per Default; CA via `DATABASE_CA_CERT`; Notfall-Opt-out `DATABASE_SSL_NO_VERIFY=true` (mit Warnung). **Aktion nötig:** Supabase-CA-Cert in Vercel-Env `DATABASE_CA_CERT` hinterlegen, damit der sichere Pfad ohne Opt-out greift.
+  *Umgesetzt:* `resolveSslConfig()` verifiziert per Default mit dem gebündelten Supabase-Root-Zertifikat; `DATABASE_CA_CERT` ist ein optionaler Override und akzeptiert echte oder als `\n` codierte Zeilenumbrüche. Notfall-Opt-out `DATABASE_SSL_NO_VERIFY=true` (mit Warnung).
 
 - [x] **S1.6 (P0, 3 SP) Auth-Härtung Basis** ✅ 2026-06-12 (zxcvbn offen)
   Passwort-Mindestlänge 10 + zxcvbn-Check, Login-Lockout/Backoff (z. B. 5 Fehlversuche → 15 min, Redis-basiert, pro E-Mail + IP), generische Fehlermeldungen (kein "user not found"-Logging mit E-Mail in Klartext).
@@ -66,7 +66,7 @@ Schätzung in Story Points (SP): 1 ≈ halber Tag, 2 ≈ 1 Tag, 3 ≈ 2 Tage, 5 
 Alle Sicherheits-Stories umgesetzt; Typecheck + Lint grün. **Ausstehende User-Aktionen vor/bei Deploy:**
 1. **S3.1-Baseline** je Umgebung einmalig: `npm run db:baseline` (Prod + Staging).
 2. **Danach** `prisma migrate deploy` ausführen → wendet `20260612120000_reduce_roles` an (S1.7).
-3. **TLS:** Supabase-CA-Cert als `DATABASE_CA_CERT` in Vercel (S1.5).
+3. **TLS:** Der sichere Standard nutzt das gebündelte Supabase-Root-Zertifikat; `DATABASE_CA_CERT` nur bei einem nötigen CA-Override setzen (S1.5).
 4. **Tests** für Mandanten-Trennung + verbotene Rollen-Aktionen kommen mit S4.2.
 
 ---
@@ -261,17 +261,33 @@ Alle Sicherheits-Stories umgesetzt; Typecheck + Lint grün. **Ausstehende User-A
 **Ziel:** Die App darf verkauft werden und kann Geld einnehmen.
 **Sprint: 6–7**
 
-- [ ] **S8.1 (P3, 8 SP) Billing (Stripe)**
+- [x] **S8.1 (P3, 8 SP) Billing (Stripe)** ✅ 2026-07-30 (Code vollständig; Stripe-Konfiguration extern)
   Pläne: Free (1 Team, X Spieler, ohne AI) / Pro (unbegrenzt, AI, PDF-Export). Stripe Checkout + Customer Portal + Webhooks; Plan-Limits serverseitig durchgesetzt.
   *AK:* Test-Abo abschließbar, kündbar; Limit-Überschreitung zeigt Upgrade-Prompt.
+  *Umgesetzt:* `/pricing`, Stripe Subscription Checkout, Customer Portal,
+  signaturgeprüfter Raw-Body-Webhook, synchronisierter Free-/Pro-Status sowie
+  serverseitige Limits für eigene Workspaces, Kader, KI und PDF. Der Pilot
+  bleibt über `BILLING_ENFORCE=false` offen. **Extern offen:** Produkt/Preis,
+  Test-Webhooks und Live-Keys im Stripe-Konto konfigurieren und abnehmen.
 
-- [ ] **S8.2 (P3, 3 SP) Account-Lifecycle**
+- [x] **S8.2 (P3, 3 SP) Account-Lifecycle** ✅ 2026-07-30
   E-Mail-Verifizierung, Passwort-Reset (E-Mail-Provider z. B. Resend), Account-Löschung inkl. Kaskade + DSGVO-Datenexport (JSON) pro Workspace.
   *AK:* Alle 4 Flows funktionieren E2E; Löschung entfernt nachweisbar alle personenbezogenen Daten.
+  *Umgesetzt:* E-Mail-Verifizierung per 24-Stunden-Einmal-Link,
+  Passwort-Reset per 30-Minuten-Link, Invalidierung alter Trainer-Sitzungen,
+  Workspace-JSON-Export, passwortbestätigte Workspace-Löschung inklusive
+  privater Storage-Objekte und kontenweite Löschung. Kernablauf auf Desktop,
+  Android, iPhone und Tablet E2E-geprüft. **Extern offen:** Resend-Absender
+  und Domain verifizieren.
 
-- [ ] **S8.3 (P3, 2 SP) Legal-Paket**
+- [x] **S8.3 (P3, 2 SP) Legal-Paket** ✅ 2026-07-30 (technische Vorlage; Review extern)
   Impressum, Datenschutzerklärung (Art.-9-Gesundheitsdaten!), AGB, AVV-Liste (Supabase, Vercel, Anthropic, Stripe, E-Mail-Provider), Cookie-/Consent-Prüfung, Datenresidenz EU (Supabase-Region prüfen).
   *AK:* Seiten verlinkt im Footer + Spieler-Flow; juristisch gegengelesen (extern).
+  *Umgesetzt:* In-App-Seiten für Impressum, Datenschutz mit
+  Gesundheitsdaten/Minderjährigen, Nutzungsbedingungen und Support; Betreiber-
+  und Kontaktdaten per Env, Indexierung erst mit `LEGAL_PUBLISH=true`.
+  **Extern offen:** Betreiberangaben ergänzen, Auftragsverarbeiterliste,
+  Datenresidenz und Texte juristisch freigeben.
 
 - [ ] **S8.4 (P3, 5 SP) Admin-Backoffice (minimal)**
   Interne Seite (separat absichert): Workspace-Suche, Nutzer-Support (Token neu senden, Workspace einsehen mit Audit-Log), Kennzahlen.

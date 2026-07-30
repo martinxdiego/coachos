@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { captureException, logger, registerErrorSink } from "./logger";
+import {
+  captureException,
+  logger,
+  redactSensitiveText,
+  registerErrorSink,
+} from "./logger";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -22,6 +27,17 @@ describe("logger", () => {
     logger.error("e");
     expect(warn).toHaveBeenCalledOnce();
     expect(error).toHaveBeenCalledOnce();
+  });
+
+  it("redacts common credentials and personal data from messages", () => {
+    const raw =
+      "coach@example.com /p/private-token?id=1&accessToken=secret Bearer abc.def";
+    const redacted = redactSensitiveText(raw);
+
+    expect(redacted).not.toContain("coach@example.com");
+    expect(redacted).not.toContain("private-token");
+    expect(redacted).not.toContain("accessToken=secret");
+    expect(redacted).not.toContain("Bearer abc.def");
   });
 });
 

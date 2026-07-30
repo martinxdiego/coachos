@@ -1,6 +1,7 @@
 import {
   BarChart3,
   Building2,
+  CalendarCheck,
   CalendarDays,
   ClipboardList,
   Crown,
@@ -100,6 +101,12 @@ export const navClusters: NavCluster[] = [
         label: "Kalender",
         icon: CalendarDays,
         description: "Alle Termine im Überblick"
+      },
+      {
+        href: "/availability",
+        label: "Zu- & Absagen",
+        icon: CalendarCheck,
+        description: "Live-Kader und Rückmeldungen"
       }
     ]
   },

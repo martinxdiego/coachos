@@ -1,4 +1,9 @@
-import { redisClient, isRedisAvailable } from "./redis";
+import {
+  getRedisClient,
+  incrementExpiringCounter
+} from "./redis";
+import { logger } from "./logger";
+import { opaqueKey } from "./opaque-key";
 
 interface RateLimitResult {
   success: boolean;
@@ -28,17 +33,18 @@ export async function rateLimit(
   limit: number = 60,
   windowSeconds: number = 60
 ): Promise<RateLimitResult> {
-  const key = `rate_limit:${ip}`;
+  const key = await opaqueKey("rate_limit", ip);
+  const redisClient = await getRedisClient();
 
-  if (isRedisAvailable && redisClient) {
+  if (redisClient) {
     try {
-      const count = await redisClient.incr(key);
-      if (count === 1) {
-        await redisClient.expire(key, windowSeconds);
-      }
-      const ttl = await redisClient.ttl(key);
+      const { count, ttlSeconds } = await incrementExpiringCounter(
+        redisClient,
+        key,
+        windowSeconds
+      );
       const remaining = Math.max(0, limit - count);
-      const reset = Date.now() + (ttl > 0 ? ttl * 1000 : windowSeconds * 1000);
+      const reset = Date.now() + ttlSeconds * 1000;
 
       return {
         success: count <= limit,
@@ -46,8 +52,11 @@ export async function rateLimit(
         remaining,
         reset
       };
-    } catch (err) {
-      console.warn("Redis rateLimit failed, falling back to in-memory:", err);
+    } catch (error) {
+      logger.warn("Redis rate limit failed; using in-memory fallback", {
+        errorType:
+          error instanceof Error ? error.constructor.name : typeof error
+      });
     }
   }
 

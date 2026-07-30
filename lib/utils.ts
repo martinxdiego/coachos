@@ -7,10 +7,10 @@ export function cn(...inputs: ClassValue[]) {
 
 export function formatDate(value: string | null | undefined) {
   if (!value) {
-    return "No date";
+    return "Kein Datum";
   }
 
-  return new Intl.DateTimeFormat("en", {
+  return new Intl.DateTimeFormat("de-CH", {
     month: "short",
     day: "numeric",
     year: "numeric"
@@ -22,7 +22,7 @@ export function formatDateTime(value: string | null | undefined) {
     return "";
   }
 
-  return new Intl.DateTimeFormat("en", {
+  return new Intl.DateTimeFormat("de-CH", {
     month: "short",
     day: "numeric",
     hour: "2-digit",
@@ -30,6 +30,17 @@ export function formatDateTime(value: string | null | undefined) {
   }).format(new Date(value));
 }
 
-export function todayIsoDate() {
-  return new Date().toISOString().slice(0, 10);
+export function todayIsoDate(
+  now: Date = new Date(),
+  timeZone = "Europe/Zurich"
+) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).formatToParts(now);
+  const values = Object.fromEntries(parts.map(({ type, value }) => [type, value]));
+
+  return `${values.year}-${values.month}-${values.day}`;
 }

@@ -12,6 +12,8 @@ import {
   getLoginThrottle,
   recordFailedLogin,
 } from "./login-throttle";
+import { logger } from "./logger";
+import { DUMMY_PASSWORD_HASH } from "./password";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
@@ -25,18 +27,25 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
       },
-      async authorize(credentials) {
+      async authorize(credentials, request) {
         const parsedCredentials = z
-          .object({ email: z.string().email(), password: z.string().min(1) })
+          .object({
+            email: z.string().email().max(254),
+            password: z.string().min(1).max(128)
+          })
           .safeParse(credentials);
 
         if (!parsedCredentials.success) return null;
 
         const { email, password } = parsedCredentials.data;
         const normalizedEmail = email.toLowerCase();
+        const clientIp =
+          request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+          request.headers.get("x-real-ip")?.trim() ||
+          "unknown";
 
         // Block brute-force / credential-stuffing before touching the DB.
-        const throttle = await getLoginThrottle(normalizedEmail);
+        const throttle = await getLoginThrottle(normalizedEmail, clientIp);
         if (throttle.locked) {
           throw new Error(
             `Zu viele Fehlversuche. Bitte in ${Math.ceil(
@@ -54,20 +63,35 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           // user exists (mitigates user-enumeration via response time).
           const hash =
             user?.passwordHash ??
-            "$2a$10$invalidinvalidinvalidinvalidinvalidinvalidinvalidinvalidiu";
+            DUMMY_PASSWORD_HASH;
           const passwordsMatch = await bcrypt.compare(password, hash);
 
           if (!user || !passwordsMatch) {
-            await recordFailedLogin(normalizedEmail);
+            await recordFailedLogin(normalizedEmail, clientIp);
+            return null;
+          }
+          if (
+            process.env.EMAIL_VERIFICATION_REQUIRED === "true" &&
+            !user.emailVerifiedAt
+          ) {
+            await clearLoginAttempts(normalizedEmail, clientIp);
             return null;
           }
 
-          await clearLoginAttempts(normalizedEmail);
-          return { id: user.id, email: user.email, name: user.name, role: user.role };
+          await clearLoginAttempts(normalizedEmail, clientIp);
+          return {
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            role: user.role,
+            authVersion: user.authVersion
+          };
         } catch (err) {
           // Re-throw lockout signal; swallow everything else without logging PII.
           if (err instanceof Error && err.message.startsWith("Zu viele")) throw err;
-          console.error("[auth] authorize error");
+          logger.error("Credential authorization failed", {
+            errorType: err instanceof Error ? err.constructor.name : typeof err,
+          });
           return null;
         }
       },
@@ -94,12 +118,23 @@ export async function requireUser() {
   if (!session?.user) {
     redirect("/login");
   }
+  const account = await db.user.findUnique({
+    where: { id: session.user.id },
+    select: { authVersion: true }
+  });
+  if (
+    !account ||
+    account.authVersion !== (session.user as { authVersion?: number }).authVersion
+  ) {
+    redirect("/login?reauth=1");
+  }
 
   return {
     user: {
       id: session.user.id!,
       email: session.user.email!,
       role: (session.user as any).role,
+      authVersion: account.authVersion
     },
   };
 }

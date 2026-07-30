@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { BotMessageSquare, ChevronDown, ImagePlus, LayoutPanelLeft, Pencil, Plus, Upload } from "lucide-react";
+import { BotMessageSquare, ChevronDown, ImagePlus, LayoutPanelLeft, Loader2, Pencil, Plus, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { uploadPhaseImage } from "@/app/actions";
 import { PhaseImageUploader } from "@/components/phase-image-uploader";
 import { SketchCanvasDrawer } from "@/components/sketch-canvas-drawer";
 import { TacticBoardDrawer } from "@/components/tactic-board-drawer";
 import { Button } from "@/components/ui/button";
+import { prepareBrowserImageUpload } from "@/lib/browser-image-upload";
 import { cn } from "@/lib/utils";
 
 interface PhaseMediaMenuProps {
@@ -24,6 +25,8 @@ export function PhaseMediaMenu({
   const [menuOpen, setMenuOpen] = useState(false);
   const [sketchOpen, setSketchOpen] = useState(false);
   const [tacticOpen, setTacticOpen] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -40,18 +43,26 @@ export function PhaseMediaMenu({
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
+    e.target.value = "";
     if (!file) return;
     setMenuOpen(false);
-    const formData = new FormData();
-    formData.set("phase_id", phaseId);
-    formData.set("image", file);
+    setUploadError(null);
+    setIsProcessing(true);
     try {
+      const preparedFile = await prepareBrowserImageUpload(file);
+      const formData = new FormData();
+      formData.set("phase_id", phaseId);
+      formData.set("image", preparedFile);
       await uploadPhaseImage(formData);
       toast.success("Bild hochgeladen");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Hochladen fehlgeschlagen");
+      const message =
+        err instanceof Error ? err.message : "Hochladen fehlgeschlagen";
+      setUploadError(message);
+      toast.error(message);
+    } finally {
+      setIsProcessing(false);
     }
-    e.target.value = "";
   }
 
   function openTacticBoard() {
@@ -73,24 +84,40 @@ export function PhaseMediaMenu({
       <div className={cn("relative mt-2", images.length === 0 ? "block" : "inline-block")} ref={menuRef}>
         {images.length === 0 ? (
           <button
-            className="flex w-full items-center gap-2.5 rounded-lg border border-dashed border-border/60 px-3 py-2.5 text-left text-[12px] text-muted-foreground transition hover:border-primary/40 hover:bg-secondary/50 hover:text-foreground"
+            aria-expanded={menuOpen}
+            className="flex min-h-11 w-full items-center gap-2.5 rounded-lg border border-dashed border-border/60 px-3 py-2.5 text-left text-[12px] text-muted-foreground transition hover:border-primary/40 hover:bg-secondary/50 hover:text-foreground"
+            disabled={isProcessing}
             onClick={() => setMenuOpen((v) => !v)}
             type="button"
           >
-            <ImagePlus className="h-4 w-4 shrink-0" />
-            <span>Bild, Skizze oder Taktik anhängen</span>
+            {isProcessing ? (
+              <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
+            ) : (
+              <ImagePlus className="h-4 w-4 shrink-0" />
+            )}
+            <span>
+              {isProcessing
+                ? "Bild wird vorbereitet…"
+                : "Bild, Skizze oder Taktik anhängen"}
+            </span>
             <ChevronDown className="ml-auto h-3.5 w-3.5 opacity-50" />
           </button>
         ) : (
           <Button
-            className="h-8 gap-1.5 text-xs"
+            aria-expanded={menuOpen}
+            className="h-11 gap-1.5 text-xs sm:h-8"
+            disabled={isProcessing}
             onClick={() => setMenuOpen((v) => !v)}
             size="sm"
             type="button"
             variant="outline"
           >
-            <Plus className="h-3.5 w-3.5" />
-            Bild hinzufügen
+            {isProcessing ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Plus className="h-3.5 w-3.5" />
+            )}
+            {isProcessing ? "Wird vorbereitet…" : "Bild hinzufügen"}
           </Button>
         )}
 
@@ -108,7 +135,9 @@ export function PhaseMediaMenu({
               <Upload className="h-4 w-4 shrink-0 text-muted-foreground" />
               <span>
                 <span className="block font-medium">Datei hochladen</span>
-                <span className="text-xs text-muted-foreground">JPG, PNG, WEBP, GIF</span>
+                <span className="text-xs text-muted-foreground">
+                  Bis 20 MB · wird mobil optimiert
+                </span>
               </span>
             </button>
 
@@ -157,9 +186,29 @@ export function PhaseMediaMenu({
         ) : null}
       </div>
 
+      {isProcessing ? (
+        <p
+          aria-live="polite"
+          className="mt-2 flex items-center gap-2 text-xs text-muted-foreground"
+          role="status"
+        >
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          Bild wird optimiert und hochgeladen…
+        </p>
+      ) : null}
+
+      {uploadError ? (
+        <p
+          className="mt-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive"
+          role="alert"
+        >
+          {uploadError}
+        </p>
+      ) : null}
+
       {/* Hidden file input */}
       <input
-        accept="image/*"
+        accept="image/jpeg,image/png,image/webp,image/gif,image/heic,image/heif"
         className="hidden"
         onChange={handleFileChange}
         ref={fileInputRef}

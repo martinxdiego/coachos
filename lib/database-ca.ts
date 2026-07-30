@@ -1,0 +1,7 @@
+export function normalizeDatabaseCaCert(value: string): string {
+  return value
+    .replace(/\\r\\n/g, "\n")
+    .replace(/\\n/g, "\n")
+    .replace(/\r\n/g, "\n")
+    .trim();
+}

@@ -13,6 +13,7 @@ import { getSiteUrl } from "@/lib/env";
 import { createClient } from "@/lib/supabase/server";
 import { db } from "@/lib/db";
 import { rotatePlayerSignupInvite } from "@/lib/invites";
+import { redeemStaffInvite } from "@/lib/staff-invites";
 import {
   enumValue,
   normalizeExternalUrl,
@@ -24,6 +25,12 @@ import {
   scaleFive
 } from "@/lib/forms";
 import { cacheDel } from "@/lib/redis";
+import {
+  drainStorageDeletionQueueBestEffort,
+  enqueueStorageDeletions
+} from "@/lib/storage-deletion-queue";
+import { recordAuditEvent } from "@/lib/audit";
+import { assertCanCreateWorkspace } from "@/lib/billing";
 import type {
   AttendanceStatus,
   CoachMessageCategory,
@@ -40,7 +47,6 @@ import type {
   TrainingPhaseType,
   WinnerPointContextType
 } from "@/lib/types";
-import type { Role } from "@prisma/client";
 import {
   phaseTypes,
   trainingPresets,
@@ -72,6 +78,7 @@ import {
 
 export async function createTeam(formData: FormData) {
   const { user } = await requireUser();
+  await assertCanCreateWorkspace(user.id);
 
   const name = requiredString(formData, "name", "Workspace name");
   const season = optionalString(formData, "season");
@@ -97,7 +104,7 @@ export async function createTeam(formData: FormData) {
 }
 
 export async function updateTeam(formData: FormData) {
-  const { team, membership } = await requireActiveTeam();
+  const { user, team, membership } = await requireActiveTeam();
 
   if (!canManageWorkspace(membership.role)) {
     throw new Error("Only lead coaches can update workspace settings.");
@@ -114,9 +121,102 @@ export async function updateTeam(formData: FormData) {
       linksLabel: optionalString(formData, "links_label")
     }
   });
+  await recordAuditEvent({
+    workspaceId: team.id,
+    event: "workspace.settings.updated",
+    actorUserId: user.id,
+    targetType: "Workspace",
+    targetId: team.id
+  });
 
   revalidatePath("/", "layout");
   revalidatePath("/workspaces");
+}
+
+export async function deleteWorkspace(formData: FormData) {
+  const { user, team, membership, teamOptions } = await requireActiveTeam();
+
+  if (!canManageWorkspace(membership.role)) {
+    throw new Error("Nur der Workspace-Owner darf den Workspace löschen.");
+  }
+
+  const confirmation = requiredString(
+    formData,
+    "workspace_name",
+    "Workspace-Name"
+  );
+  if (confirmation !== team.name) {
+    throw new Error("Der eingegebene Workspace-Name stimmt nicht überein.");
+  }
+
+  const password = requiredString(formData, "password", "Passwort");
+  if (password.length > 128) {
+    throw new Error("Das Passwort ist nicht korrekt.");
+  }
+  const account = await db.user.findUnique({
+    where: { id: user.id },
+    select: { passwordHash: true }
+  });
+  if (!account || !(await bcrypt.compare(password, account.passwordHash))) {
+    throw new Error("Das Passwort ist nicht korrekt.");
+  }
+
+  const deletionJobIds = await db.$transaction(async (tx) => {
+    const [players, phases] = await Promise.all([
+      tx.player.findMany({
+        where: { workspaceId: team.id },
+        select: { photoUrl: true }
+      }),
+      tx.trainingPhase.findMany({
+        where: { training: { workspaceId: team.id } },
+        select: { imageUrls: true }
+      })
+    ]);
+    const playerPhotoJobs = await enqueueStorageDeletions(
+      tx,
+      team.id,
+      PLAYER_PHOTO_BUCKET,
+      players.map((player) => player.photoUrl)
+    );
+    const trainingImageJobs = await enqueueStorageDeletions(
+      tx,
+      team.id,
+      TRAINING_IMAGE_BUCKET,
+      phases.flatMap((phase) => phase.imageUrls)
+    );
+
+    await recordAuditEvent(
+      {
+        workspaceId: team.id,
+        event: "workspace.deleted",
+        actorUserId: user.id,
+        targetType: "Workspace",
+        targetId: team.id
+      },
+      tx
+    );
+    await tx.workspace.delete({ where: { id: team.id } });
+    return [...playerPhotoJobs, ...trainingImageJobs];
+  });
+
+  await drainStorageDeletionQueueBestEffort({
+    ids: deletionJobIds,
+    limit: deletionJobIds.length || 1
+  });
+
+  const nextTeam = teamOptions.find((option) => option.team.id !== team.id);
+  const cookieStore = await cookies();
+  if (nextTeam) {
+    await setActiveTeamCookie(nextTeam.team.id);
+  } else {
+    cookieStore.delete(ACTIVE_TEAM_COOKIE);
+  }
+
+  revalidatePath("/", "layout");
+  redirectWithMessage(
+    "/workspaces",
+    `Workspace „${team.name}“ wurde dauerhaft gelöscht.`
+  );
 }
 
 export async function createTeamInvite(formData: FormData) {
@@ -141,7 +241,57 @@ export async function createTeamInvite(formData: FormData) {
       expiresAt: expiresAt
     }
   });
+  await recordAuditEvent({
+    workspaceId: team.id,
+    event: "workspace.staff_invite.created",
+    actorUserId: user.id,
+    targetType: "TeamInvite"
+  });
 
+  revalidatePath("/workspaces");
+}
+
+export async function updateRetentionPolicy(formData: FormData) {
+  const { user, team, membership } = await requireActiveTeam();
+  if (!canManageWorkspace(membership.role)) {
+    throw new Error("Nur der Workspace-Owner darf Aufbewahrungsregeln ändern.");
+  }
+
+  const dataRetentionDays = optionalNumber(formData, "data_retention_days");
+  const healthRetentionDays = optionalNumber(
+    formData,
+    "health_retention_days"
+  );
+  if (
+    !dataRetentionDays ||
+    dataRetentionDays < 30 ||
+    dataRetentionDays > 3650 ||
+    !healthRetentionDays ||
+    healthRetentionDays < 30 ||
+    healthRetentionDays > 3650
+  ) {
+    throw new Error(
+      "Aufbewahrungsfristen müssen zwischen 30 und 3650 Tagen liegen."
+    );
+  }
+
+  await db.$transaction(async (tx) => {
+    await tx.workspace.update({
+      where: { id: team.id },
+      data: { dataRetentionDays, healthRetentionDays }
+    });
+    await recordAuditEvent(
+      {
+        workspaceId: team.id,
+        event: "workspace.retention.updated",
+        actorUserId: user.id,
+        targetType: "Workspace",
+        targetId: team.id,
+        metadata: { dataRetentionDays, healthRetentionDays }
+      },
+      tx
+    );
+  });
   revalidatePath("/workspaces");
 }
 
@@ -150,56 +300,7 @@ export async function joinTeamWithInvite(formData: FormData) {
   const code = requiredString(formData, "code", "Invite code").toUpperCase();
 
   try {
-    const teamId = await db.$transaction(async (tx) => {
-      const invite = await tx.teamInvite.findUnique({
-        where: { code }
-      });
-
-      if (!invite) {
-        throw new Error("UngÃ¼ltiger Einladungscode.");
-      }
-
-      if (invite.expiresAt < new Date()) {
-        throw new Error("Dieser Einladungscode ist abgelaufen.");
-      }
-
-      if (invite.usedAt) {
-        throw new Error("Dieser Einladungscode wurde bereits verwendet.");
-      }
-
-      const existingMember = await tx.workspaceMember.findUnique({
-        where: {
-          workspaceId_userId: {
-            workspaceId: invite.workspaceId,
-            userId: user.id
-          }
-        }
-      });
-
-      if (existingMember) {
-        return invite.workspaceId;
-      }
-
-      let parsedRole: Role = "ASSISTANT";
-      if (invite.role === "coach") {
-        parsedRole = "COACH";
-      }
-
-      await tx.workspaceMember.create({
-        data: {
-          workspaceId: invite.workspaceId,
-          userId: user.id,
-          role: parsedRole
-        }
-      });
-
-      await tx.teamInvite.update({
-        where: { id: invite.id },
-        data: { usedAt: new Date() }
-      });
-
-      return invite.workspaceId;
-    });
+    const teamId = await redeemStaffInvite(user.id, code);
 
     if (teamId) {
       await setActiveTeamCookie(teamId);

@@ -1,70 +1,119 @@
 import { NextResponse } from "next/server";
 import { todayIsoDate } from "@/lib/utils";
 import { db } from "@/lib/db";
+import { logger } from "@/lib/logger";
 import { sendPushNotification } from "@/lib/push";
 
-export async function POST(req: Request) {
+const QUERY_BATCH_SIZE = 100;
+const SEND_CONCURRENCY = 10;
+
+function json(body: Record<string, unknown>, status = 200) {
+  return NextResponse.json(body, {
+    status,
+    headers: { "Cache-Control": "no-store" },
+  });
+}
+
+function isAuthorized(req: Request): boolean {
+  const secret = process.env.CRON_SECRET;
   const authHeader = req.headers.get("authorization");
-  if (!process.env.CRON_SECRET || authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  return Boolean(secret && authHeader === `Bearer ${secret}`);
+}
+
+async function runDailyPush(req: Request) {
+  if (!isAuthorized(req)) return json({ error: "Unauthorized" }, 401);
 
   const today = todayIsoDate();
 
   try {
-    const [subs, checkins] = await Promise.all([
-      db.pushSubscription.findMany({
+    let cursor: string | undefined;
+    let sent = 0;
+    let attempted = 0;
+
+    while (true) {
+      const subscriptions = await db.pushSubscription.findMany({
+        take: QUERY_BATCH_SIZE,
+        orderBy: { id: "asc" },
+        ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
         include: {
           player: {
             select: {
-              id: true,
-              firstName: true,
-              name: true,
               accessToken: true
             }
           }
         }
-      }),
-      db.healthCheck.findMany({
+      });
+
+      if (subscriptions.length === 0) break;
+
+      const playerIds = Array.from(
+        new Set(subscriptions.map((subscription) => subscription.playerId))
+      );
+      const checkins = await db.healthCheck.findMany({
         where: {
-          date: new Date(`${today}T00:00:00.000Z`)
+          date: new Date(`${today}T00:00:00.000Z`),
+          playerId: { in: playerIds }
         },
         select: {
           playerId: true
         }
-      })
-    ]);
+      });
 
-    const checkedInIds = new Set<string>(checkins.map((c) => c.playerId));
-    const pending = subs.filter((sub) => !checkedInIds.has(sub.playerId));
+      const checkedInIds = new Set<string>(
+        checkins.map((checkin) => checkin.playerId)
+      );
+      const pending = subscriptions.filter(
+        (subscription) => !checkedInIds.has(subscription.playerId)
+      );
+      attempted += pending.length;
 
-    if (pending.length === 0) {
-      return NextResponse.json({ sent: 0 });
+      for (let index = 0; index < pending.length; index += SEND_CONCURRENCY) {
+        const group = pending.slice(index, index + SEND_CONCURRENCY);
+        const results = await Promise.all(
+          group.map(async (subscription) => {
+            const player = subscription.player;
+            if (!player) return false;
+
+            return sendPushNotification(
+              {
+                endpoint: subscription.endpoint,
+                p256dh: subscription.p256dh,
+                auth: subscription.auth
+              },
+              {
+                // Lock-screen notifications can be visible on shared devices.
+                // Keep the preview useful without exposing a player's name or
+                // health wording; the bearer link opens the detail.
+                title: "CoachOS",
+                body: "Zeit für deinen täglichen Check-in.",
+                url: "/player"
+              }
+            );
+          })
+        );
+        sent += results.filter(Boolean).length;
+      }
+
+      cursor = subscriptions.at(-1)?.id;
+      if (subscriptions.length < QUERY_BATCH_SIZE || !cursor) break;
     }
 
-    const results = await Promise.all(
-      pending.map(async (sub) => {
-        const player = sub.player;
-        if (!player) return false;
-
-        return sendPushNotification(
-          {
-            endpoint: sub.endpoint,
-            p256dh: sub.p256dh,
-            auth: sub.auth
-          },
-          {
-            title: `Hey ${player.firstName ?? player.name}! 👋`,
-            body: "Zeit für deinen Wellness-Check. Wie fühlst du dich heute?",
-            url: `/p/${player.accessToken}`
-          }
-        );
-      })
-    );
-
-    const sent = results.filter(Boolean).length;
-    return NextResponse.json({ sent, attempted: pending.length });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return json({ sent, attempted });
+  } catch (error) {
+    logger.error("Daily push job failed", {
+      errorType:
+        error instanceof Error ? error.constructor.name : typeof error,
+    });
+    return json({ error: "Push job failed" }, 500);
   }
+}
+
+// Vercel Cron invokes configured paths with GET. Keep POST as an authenticated
+// compatibility entry point for existing manual runbooks.
+export async function GET(req: Request) {
+  return runDailyPush(req);
+}
+
+export async function POST(req: Request) {
+  return runDailyPush(req);
 }

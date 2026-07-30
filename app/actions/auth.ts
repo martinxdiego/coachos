@@ -1,7 +1,12 @@
 "use server";
 
 import { generateTrainingPlan } from "@/lib/ai";
-import { randomUUID } from "crypto";
+import {
+  createHash,
+  randomBytes,
+  randomUUID,
+  timingSafeEqual
+} from "crypto";
 import { cookies, headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -24,6 +29,9 @@ import {
   scaleFive
 } from "@/lib/forms";
 import { cacheDel } from "@/lib/redis";
+import { logger } from "@/lib/logger";
+import { rateLimit } from "@/lib/rate-limit";
+import { sendEmailVerificationEmail } from "@/lib/transactional-email";
 import type {
   AttendanceStatus,
   CoachMessageCategory,
@@ -77,6 +85,19 @@ export type AuthFormState =
   | { status: "success"; code: string }
   | null;
 
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const SIGNUP_WINDOW_SECONDS = 60 * 60;
+
+function verificationTokenHash(token: string) {
+  return createHash("sha256").update(token).digest("hex");
+}
+
+function equalSecret(candidate: string, expected: string): boolean {
+  const left = Buffer.from(candidate);
+  const right = Buffer.from(expected);
+  return left.length === right.length && timingSafeEqual(left, right);
+}
+
 export async function signIn(
   _prevState: AuthFormState,
   formData: FormData
@@ -85,6 +106,13 @@ export async function signIn(
   const password = String(formData.get("password") ?? "");
   if (!email || !password) {
     return { status: "error", code: "missing_fields" };
+  }
+  if (
+    email.length > 254 ||
+    password.length > 128 ||
+    !EMAIL_PATTERN.test(email)
+  ) {
+    return { status: "error", code: "invalid_credentials" };
   }
 
   try {
@@ -111,28 +139,86 @@ export async function signUp(
 ): Promise<AuthFormState> {
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const password = String(formData.get("password") ?? "");
+  const signupCode = String(formData.get("signup_code") ?? "").trim();
 
-  if (!email || !password) {
+  if (!email || !password || !signupCode) {
     return { status: "error", code: "missing_fields" };
   }
   if (password.length < 10) {
     return { status: "error", code: "password_too_short" };
   }
+  if (
+    email.length > 254 ||
+    password.length > 128 ||
+    signupCode.length > 128 ||
+    !EMAIL_PATTERN.test(email)
+  ) {
+    return { status: "error", code: "signup_failed" };
+  }
+
+  const requestHeaders = await headers();
+  const clientIp =
+    requestHeaders.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    requestHeaders.get("x-real-ip")?.trim() ||
+    "unknown";
+  const [ipLimit, emailLimit] = await Promise.all([
+    rateLimit(`coach-signup-ip:${clientIp}`, 10, SIGNUP_WINDOW_SECONDS),
+    rateLimit(`coach-signup-email:${email}`, 5, SIGNUP_WINDOW_SECONDS)
+  ]);
+  if (!ipLimit.success || !emailLimit.success) {
+    return { status: "error", code: "signup_unavailable" };
+  }
+
+  // Pilot accounts are invite-only. This prevents public account creation
+  // from becoming an AI/storage cost primitive before verified coach
+  // onboarding exists.
+  const expectedCode = process.env.COACH_SIGNUP_CODE;
+  if (
+    (process.env.NODE_ENV === "production" &&
+      (!expectedCode || expectedCode.length < 16)) ||
+    (expectedCode && !equalSecret(signupCode, expectedCode))
+  ) {
+    return { status: "error", code: "signup_unavailable" };
+  }
 
   try {
     const existingUser = await db.user.findUnique({ where: { email } });
     if (existingUser) {
-      return { status: "error", code: "email_exists" };
+      // Do not reveal whether a coach account already exists.
+      return { status: "success", code: "signup_success" };
     }
 
     const passwordHash = await bcrypt.hash(password, 10);
+    const verificationToken = randomBytes(32).toString("base64url");
     await db.user.create({
-      data: { email, passwordHash, role: "COACH" },
+      data: {
+        email,
+        passwordHash,
+        role: "COACH",
+        emailVerificationTokens: {
+          create: {
+            tokenHash: verificationTokenHash(verificationToken),
+            expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000)
+          }
+        }
+      }
     });
+    const verificationUrl = `${getSiteUrl()}/verify-email/${verificationToken}`;
+    await sendEmailVerificationEmail(email, verificationUrl);
 
     return { status: "success", code: "signup_success" };
-  } catch (err: any) {
-    console.error("[signUp] error:", err?.code, err?.message);
+  } catch (error) {
+    if (
+      error &&
+      typeof error === "object" &&
+      (error as { code?: unknown }).code === "P2002"
+    ) {
+      return { status: "success", code: "signup_success" };
+    }
+    logger.error("User registration failed", {
+      errorType:
+        error instanceof Error ? error.constructor.name : typeof error,
+    });
     return { status: "error", code: "signup_failed" };
   }
 }

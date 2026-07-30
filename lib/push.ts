@@ -1,5 +1,7 @@
 import webpush from "web-push";
 import { db } from "./db";
+import { logger } from "./logger";
+import { isTrustedPushEndpoint } from "./push-endpoint";
 
 export interface PushSubscriptionInput {
   endpoint: string;
@@ -14,13 +16,17 @@ export interface PushPayload {
 }
 
 let vapidConfigured = false;
+let vapidWarningEmitted = false;
 
 function ensureVapid(): boolean {
   if (vapidConfigured) return true;
   const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
   const privateKey = process.env.VAPID_PRIVATE_KEY;
   if (!publicKey || !privateKey) {
-    console.warn("[push] VAPID keys not configured — skipping notification.");
+    if (!vapidWarningEmitted) {
+      vapidWarningEmitted = true;
+      logger.warn("VAPID keys are not configured; skipping push notifications");
+    }
     return false;
   }
   webpush.setVapidDetails(
@@ -44,6 +50,13 @@ export async function sendPushNotification(
   if (!subscription.endpoint || !subscription.p256dh || !subscription.auth) {
     return false;
   }
+  if (!isTrustedPushEndpoint(subscription.endpoint)) {
+    logger.warn("Discarding an untrusted push subscription endpoint");
+    await db.pushSubscription
+      .deleteMany({ where: { endpoint: subscription.endpoint } })
+      .catch(() => {});
+    return false;
+  }
   if (!ensureVapid()) return false;
 
   try {
@@ -55,15 +68,25 @@ export async function sendPushNotification(
       JSON.stringify(payload)
     );
     return true;
-  } catch (err: any) {
-    const status = err?.statusCode;
+  } catch (error: unknown) {
+    const status =
+      typeof error === "object" &&
+      error !== null &&
+      "statusCode" in error &&
+      typeof error.statusCode === "number"
+        ? error.statusCode
+        : undefined;
     if (status === 410 || status === 404) {
       // Subscription is gone — clean it up so we stop trying.
       await db.pushSubscription
         .deleteMany({ where: { endpoint: subscription.endpoint } })
         .catch(() => {});
     } else {
-      console.warn("[push] send failed:", err?.message);
+      logger.warn("Push delivery failed", {
+        statusCode: status,
+        errorType:
+          error instanceof Error ? error.constructor.name : typeof error
+      });
     }
     return false;
   }

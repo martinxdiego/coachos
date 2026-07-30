@@ -3,31 +3,52 @@
 import { ChevronsUpDown } from "lucide-react";
 import { setActiveTeam } from "@/app/actions";
 import type { TeamOption } from "@/lib/auth";
+import { cn } from "@/lib/utils";
 
 interface WorkspaceSwitcherProps {
   activeTeamId?: string;
+  onSelectionChange?: () => void;
   teams: TeamOption[];
+  variant?: "header" | "menu";
 }
 
 export function WorkspaceSwitcher({
   activeTeamId,
-  teams
+  onSelectionChange,
+  teams,
+  variant = "header"
 }: WorkspaceSwitcherProps) {
   if (teams.length === 0) {
     return null;
   }
 
+  const selectId = variant === "menu" ? "mobile_team_id" : "team_id";
+
   return (
-    <form action={setActiveTeam} className="relative">
-      <label className="sr-only" htmlFor="team_id">
+    <form
+      action={setActiveTeam}
+      className={cn("relative", variant === "menu" && "w-full")}
+      onSubmit={() => onSelectionChange?.()}
+    >
+      <label className="sr-only" htmlFor={selectId}>
         Workspace
       </label>
-      <div className="relative inline-flex items-center">
+      <div
+        className={cn(
+          "relative inline-flex items-center",
+          variant === "menu" && "w-full"
+        )}
+      >
         <select
           aria-label="Workspace wählen"
-          className="h-9 min-w-[180px] cursor-pointer appearance-none rounded-full border border-white/10 bg-white/8 pl-4 pr-9 text-[13px] font-medium tracking-tight text-white shadow-soft outline-none backdrop-blur transition hover:bg-white/12 focus-visible:ring-2 focus-visible:ring-emerald-300/70"
+          className={cn(
+            "cursor-pointer appearance-none border border-white/10 bg-white/8 font-medium tracking-tight text-white shadow-soft outline-none backdrop-blur transition hover:bg-white/12 focus-visible:ring-2 focus-visible:ring-emerald-300/70",
+            variant === "menu"
+              ? "h-11 w-full min-w-0 rounded-xl pl-3.5 pr-10 text-base"
+              : "h-11 w-[180px] max-w-full rounded-full pl-4 pr-9 text-base lg:h-9 lg:text-[13px]"
+          )}
           defaultValue={activeTeamId}
-          id="team_id"
+          id={selectId}
           name="team_id"
           onChange={(event) => event.currentTarget.form?.requestSubmit()}
         >

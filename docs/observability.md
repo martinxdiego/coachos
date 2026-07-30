@@ -1,47 +1,34 @@
-# Observability (S4.3)
+# Observability
 
-## Structured logging
+## Bereits im Code
 
-Use `lib/logger.ts` instead of raw `console.*`:
+- `lib/logger.ts` schreibt strukturierte JSON-Logs. Häufige Zugangstokens,
+  E-Mail-Adressen und IDs werden in Logmeldungen automatisch maskiert.
+- `instrumentation.ts` erfasst unbehandelte Request-Fehler mit HTTP-Methode
+  und einer bereinigten, tokenfreien Route.
+- `GET /api/health` prüft die Datenbankverbindung und liefert bei Fehlern nur
+  eine generische Antwort. Der Endpunkt setzt `Cache-Control: no-store`.
+- Redis-Ausfälle werden einmalig protokolliert; die Anwendung fällt lokal auf
+  ein instanzgebundenes Rate-Limit zurück.
 
-```ts
-import { logger, captureException } from "@/lib/logger";
+Keine Namen, E-Mail-Adressen, Zugangslinks, Gesundheitsangaben oder freie
+Spielertexte als Logfelder verwenden. Auch bei einem späteren Monitoring-SDK
+müssen Request-Header, Cookies, Query-Parameter und Request-Bodies deaktiviert
+oder entfernt bleiben.
 
-logger.info("training created", { workspaceId, trainingId });
-logger.warn("redis unavailable, using in-memory fallback");
-captureException(err, { boundary: "app" });
-```
+## Produktionsbetrieb
 
-Every call emits one JSON line (`{ level, message, ...fields, time }`),
-which is greppable and queryable in production log drains.
+1. Einen externen HTTPS-Monitor auf `/api/health` setzen und bei zwei
+   aufeinanderfolgenden Fehlern alarmieren.
+2. Runtime-Logs an ein System mit Zugriffskontrolle, kurzer Aufbewahrung und
+   Alarmen für Fehlerquote, Latenz und fehlgeschlagene Cron-Läufe senden.
+3. Releases mit `VERCEL_GIT_COMMIT_SHA` korrelieren.
+4. Optional Sentry über `registerErrorSink` anbinden. Dabei
+   `sendDefaultPii: false` setzen und in `beforeSend` URL, Query-Parameter,
+   Cookies, Header und Request-Body entfernen.
 
-**PII discipline:** never log emails, names, tokens, or health data. Use
-stable ids (`workspaceId`, `playerId`). The auth layer already follows this
-(no cleartext email in failure logs).
-
-## Error monitoring (Sentry) — environment step
-
-`captureException()` forwards to a sink registered via `registerErrorSink`.
-Wiring Sentry is a one-time env/infra step (needs a DSN), kept out of the
-repo so the build stays dependency-light:
-
-1. `npm i @sentry/nextjs`
-2. Add `instrumentation.ts` at the project root:
-
-   ```ts
-   import * as Sentry from "@sentry/nextjs";
-   import { registerErrorSink } from "@/lib/logger";
-
-   export function register() {
-     if (!process.env.SENTRY_DSN) return;
-     Sentry.init({ dsn: process.env.SENTRY_DSN, tracesSampleRate: 0.1 });
-     registerErrorSink((error) => Sentry.captureException(error));
-   }
-   ```
-
-3. Add client config (`sentry.client.config.ts`) per the Sentry Next.js
-   guide and set `SENTRY_DSN` in Vercel.
-
-Until then, `captureException` logs the error (and the S4.4 error
-boundaries call it), so nothing is lost — errors just aren't aggregated
-externally yet.
+Der initiale Spielerlink unter `/p/<accessToken>` wird beim Aufruf gegen eine
+widerrufbare HttpOnly-Geräte-Session ausgetauscht und danach auf `/player`
+umgeleitet. Trotzdem darf kein Analytics-Tool den einmaligen Bootstrap-Aufruf
+ungefiltert erfassen; `/p/*` muss vor jeder Übertragung weiterhin zu
+`/p/[redacted]` normalisiert werden.

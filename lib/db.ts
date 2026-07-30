@@ -2,6 +2,7 @@ import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
 import { SUPABASE_CA_CERT } from "@/lib/supabase-ca";
+import { normalizeDatabaseCaCert } from "@/lib/database-ca";
 import { logger } from "@/lib/logger";
 
 const globalForPrisma = globalThis as unknown as {
@@ -77,14 +78,17 @@ const createPrismaClient = () => {
 function resolveSslConfig(isLocal: boolean) {
   if (isLocal) return false;
 
-  const ca = process.env.DATABASE_CA_CERT;
+  const ca = process.env.DATABASE_CA_CERT?.trim();
   if (ca) {
-    return { ca, rejectUnauthorized: true };
+    return {
+      ca: normalizeDatabaseCaCert(ca),
+      rejectUnauthorized: true
+    };
   }
 
   if (process.env.DATABASE_SSL_NO_VERIFY === "true") {
-    console.warn(
-      "[db] TLS certificate verification is DISABLED (DATABASE_SSL_NO_VERIFY). " +
+    logger.warn(
+      "TLS certificate verification is disabled (DATABASE_SSL_NO_VERIFY). " +
         "Unset it to verify against the bundled Supabase root CA."
     );
     return { rejectUnauthorized: false };

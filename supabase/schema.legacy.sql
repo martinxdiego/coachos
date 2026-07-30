@@ -1055,68 +1055,36 @@ create policy "Team members can delete player awards" on public.player_awards fo
 using (public.is_team_member(team_id));
 
 -- ===== Storage: player photos bucket =====
--- Bucket holds JPG/PNG/WEBP/HEIC portraits, public read so <img src> works without
--- signed URLs. Writes are restricted to authenticated users; the team scoping
--- happens implicitly via the server action (which checks team membership before
--- uploading to `${team_id}/...`).
+-- Private by default. CoachOS uses NextAuth (not Supabase Auth), authorizes the
+-- team in the server action and accesses Storage with the server-only service
+-- role. Reads use short-lived signed URLs.
 insert into storage.buckets (id, name, public)
-values ('player-photos', 'player-photos', true)
+values ('player-photos', 'player-photos', false)
 on conflict (id) do nothing;
 
 drop policy if exists "Public read player photos" on storage.objects;
-create policy "Public read player photos" on storage.objects for select
-using (bucket_id = 'player-photos');
-
 drop policy if exists "Authenticated upload player photos" on storage.objects;
-create policy "Authenticated upload player photos" on storage.objects for insert
-to authenticated
-with check (bucket_id = 'player-photos');
-
 drop policy if exists "Authenticated update player photos" on storage.objects;
-create policy "Authenticated update player photos" on storage.objects for update
-to authenticated
-using (bucket_id = 'player-photos')
-with check (bucket_id = 'player-photos');
-
 drop policy if exists "Authenticated delete player photos" on storage.objects;
-create policy "Authenticated delete player photos" on storage.objects for delete
-to authenticated
-using (bucket_id = 'player-photos');
 
 -- ===== Training phase images: column on training_phases =====
--- Each phase keeps a list of public URLs to drill-Skizzen / Coaching-Bilder.
+-- Each phase keeps a list of private object paths for drill-Skizzen /
+-- Coaching-Bilder.
 -- Column is nullable; default to empty array so reads stay simple.
 alter table public.training_phases
   add column if not exists image_urls text[] not null default '{}';
 
 -- ===== Storage: training images bucket =====
--- Mirrors player-photos: public read so <img src> works without signed URLs,
--- writes restricted to authenticated users. Team scoping is enforced by the
--- server action via `${team_id}/...` paths and an explicit team membership check
--- before each upload.
+-- Mirrors player-photos: private objects, server-authorized writes and
+-- short-lived signed read URLs.
 insert into storage.buckets (id, name, public)
-values ('training-images', 'training-images', true)
+values ('training-images', 'training-images', false)
 on conflict (id) do nothing;
 
 drop policy if exists "Public read training images" on storage.objects;
-create policy "Public read training images" on storage.objects for select
-using (bucket_id = 'training-images');
-
 drop policy if exists "Authenticated upload training images" on storage.objects;
-create policy "Authenticated upload training images" on storage.objects for insert
-to authenticated
-with check (bucket_id = 'training-images');
-
 drop policy if exists "Authenticated update training images" on storage.objects;
-create policy "Authenticated update training images" on storage.objects for update
-to authenticated
-using (bucket_id = 'training-images')
-with check (bucket_id = 'training-images');
-
 drop policy if exists "Authenticated delete training images" on storage.objects;
-create policy "Authenticated delete training images" on storage.objects for delete
-to authenticated
-using (bucket_id = 'training-images');
 
 -- ===== Training phase diagram: KI-generiertes Taktik-Diagramm =====
 -- Speichert das Diagramm-JSON pro Phase (Spieler, Zonen, Bewegungen, Tore).

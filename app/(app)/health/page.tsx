@@ -21,7 +21,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { healthRisk } from "@/lib/coach-metrics";
-import { calculatePredictiveInjuryRisk } from "@/lib/predictive-health";
+import { calculateLoadSignal } from "@/lib/load-monitoring";
 import { requireActiveTeam } from "@/lib/auth";
 import { formatDate, todayIsoDate } from "@/lib/utils";
 import { db } from "@/lib/db";
@@ -42,7 +42,7 @@ const checks: ReadonlyArray<readonly [string, string, string, Direction]> = [
   ["wellbeing", "Wohlbefinden", "1 schlecht · 5 top", "high-good"]
 ];
 
-const riskMeta = {
+const loadMeta = {
   green: {
     badge: "success" as const,
     label: "Grün",
@@ -64,6 +64,7 @@ export default async function HealthPage() {
   const { team } = await requireActiveTeam();
   const t = await getTranslations("pages");
   const today = todayIsoDate();
+  const sevenDaysAgo = new Date(Date.now() - 7 * 86400000);
 
   const playersData = await db.player.findMany({
     where: { workspaceId: team.id },
@@ -110,6 +111,25 @@ export default async function HealthPage() {
     },
     take: 500
   });
+  const attendanceData = await db.attendance.findMany({
+    where: {
+      playerId: { in: playersData.map((player) => player.id) },
+      status: "present",
+      training: {
+        workspaceId: team.id,
+        date: { gte: sevenDaysAgo }
+      }
+    },
+    select: {
+      playerId: true,
+      training: {
+        select: {
+          durationMinutes: true,
+          intensity: true
+        }
+      }
+    }
+  });
 
   const players = playersData.map((p) => ({
     id: p.id,
@@ -145,41 +165,63 @@ export default async function HealthPage() {
     ])
   );
 
-  const predictiveRisks = await Promise.all(
-    players.map(async (player) => {
-      const result = await calculatePredictiveInjuryRisk(player.id, team.id);
-      return { playerId: player.id, result };
-    })
+  const recentCheckinsByPlayer = new Map<string, typeof checkinsData>();
+  for (const checkin of checkinsData) {
+    if (checkin.date < sevenDaysAgo) continue;
+    const rows = recentCheckinsByPlayer.get(checkin.playerId) ?? [];
+    rows.push(checkin);
+    recentCheckinsByPlayer.set(checkin.playerId, rows);
+  }
+
+  const attendancesByPlayer = new Map<string, typeof attendanceData>();
+  for (const attendance of attendanceData) {
+    const rows = attendancesByPlayer.get(attendance.playerId) ?? [];
+    rows.push(attendance);
+    attendancesByPlayer.set(attendance.playerId, rows);
+  }
+
+  const loadSignalMap = new Map(
+    players.map((player) => [
+      player.id,
+      calculateLoadSignal(
+        recentCheckinsByPlayer.get(player.id) ?? [],
+        (attendancesByPlayer.get(player.id) ?? []).map((attendance) => ({
+          durationMinutes: attendance.training.durationMinutes,
+          intensity: attendance.training.intensity
+        }))
+      )
+    ])
   );
-  const predictiveRiskMap = new Map(predictiveRisks.map((pr) => [pr.playerId, pr.result]));
 
   const warningRows = players
     .map((player) => {
-      const pred = predictiveRiskMap.get(player.id);
+      const signal = loadSignalMap.get(player.id);
       const checkin = latestByPlayer.get(player.id);
-      return pred && pred.risk !== "green" ? { player, checkin, risk: pred.risk } : null;
+      return signal?.level && signal.level !== "green"
+        ? { player, checkin, level: signal.level }
+        : null;
     })
     .filter((row): row is NonNullable<typeof row> => row !== null);
 
   const rosterRows: HealthRow[] = players.map((player) => {
     const latest = latestByPlayer.get(player.id);
-    const pred = predictiveRiskMap.get(player.id)!;
-    const risk = pred.risk;
-    const meta = risk ? riskMeta[risk] : null;
+    const signal = loadSignalMap.get(player.id)!;
+    const level = signal.level;
+    const meta = level ? loadMeta[level] : null;
     return {
       playerId: player.id,
       playerName: player.name,
       position: player.position,
       category: player.team_category,
-      risk,
-      riskLabel: meta?.label ?? "Offen",
-      riskScore: pred.score,
+      loadLevel: level,
+      loadLabel: meta?.label ?? "Offen",
+      loadScore: signal.score,
       checkinDate: latest ? latest.checkin_date : null,
       fatigue: latest ? latest.fatigue : null,
       energy: latest ? latest.energy : null,
       pain: latest ? latest.pain : null,
-      predictiveReasons: pred.reasons,
-      predictiveRecommendation: pred.recommendation
+      signalReasons: signal.reasons,
+      signalRecommendation: signal.recommendation
     };
   });
 
@@ -189,6 +231,18 @@ export default async function HealthPage() {
         description={t("health_desc")}
         title={t("health_title")}
       />
+      <div
+        className="flex gap-3 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm leading-6 text-blue-950"
+        role="note"
+      >
+        <ShieldCheck aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0" />
+        <p>
+          Die Ampel ist ein automatischer Belastungshinweis aus
+          Selbstauskünften und Trainingsdaten. Sie ist keine Diagnose,
+          Verletzungsprognose oder medizinische Freigabe. Bei Beschwerden gilt
+          immer die persönliche Rücksprache mit einer medizinischen Fachperson.
+        </p>
+      </div>
 
       <section className="grid gap-4 md:grid-cols-3">
         <Card className="bg-slate-950 text-white">
@@ -201,7 +255,7 @@ export default async function HealthPage() {
         <Card>
           <CardContent className="p-5">
             <AlertTriangle aria-hidden="true" className="h-5 w-5 text-red-700" />
-            <p className="mt-3 text-sm text-muted-foreground">Warnungen</p>
+            <p className="mt-3 text-sm text-muted-foreground">Belastungshinweise</p>
             <p className="mt-1 text-3xl font-semibold">{warningRows.length}</p>
           </CardContent>
         </Card>

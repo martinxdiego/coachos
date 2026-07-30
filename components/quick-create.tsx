@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import {
   CalendarPlus,
@@ -51,6 +51,18 @@ const quickCreateModes = [
   { id: "task", labelKey: "mode_task", icon: ClipboardList }
 ] satisfies { id: QuickCreateMode; labelKey: string; icon: typeof Plus }[];
 
+const quickCreateSelectClassName =
+  "flex h-11 w-full rounded-xl border border-input bg-background px-3.5 py-2 text-base shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+
+const focusableSelector = [
+  "a[href]",
+  "button:not([disabled])",
+  "select:not([disabled])",
+  "input:not([disabled])",
+  "textarea:not([disabled])",
+  '[tabindex]:not([tabindex="-1"])'
+].join(",");
+
 function ModeButton({
   active,
   label,
@@ -88,7 +100,63 @@ export function QuickCreate({
   const tScale = useTranslations("checkin");
   const [isOpen, setIsOpen] = useState(false);
   const [mode, setMode] = useState<QuickCreateMode>("training");
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const dialogRef = useRef<HTMLElement | null>(null);
   const today = todayIsoDate();
+
+  useEffect(() => {
+    if (!enabled || !isOpen) return;
+
+    const previousOverflow = document.body.style.overflow;
+    const triggerElement = triggerRef.current;
+    const focusFrame = window.requestAnimationFrame(() => {
+      dialogRef.current
+        ?.querySelector<HTMLElement>(focusableSelector)
+        ?.focus();
+    });
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setIsOpen(false);
+        return;
+      }
+
+      if (event.key !== "Tab" || !dialogRef.current) return;
+
+      const focusableElements = Array.from(
+        dialogRef.current.querySelectorAll<HTMLElement>(focusableSelector)
+      );
+      const firstElement = focusableElements[0];
+      const lastElement = focusableElements.at(-1);
+
+      if (!firstElement || !lastElement) {
+        event.preventDefault();
+        return;
+      }
+
+      if (!dialogRef.current.contains(document.activeElement)) {
+        event.preventDefault();
+        (event.shiftKey ? lastElement : firstElement).focus();
+      } else if (event.shiftKey && document.activeElement === firstElement) {
+        event.preventDefault();
+        lastElement.focus();
+      } else if (!event.shiftKey && document.activeElement === lastElement) {
+        event.preventDefault();
+        firstElement.focus();
+      }
+    };
+
+    document.body.style.overflow = "hidden";
+    document.addEventListener("keydown", onKeyDown);
+
+    return () => {
+      window.cancelAnimationFrame(focusFrame);
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", onKeyDown);
+      triggerElement?.focus();
+    };
+  }, [enabled, isOpen]);
 
   if (!enabled) {
     return null;
@@ -97,34 +165,49 @@ export function QuickCreate({
   return (
     <>
       <button
+        aria-controls="quick-create-dialog"
         aria-label={t("fab_label")}
-        className="fixed bottom-24 right-5 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-[0_12px_32px_rgba(16,185,129,0.32),0_2px_6px_rgba(15,23,42,0.18)] transition-transform duration-200 ease-spring hover:scale-105 active:scale-95 md:bottom-7 md:right-7"
+        aria-expanded={isOpen}
+        aria-haspopup="dialog"
+        className="fixed bottom-[calc(6rem+env(safe-area-inset-bottom))] right-5 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-[0_12px_32px_rgba(16,185,129,0.32),0_2px_6px_rgba(15,23,42,0.18)] transition-transform duration-200 ease-spring hover:scale-105 active:scale-95 md:bottom-7 md:right-7"
         onClick={() => setIsOpen(true)}
+        ref={triggerRef}
         type="button"
       >
         <Plus aria-hidden="true" className="h-6 w-6" />
       </button>
 
       {isOpen ? (
-        <div className="fixed inset-0 z-50">
+        <div className="fixed inset-0 z-50 overscroll-none">
           <button
             aria-label={t("close_overlay")}
             className="absolute inset-0 bg-slate-950/40 backdrop-blur-sm animate-fade-in"
             onClick={() => setIsOpen(false)}
             type="button"
           />
-          <section className="absolute bottom-0 right-0 max-h-[92vh] w-full overflow-y-auto rounded-t-3xl bg-card/95 p-6 shadow-elevated backdrop-blur-xl animate-slide-up md:bottom-5 md:right-5 md:w-[460px] md:rounded-3xl">
+          <section
+            aria-labelledby="quick-create-title"
+            aria-modal="true"
+            className="absolute bottom-0 right-0 max-h-[calc(100dvh-env(safe-area-inset-top)-0.75rem)] w-full overflow-y-auto overscroll-contain rounded-t-3xl bg-card/95 px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-5 shadow-elevated backdrop-blur-xl animate-slide-up md:bottom-5 md:right-5 md:max-h-[calc(100dvh-2.5rem)] md:w-[460px] md:rounded-3xl md:p-6"
+            id="quick-create-dialog"
+            ref={dialogRef}
+            role="dialog"
+          >
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-primary">
                   {t("eyebrow")}
                 </p>
-                <h2 className="mt-1 text-2xl font-semibold tracking-tight">
+                <h2
+                  className="mt-1 text-2xl font-semibold tracking-tight"
+                  id="quick-create-title"
+                >
                   {t("heading")}
                 </h2>
               </div>
               <Button
                 aria-label={t("close")}
+                className="h-11 w-11 shrink-0"
                 onClick={() => setIsOpen(false)}
                 size="icon"
                 type="button"
@@ -219,7 +302,7 @@ export function QuickCreate({
                     <Input name="meeting_point" placeholder={t("meeting_ph")} />
                   </div>
                   <select
-                    className="flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className={quickCreateSelectClassName}
                     defaultValue="4-3-3"
                     name="formation"
                   >
@@ -244,7 +327,7 @@ export function QuickCreate({
                   >
                     <div className="grid gap-3 sm:grid-cols-2">
                       <select
-                        className="flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        className={quickCreateSelectClassName}
                         name="player_id"
                         required
                       >
@@ -265,7 +348,7 @@ export function QuickCreate({
                     </div>
                     <div className="grid gap-3 sm:grid-cols-2">
                       <select
-                        className="flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        className={quickCreateSelectClassName}
                         defaultValue="training"
                         name="context_type"
                       >
@@ -303,7 +386,7 @@ export function QuickCreate({
                   >
                     <div className="grid gap-3 sm:grid-cols-2">
                       <select
-                        className="flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        className={quickCreateSelectClassName}
                         name="player_id"
                         required
                       >
@@ -316,7 +399,7 @@ export function QuickCreate({
                       <Input defaultValue={today} name="checkin_date" type="date" />
                     </div>
                     <select
-                      className="flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      className={quickCreateSelectClassName}
                       defaultValue="training"
                       name="context_type"
                     >
