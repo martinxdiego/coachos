@@ -4,10 +4,12 @@ import {
   KeyRound,
   Plus,
   ShieldAlert,
+  Sparkles,
   Trash2,
   UsersRound
 } from "lucide-react";
 import {
+  createDemoTeam,
   createTeam,
   createTeamInvite,
   deleteWorkspace,
@@ -145,8 +147,16 @@ export default async function WorkspacesPage({
                 ))
               ) : (
                 <div className="rounded-xl border border-dashed border-border p-6 text-sm text-muted-foreground">
-                  Noch kein Workspace. Erstelle einen eigenen oder tritt per
-                  Invite-Code einem Trainerteam bei.
+                  <p>
+                    Noch kein Workspace. Erstelle einen eigenen oder starte mit
+                    einem vollständig gefüllten Beispielteam.
+                  </p>
+                  <form action={createDemoTeam} className="mt-4">
+                    <Button type="submit" variant="outline">
+                      <Sparkles aria-hidden="true" className="h-4 w-4" />
+                      Demo-Team ausprobieren
+                    </Button>
+                  </form>
                 </div>
               )}
             </CardContent>

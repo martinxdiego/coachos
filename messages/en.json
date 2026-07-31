@@ -357,6 +357,8 @@
     "clubcorner": "Club Links",
     "playermode": "Player Mode",
     "settings": "Settings",
+    "feedback": "Feedback",
+    "more": "More",
     "section": "Section"
   },
   "nav_desc": {
@@ -376,7 +378,8 @@
     "winnerpoints": "Points for engagement",
     "clubcorner": "Club links and qualification",
     "playermode": "View for players & parents",
-    "settings": "Workspace and members"
+    "settings": "Workspace and members",
+    "feedback": "Share ideas and report problems"
   },
   "dashboard": {
     "title": "Coach Dashboard",

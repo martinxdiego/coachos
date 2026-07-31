@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { toggleTask } from "@/app/actions";
 import { DashboardOnboarding } from "@/components/dashboard-onboarding";
+import { DashboardDetails } from "@/components/dashboard-details";
 import { DashboardQuickActions } from "@/components/dashboard-quick-actions";
 import { FirstRunChecklist } from "@/components/first-run-checklist";
 import { EmptyState } from "@/components/empty-state";
@@ -729,15 +730,16 @@ async function DashboardSections({ team }: { team: Workspace }) {
       {/* Heute im Fokus */}
       {(feedbackWithPlayer.length > 0 || wellnessAlerts.length > 0) && players.length > 0 ? (
         <section className="rounded-2xl border border-amber-300/60 bg-gradient-to-br from-amber-50 via-amber-50/60 to-orange-50/40 p-5 shadow-soft">
-          <div className="mb-4 flex items-center gap-2">
-            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-500 text-white shadow-sm">
-              <AlertTriangle aria-hidden="true" className="h-4 w-4" />
-            </span>
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-amber-700">
-                Heute im Fokus
-              </p>
-              <p className="text-[14px] font-semibold tracking-tight text-amber-950">
+          <div className="mb-4 flex items-start justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-500 text-white shadow-sm">
+                <AlertTriangle aria-hidden="true" className="h-4 w-4" />
+              </span>
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-amber-700">
+                  Heute im Fokus
+                </p>
+                <p className="text-[14px] font-semibold tracking-tight text-amber-950">
                 {[
                   feedbackWithPlayer.length > 0 && `${feedbackWithPlayer.length} neue Nachricht${feedbackWithPlayer.length > 1 ? "en" : ""}`,
                   wellnessAlerts.filter((a) => a.risk === "red").length > 0 &&
@@ -747,8 +749,16 @@ async function DashboardSections({ team }: { team: Workspace }) {
                 ]
                   .filter(Boolean)
                   .join(" · ")}
-              </p>
+                </p>
+              </div>
             </div>
+            <Link
+              className="inline-flex min-h-9 shrink-0 items-center gap-1 rounded-full bg-white/75 px-3 text-[12px] font-semibold text-amber-900 transition hover:bg-white"
+              href="/notifications"
+            >
+              Alle Hinweise
+              <ArrowRight aria-hidden="true" className="h-3.5 w-3.5" />
+            </Link>
           </div>
           <div className="space-y-2">
             {/* Spieler-Nachrichten */}
@@ -937,6 +947,7 @@ async function DashboardSections({ team }: { team: Workspace }) {
       {/* Quick Actions */}
       <DashboardQuickActions players={checkinPlayers} />
 
+      <DashboardDetails>
       {/* Metrics */}
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard
@@ -1302,6 +1313,7 @@ async function DashboardSections({ team }: { team: Workspace }) {
           </CardContent>
         </Card>
       </section>
+      </DashboardDetails>
     </>
   );
 }

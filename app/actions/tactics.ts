@@ -109,7 +109,7 @@ export async function createTacticBoard(formData: FormData) {
     jersey_number: p.jerseyNumber
   }));
 
-  await db.tacticBoard.create({
+  const board = await db.tacticBoard.create({
     data: {
       workspaceId: team.id,
       userId: user.id,
@@ -132,6 +132,7 @@ export async function createTacticBoard(formData: FormData) {
   });
 
   revalidatePath("/tactics");
+  redirect(`/tactics/${board.id}`);
 }
 
 export async function saveTacticBoard(formData: FormData) {

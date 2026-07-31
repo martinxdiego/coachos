@@ -5,6 +5,7 @@ export * from "./actions/players";
 export * from "./actions/trainings";
 export * from "./actions/ai";
 export * from "./actions/tactics";
+export * from "./actions/feedback";
 export * from "./actions/matches";
 export * from "./actions/materials";
 export * from "./actions/tasks";

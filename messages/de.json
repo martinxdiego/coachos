@@ -357,6 +357,8 @@
     "clubcorner": "Vereinslinks",
     "playermode": "Spieler-Modus",
     "settings": "Einstellungen",
+    "feedback": "Feedback",
+    "more": "Mehr",
     "section": "Bereich"
   },
   "nav_desc": {
@@ -376,7 +378,8 @@
     "winnerpoints": "Punkte für Engagement",
     "clubcorner": "Vereinslinks und Qualifikation",
     "playermode": "Sicht für Spieler & Eltern",
-    "settings": "Workspace und Mitglieder"
+    "settings": "Workspace und Mitglieder",
+    "feedback": "Ideen und Probleme melden"
   },
   "dashboard": {
     "title": "Trainer Dashboard",

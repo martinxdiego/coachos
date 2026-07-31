@@ -3,7 +3,11 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useOpenCluster } from "@/components/more-nav-provider";
-import { isClusterActive, navClusters, getNavKey } from "@/components/nav-config";
+import {
+  getNavKey,
+  isClusterActive,
+  mobileNavClusters
+} from "@/components/nav-config";
 import { cn } from "@/lib/utils";
 import { useLocale, useTranslations } from "next-intl";
 
@@ -24,7 +28,7 @@ export function MobileBottomNav({ enabled }: { enabled: boolean }) {
       style={{ paddingBottom: "max(0.375rem, env(safe-area-inset-bottom))" }}
     >
       <div className="grid grid-cols-5 gap-1">
-        {navClusters.map((cluster) => {
+        {mobileNavClusters.map((cluster) => {
           const Icon = cluster.icon;
           const isActive = isClusterActive(pathname, cluster);
 

@@ -8,6 +8,7 @@ import {
   CreditCard,
   LifeBuoy,
   LogOut,
+  MessageSquareHeart,
   Menu,
   Plus,
   UserRound,
@@ -215,6 +216,14 @@ export function MobileAccountMenu({
                   >
                     <LifeBuoy aria-hidden="true" className="h-4 w-4" />
                     Hilfe &amp; Support
+                  </Link>
+                  <Link
+                    className="flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm font-medium text-slate-200 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300/70"
+                    href="/feedback"
+                    onClick={() => setIsOpen(false)}
+                  >
+                    <MessageSquareHeart aria-hidden="true" className="h-4 w-4" />
+                    Feedback geben
                   </Link>
 
                   <div className="[&_button]:h-11 [&_button]:w-full [&_button]:justify-start [&_button]:px-3">

@@ -2,7 +2,7 @@ import { Shield } from "lucide-react";
 import { createTacticBoard } from "@/app/actions";
 import { getTranslations } from "next-intl/server";
 import { PageHeader } from "@/components/page-header";
-import { TacticBoardAccordion } from "@/components/tactic-board-accordion";
+import { TacticBoardGallery } from "@/components/tactic-board-gallery";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -15,26 +15,11 @@ export const dynamic = "force-dynamic";
 export default async function TacticsPage() {
   const { team } = await requireActiveTeam();
   const t = await getTranslations("pages");
-  const [dbBoards, dbPlayers] = await Promise.all([
-    db.tacticBoard.findMany({
-      where: { workspaceId: team.id },
-      orderBy: { updatedAt: "desc" },
-      take: 50
-    }),
-    db.player.findMany({
-      where: { workspaceId: team.id },
-      select: {
-        id: true,
-        name: true,
-        position: true,
-        jerseyNumber: true
-      },
-      orderBy: [
-        { jerseyNumber: "asc" },
-        { name: "asc" }
-      ]
-    })
-  ]);
+  const dbBoards = await db.tacticBoard.findMany({
+    where: { workspaceId: team.id },
+    orderBy: { updatedAt: "desc" },
+    take: 50
+  });
 
   const boards = dbBoards.map((b) => ({
     id: b.id,
@@ -42,13 +27,6 @@ export default async function TacticsPage() {
     description: b.description,
     elements: b.elements,
     updated_at: b.updatedAt.toISOString()
-  }));
-
-  const players = dbPlayers.map((p) => ({
-    id: p.id,
-    name: p.name,
-    position: p.position,
-    jersey_number: p.jerseyNumber
   }));
 
   return (
@@ -78,7 +56,7 @@ export default async function TacticsPage() {
         </CardContent>
       </Card>
 
-      <TacticBoardAccordion boards={boards} players={players} />
+      <TacticBoardGallery boards={boards} />
     </div>
   );
 }

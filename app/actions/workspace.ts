@@ -103,6 +103,197 @@ export async function createTeam(formData: FormData) {
   redirect("/");
 }
 
+export async function createDemoTeam() {
+  const { user } = await requireUser();
+  await assertCanCreateWorkspace(user.id);
+
+  const day = 24 * 60 * 60 * 1000;
+  const now = new Date();
+  const trainingDate = new Date(now.getTime() + 2 * day);
+  const matchDate = new Date(now.getTime() + 5 * day);
+  const demoPlayers = [
+    ["Noah", "Keller", 1, "Torhüter"],
+    ["Liam", "Meier", 2, "Rechter Aussenverteidiger"],
+    ["Levin", "Huber", 3, "Linker Aussenverteidiger"],
+    ["Milan", "Frei", 4, "Innenverteidiger"],
+    ["Elia", "Bühler", 5, "Innenverteidiger"],
+    ["Luca", "Zimmermann", 6, "Defensives Mittelfeld"],
+    ["Jan", "Steiner", 7, "Rechter Flügel"],
+    ["Nico", "Brunner", 8, "Zentrales Mittelfeld"],
+    ["Finn", "Schmid", 9, "Stürmer"],
+    ["Elias", "Müller", 10, "Offensives Mittelfeld"],
+    ["Dario", "Graf", 11, "Linker Flügel"],
+    ["Ben", "Roth", 12, "Torhüter"],
+    ["Louis", "Kunz", 14, "Innenverteidiger"],
+    ["Mats", "Wyss", 15, "Mittelfeld"],
+    ["Jamie", "Suter", 17, "Stürmer"]
+  ] as const;
+
+  const workspace = await db.$transaction(async (tx) => {
+    const createdWorkspace = await tx.workspace.create({
+      data: {
+        name: "CoachOS Demo-Team",
+        season: "2026/2027",
+        ageGroup: "U17",
+        members: { create: { userId: user.id, role: "OWNER" } }
+      }
+    });
+
+    const players = await Promise.all(
+      demoPlayers.map(([firstName, lastName, jerseyNumber, position], index) =>
+        tx.player.create({
+          data: {
+            workspaceId: createdWorkspace.id,
+            firstName,
+            lastName,
+            name: `${firstName} ${lastName}`,
+            jerseyNumber,
+            position,
+            birthYear: 2009,
+            status: index === 13 ? "LIMITED" : "AVAILABLE",
+            consentAcceptedAt: now,
+            consentVersion: "demo"
+          }
+        })
+      )
+    );
+
+    const training = await tx.training.create({
+      data: {
+        workspaceId: createdWorkspace.id,
+        userId: user.id,
+        title: "Spielaufbau gegen hohes Pressing",
+        focus: trainingPresets.buildup.focus,
+        goal: trainingPresets.buildup.goal,
+        date: trainingDate,
+        startTime: "18:30",
+        durationMinutes: 90,
+        intensity: "medium",
+        location: "Hauptplatz",
+        phases: {
+          create: trainingPresets.buildup.phases.map(
+            ([phaseType, title, durationMinutes, description], index) => ({
+              phaseType,
+              title,
+              durationMinutes,
+              description,
+              sortOrder: index
+            })
+          )
+        }
+      }
+    });
+
+    const match = await tx.match.create({
+      data: {
+        workspaceId: createdWorkspace.id,
+        userId: user.id,
+        opponent: "FC Beispielstadt",
+        competition: "Meisterschaft",
+        date: matchDate,
+        kickoffTime: "14:00",
+        meetingPoint: "12:45",
+        location: "Stadion Demo",
+        homeAway: "home",
+        formation: "4-2-3-1",
+        matchGoals: "Mutig eröffnen, Zentrum überladen und nach Ballverlust sofort reagieren."
+      }
+    });
+
+    await tx.tacticBoard.create({
+      data: {
+        workspaceId: createdWorkspace.id,
+        userId: user.id,
+        title: "Aufbau 4-2-3-1",
+        description: "Ein gefülltes Board als Ausgangspunkt für deine eigene Animation.",
+        elements: {
+          version: 2,
+          scenes: [
+            {
+              id: "scene-1",
+              name: "Grundordnung",
+              elements: [
+                ...tacticRosterElements(
+                  players.map((player) => ({
+                    id: player.id,
+                    name: player.name,
+                    position: player.position,
+                    jersey_number: player.jerseyNumber
+                  }))
+                ),
+                { id: "demo-ball", type: "ball", label: "", x: 20, y: 50 }
+              ]
+            }
+          ]
+        }
+      }
+    });
+
+    await Promise.all([
+      tx.task.create({
+        data: {
+          workspaceId: createdWorkspace.id,
+          userId: user.id,
+          title: "Zu- und Absagen fürs Spiel prüfen",
+          dueDate: new Date(matchDate.getTime() - day)
+        }
+      }),
+      tx.healthCheck.create({
+        data: {
+          playerId: players[13].id,
+          date: now,
+          fatigue: 4,
+          sleepQuality: 2,
+          soreness: 3,
+          pain: 2,
+          stress: 3,
+          motivation: 4,
+          energy: 2,
+          injuryFeeling: 2,
+          wellbeing: 3,
+          notes: "Demo-Check-in"
+        }
+      }),
+      tx.playerFeedback.create({
+        data: {
+          workspaceId: createdWorkspace.id,
+          playerId: players[9].id,
+          rating: 8,
+          notes: "Ich möchte im nächsten Training den ersten Kontakt unter Druck üben."
+        }
+      }),
+      ...players.slice(0, 7).map((player, index) =>
+        tx.availabilityResponse.create({
+          data: {
+            workspaceId: createdWorkspace.id,
+            playerId: player.id,
+            eventType: "TRAINING",
+            eventId: training.id,
+            status: index === 6 ? "MAYBE" : "YES"
+          }
+        })
+      ),
+      ...players.slice(0, 5).map((player) =>
+        tx.availabilityResponse.create({
+          data: {
+            workspaceId: createdWorkspace.id,
+            playerId: player.id,
+            eventType: "MATCH",
+            eventId: match.id,
+            status: "YES"
+          }
+        })
+      )
+    ]);
+
+    return createdWorkspace;
+  });
+
+  await setActiveTeamCookie(workspace.id);
+  revalidatePath("/", "layout");
+  redirect("/");
+}
+
 export async function updateTeam(formData: FormData) {
   const { user, team, membership } = await requireActiveTeam();
 

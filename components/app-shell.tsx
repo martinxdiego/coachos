@@ -1,6 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import {
+  Bell,
   CreditCard,
   LifeBuoy,
   LogOut,
@@ -18,7 +19,6 @@ import { MoreNavProvider } from "@/components/more-nav-provider";
 import { PageTransition } from "@/components/page-transition";
 import { QuickCreate } from "@/components/quick-create";
 import { Button } from "@/components/ui/button";
-import { WorkspaceSwitcher } from "@/components/workspace-switcher";
 import type { TeamOption } from "@/lib/auth";
 import type { Workspace } from "@prisma/client";
 
@@ -30,11 +30,13 @@ interface AppShellProps {
     name: string;
     position: string | null;
   }[];
+  attentionCount?: number;
   teamOptions: TeamOption[];
 }
 
 export function AppShell({
   activeTeam,
+  attentionCount = 0,
   children,
   quickPlayers = [],
   teamOptions
@@ -75,6 +77,29 @@ export function AppShell({
               </span>
             </Link>
 
+            {activeTeam ? (
+              <Button
+                aria-label={
+                  attentionCount > 0
+                    ? `${attentionCount} offene Hinweise`
+                    : "Aufmerksamkeitszentrale"
+                }
+                asChild
+                className="relative h-11 w-11 shrink-0 text-white hover:bg-white/10"
+                size="icon"
+                variant="ghost"
+              >
+                <Link href="/notifications">
+                  <Bell aria-hidden="true" className="h-4.5 w-4.5" />
+                  {attentionCount > 0 ? (
+                    <span className="absolute right-1 top-1 flex min-h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold leading-none text-white ring-2 ring-slate-950">
+                      {attentionCount > 9 ? "9+" : attentionCount}
+                    </span>
+                  ) : null}
+                </Link>
+              </Button>
+            ) : null}
+
             <MobileAccountMenu
               activeTeamId={activeTeam?.id}
               activeTeamName={activeTeam?.name}
@@ -86,10 +111,6 @@ export function AppShell({
             </div>
 
             <div className="ml-auto hidden items-center gap-2 md:flex">
-              <WorkspaceSwitcher
-                activeTeamId={activeTeam?.id}
-                teams={teamOptions}
-              />
               <Button
                 asChild
                 className="h-11 bg-white text-slate-950 hover:bg-slate-100 lg:h-8"

@@ -25,6 +25,7 @@ model User {
   workspaces   WorkspaceMember[]
   passwordResetTokens PasswordResetToken[]
   emailVerificationTokens EmailVerificationToken[]
+  productFeedbacks ProductFeedback[]
 }
 
 model PasswordResetToken {
@@ -81,6 +82,23 @@ model Workspace {
   members         WorkspaceMember[]
   invites         TeamInvite[]
   availabilityResponses AvailabilityResponse[]
+  productFeedbacks ProductFeedback[]
+}
+
+model ProductFeedback {
+  id          String    @id @default(uuid())
+  workspaceId String
+  userId      String
+  category    String
+  rating      Int?
+  message     String
+  pagePath    String?
+  createdAt   DateTime  @default(now())
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, createdAt])
+  @@index([userId, createdAt])
 }
 
 model WorkspaceMember {
