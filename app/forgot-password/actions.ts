@@ -5,7 +5,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import bcrypt from "bcryptjs";
 import { db } from "@/lib/db";
-import { getSiteUrl } from "@/lib/env";
+import { getSiteUrl, isProductionDeployment } from "@/lib/env";
 import { rateLimit } from "@/lib/rate-limit";
 import { sendPasswordResetEmail } from "@/lib/transactional-email";
 
@@ -62,7 +62,7 @@ export async function requestPasswordReset(
   const delivered = await sendPasswordResetEmail(user.email, resetUrl);
   return {
     status: "success",
-    ...(!delivered && process.env.NODE_ENV !== "production"
+    ...(!delivered && !isProductionDeployment()
       ? { developmentUrl: resetUrl }
       : {})
   };

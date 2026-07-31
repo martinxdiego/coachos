@@ -11,10 +11,23 @@ export function getSupabaseEnv() {
   return { url, anonKey };
 }
 
+export function isProductionDeployment() {
+  const vercelEnvironment = process.env.VERCEL_ENV;
+  if (vercelEnvironment) {
+    return vercelEnvironment === "production";
+  }
+  return process.env.NODE_ENV === "production";
+}
+
 export function getSiteUrl() {
+  const vercelUrl = process.env.VERCEL_URL;
+  if (process.env.VERCEL_ENV === "preview" && vercelUrl) {
+    return new URL(`https://${vercelUrl}`).origin;
+  }
+
   const configuredUrl = process.env.NEXT_PUBLIC_SITE_URL;
   if (!configuredUrl) {
-    if (process.env.NODE_ENV === "production") {
+    if (isProductionDeployment()) {
       throw new Error("Missing NEXT_PUBLIC_SITE_URL.");
     }
     return "http://localhost:3000";
@@ -22,7 +35,7 @@ export function getSiteUrl() {
 
   const url = new URL(configuredUrl);
   if (
-    process.env.NODE_ENV === "production" &&
+    isProductionDeployment() &&
     url.protocol !== "https:"
   ) {
     throw new Error("NEXT_PUBLIC_SITE_URL must use HTTPS in production.");

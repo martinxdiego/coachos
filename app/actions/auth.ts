@@ -4,8 +4,7 @@ import { generateTrainingPlan } from "@/lib/ai";
 import {
   createHash,
   randomBytes,
-  randomUUID,
-  timingSafeEqual
+  randomUUID
 } from "crypto";
 import { cookies, headers } from "next/headers";
 import { revalidatePath } from "next/cache";
@@ -32,6 +31,7 @@ import { cacheDel } from "@/lib/redis";
 import { logger } from "@/lib/logger";
 import { rateLimit } from "@/lib/rate-limit";
 import { sendEmailVerificationEmail } from "@/lib/transactional-email";
+import { isSignupCodeAccepted } from "@/lib/signup-policy";
 import type {
   AttendanceStatus,
   CoachMessageCategory,
@@ -92,12 +92,6 @@ function verificationTokenHash(token: string) {
   return createHash("sha256").update(token).digest("hex");
 }
 
-function equalSecret(candidate: string, expected: string): boolean {
-  const left = Buffer.from(candidate);
-  const right = Buffer.from(expected);
-  return left.length === right.length && timingSafeEqual(left, right);
-}
-
 export async function signIn(
   _prevState: AuthFormState,
   formData: FormData
@@ -141,7 +135,7 @@ export async function signUp(
   const password = String(formData.get("password") ?? "");
   const signupCode = String(formData.get("signup_code") ?? "").trim();
 
-  if (!email || !password || !signupCode) {
+  if (!email || !password) {
     return { status: "error", code: "missing_fields" };
   }
   if (password.length < 10) {
@@ -169,15 +163,10 @@ export async function signUp(
     return { status: "error", code: "signup_unavailable" };
   }
 
-  // Pilot accounts are invite-only. This prevents public account creation
-  // from becoming an AI/storage cost primitive before verified coach
-  // onboarding exists.
+  // Public registration is the default. Configuring COACH_SIGNUP_CODE switches
+  // the product back to invite-only onboarding without requiring a code change.
   const expectedCode = process.env.COACH_SIGNUP_CODE;
-  if (
-    (process.env.NODE_ENV === "production" &&
-      (!expectedCode || expectedCode.length < 16)) ||
-    (expectedCode && !equalSecret(signupCode, expectedCode))
-  ) {
+  if (!isSignupCodeAccepted(signupCode, expectedCode)) {
     return { status: "error", code: "signup_unavailable" };
   }
 

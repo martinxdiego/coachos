@@ -30,18 +30,25 @@ export default function ForgotPasswordPage() {
         <CardContent className="space-y-4">
           {state?.status === "success" ? (
             <div className="space-y-3 rounded-xl bg-emerald-50 p-4 text-sm text-emerald-950">
-              <p>
-                Falls ein Konto existiert, wurde ein Link zum Zurücksetzen
-                versendet.
-              </p>
               {state.developmentUrl ? (
-                <Link
-                  className="font-medium underline"
-                  href={state.developmentUrl}
-                >
-                  Entwicklungslink öffnen
-                </Link>
-              ) : null}
+                <>
+                  <p>
+                    Der E-Mail-Versand ist in dieser Vorschau nicht
+                    konfiguriert. Nutze den sicheren Testlink:
+                  </p>
+                  <Link
+                    className="inline-flex min-h-11 items-center font-semibold underline"
+                    href={state.developmentUrl}
+                  >
+                    Testlink zum Zurücksetzen öffnen
+                  </Link>
+                </>
+              ) : (
+                <p>
+                  Falls ein Konto existiert, wurde ein Link zum Zurücksetzen
+                  versendet.
+                </p>
+              )}
             </div>
           ) : (
             <form action={action} className="space-y-4">

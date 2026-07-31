@@ -361,7 +361,6 @@ export default function LoginPage() {
                       maxLength={128}
                       name="signup_code"
                       placeholder={t("signup_code_ph")}
-                      required
                       spellCheck={false}
                     />
                   </div>

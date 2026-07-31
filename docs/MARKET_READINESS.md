@@ -55,7 +55,8 @@ Stand: 30. Juli 2026
 
 1. Staging und Produktion trennen. Alle Werte aus `.env.example` setzen;
    `AUTH_SECRET`, `CRON_SECRET`, Datenbank-, Supabase-Service-, Redis- und
-   VAPID-Schlüssel sowie `COACH_SIGNUP_CODE` vor dem Start neu erzeugen;
+   VAPID-Schlüssel sowie – falls Invite-only gewünscht ist –
+   `COACH_SIGNUP_CODE` vor dem Start neu erzeugen;
    `AUTH_TRUST_HOST=true` nur hinter dem vertrauenswürdigen Deployment-Proxy
    setzen.
 2. Prisma-Migrationen zuerst in Staging und danach in Produktion ausführen:
