@@ -188,15 +188,6 @@ export async function selfRegisterPlayer(
   teamToken: string,
   formData: FormData
 ): Promise<SelfRegisterResult> {
-  if (
-    process.env.NODE_ENV === "production" &&
-    !process.env.NEXT_PUBLIC_PRIVACY_URL
-  ) {
-    throw new Error(
-      "Die Registrierung ist vorübergehend nicht verfügbar, weil die Datenschutzerklärung fehlt."
-    );
-  }
-
   const invite = await resolvePlayerSignupInvite(teamToken);
   if (!invite) {
     throw new Error("Beitritts-Link ist ungültig oder abgelaufen.");

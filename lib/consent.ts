@@ -7,6 +7,7 @@
 // wurde.
 export const CURRENT_CONSENT_VERSION = "2026-06-15";
 
-// Optionaler Link zur Datenschutzerklärung. Ist die Env-Var nicht gesetzt,
-// wird im Formular reiner Hinweistext statt eines (toten) Links gezeigt.
-export const PRIVACY_URL = process.env.NEXT_PUBLIC_PRIVACY_URL ?? null;
+// Die interne Datenschutzerklärung ist immer erreichbar. Deployments können
+// sie bei Bedarf mit einer vereinseigenen externen URL überschreiben.
+export const PRIVACY_URL =
+  process.env.NEXT_PUBLIC_PRIVACY_URL?.trim() || "/legal/privacy";
