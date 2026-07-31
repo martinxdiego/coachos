@@ -4,6 +4,7 @@ import { AppShell } from "@/components/app-shell";
 import { getOptionalActiveTeam } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { workspaceLabelOverrides } from "@/lib/workspace-labels";
+import { getCoachAttentionCount } from "@/lib/coach-attention";
 
 export default async function ProtectedLayout({
   children
@@ -11,25 +12,29 @@ export default async function ProtectedLayout({
   children: React.ReactNode;
 }) {
   const { activeTeam, teamOptions } = await getOptionalActiveTeam();
-  const quickPlayers = activeTeam
-    ? await db.player.findMany({
-        where: {
-          workspaceId: activeTeam.team.id,
-        },
-        select: {
-          id: true,
-          name: true,
-          position: true,
-        },
-        orderBy: {
-          name: "asc",
-        },
-      })
-    : [];
+  const [quickPlayers, attentionCount] = activeTeam
+    ? await Promise.all([
+        db.player.findMany({
+          where: {
+            workspaceId: activeTeam.team.id,
+          },
+          select: {
+            id: true,
+            name: true,
+            position: true,
+          },
+          orderBy: {
+            name: "asc",
+          },
+        }),
+        getCoachAttentionCount(activeTeam.team.id)
+      ])
+    : [[], 0];
 
   const shell = (
     <AppShell
       activeTeam={activeTeam?.team}
+      attentionCount={attentionCount}
       quickPlayers={quickPlayers}
       teamOptions={teamOptions}
     >

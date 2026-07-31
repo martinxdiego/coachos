@@ -4,12 +4,15 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   // Components under test use JSX with the automatic runtime (same as Next),
   // so no `import React` is needed in source.
-  esbuild: {
-    jsx: "automatic",
+  oxc: {
+    jsx: {
+      runtime: "automatic",
+    },
   },
   resolve: {
     alias: {
       "@": resolve(__dirname, "."),
+      "server-only": resolve(__dirname, "tests/server-only.ts"),
     },
   },
   test: {

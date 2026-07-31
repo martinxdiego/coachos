@@ -123,6 +123,7 @@ interface TacticBoardEditorProps {
     elements: unknown;
   };
   players: PlayerForBoard[];
+  mode?: "plan" | "animate" | "present";
 }
 
 const formations: Record<string, number[]> = {
@@ -1018,7 +1019,8 @@ function playerLabelClass(y: number) {
 
 export function TacticBoardEditor({
   board,
-  players
+  players,
+  mode = "plan"
 }: TacticBoardEditorProps) {
   const initialBoardState = useMemo(
     () => normalizeBoardState(board.elements),
@@ -1069,6 +1071,7 @@ export function TacticBoardEditor({
     [elements]
   );
   const markerIdBase = `arrowhead-${board.id}-${activeSceneId}`;
+  const isReadOnly = mode !== "plan";
 
   const pushHistory = useCallback((snapshot: BoardState) => {
     setPast((current) => {
@@ -1826,34 +1829,38 @@ export function TacticBoardEditor({
 
   return (
     <div className="space-y-4">
-      <form action={saveTacticBoard} className="space-y-4" onSubmit={() => setSaveStatus("saving")}>
+      <form
+        action={saveTacticBoard}
+        className={cn("space-y-4", mode !== "plan" && "hidden")}
+        onSubmit={() => setSaveStatus("saving")}
+      >
         <input name="id" type="hidden" value={board.id} />
         <input
           name="elements"
           type="hidden"
           value={JSON.stringify(boardState)}
         />
-        <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto]">
+        <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 md:grid-cols-[1fr_1fr_auto] md:gap-3">
           <Input defaultValue={board.title} name="title" ref={titleInputRef} required />
           <Textarea
-            className="min-h-10"
+            className="hidden min-h-10 md:block"
             defaultValue={board.description ?? ""}
             name="description"
             placeholder="Beschreibung"
           />
           <div className="flex items-center gap-2">
             {saveStatus === "unsaved" && (
-              <span className="text-xs text-amber-600">● Nicht gespeichert</span>
+              <span className="hidden text-xs text-amber-600 sm:inline">● Nicht gespeichert</span>
             )}
             {saveStatus === "saving" && (
-              <span className="text-xs text-muted-foreground">Speichert…</span>
+              <span className="hidden text-xs text-muted-foreground sm:inline">Speichert…</span>
             )}
             {saveStatus === "saved" && (
-              <span className="text-xs text-emerald-600">✓ Gespeichert</span>
+              <span className="hidden text-xs text-emerald-600 sm:inline">✓ Gespeichert</span>
             )}
             <Button type="submit">
               <Save aria-hidden="true" className="h-4 w-4" />
-              Speichern
+              <span className="hidden sm:inline">Speichern</span>
             </Button>
           </div>
         </div>
@@ -1874,12 +1881,14 @@ export function TacticBoardEditor({
             {scene.name}
           </button>
         ))}
-        <Button onClick={addScene} size="sm" type="button" variant="outline">
-          <Copy aria-hidden="true" className="h-4 w-4" />
-          Szene duplizieren
-        </Button>
+        {mode === "plan" ? (
+          <Button onClick={addScene} size="sm" type="button" variant="outline">
+            <Copy aria-hidden="true" className="h-4 w-4" />
+            <span className="hidden sm:inline">Szene duplizieren</span>
+          </Button>
+        ) : null}
 
-        <span className="ml-auto flex items-center gap-2">
+        {mode === "plan" ? <span className="ml-auto flex items-center gap-2">
           <Button
             disabled={!canUndo}
             onClick={undo}
@@ -1889,7 +1898,7 @@ export function TacticBoardEditor({
             variant="outline"
           >
             <Undo2 aria-hidden="true" className="h-4 w-4" />
-            Rückgängig
+            <span className="hidden sm:inline">Rückgängig</span>
           </Button>
           <Button
             disabled={!canRedo}
@@ -1900,12 +1909,17 @@ export function TacticBoardEditor({
             variant="outline"
           >
             <Redo2 aria-hidden="true" className="h-4 w-4" />
-            Wiederherstellen
+            <span className="hidden sm:inline">Wiederherstellen</span>
           </Button>
-        </span>
+        </span> : null}
       </div>
 
-      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-background/80 px-3 py-2 no-print">
+      <div
+        className={cn(
+          "flex flex-wrap items-center gap-2 rounded-xl border border-border bg-background/80 px-3 py-2 no-print",
+          mode === "plan" && "hidden"
+        )}
+      >
         <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
           Animation
         </span>
@@ -2006,8 +2020,8 @@ export function TacticBoardEditor({
         </span>
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-[260px_1fr]">
-        <aside className="space-y-3 rounded-xl border border-border bg-background/80 p-3 no-print">
+      <div className={cn("grid gap-4", mode === "plan" && "xl:grid-cols-[260px_1fr]") }>
+        {mode === "plan" ? <aside className="order-2 space-y-3 rounded-xl border border-border bg-background/80 p-3 no-print xl:order-1">
           <div>
             <div className="flex items-center justify-between gap-2">
               <p className="text-sm font-semibold">Kader</p>
@@ -2186,10 +2200,13 @@ export function TacticBoardEditor({
               ))}
             </div>
           </div>
-        </aside>
+        </aside> : null}
 
-        <div className="space-y-3">
-          <div className="flex flex-wrap gap-2 no-print">
+        <div className="order-1 min-w-0 space-y-3 xl:order-2">
+          <div className={cn(
+            "flex flex-nowrap gap-2 overflow-x-auto pb-1 no-print sm:flex-wrap sm:overflow-visible sm:pb-0",
+            mode !== "plan" && "hidden"
+          )}>
             <Button
               onClick={() => addElement("player")}
               size="sm"
@@ -2324,7 +2341,10 @@ export function TacticBoardEditor({
             </Button>
           </div>
 
-          <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-border bg-background/60 px-3 py-2 no-print">
+          <div className={cn(
+            "flex flex-nowrap items-center gap-1.5 overflow-x-auto rounded-lg border border-border bg-background/60 px-3 py-2 no-print sm:flex-wrap sm:overflow-visible",
+            mode !== "plan" && "hidden"
+          )}>
             <span className="mr-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
               Pfeile
             </span>
@@ -2375,12 +2395,13 @@ export function TacticBoardEditor({
 
           <div
             className={cn(
-              "relative aspect-[1.55] min-h-[420px] overflow-hidden rounded-2xl border-4 border-emerald-950/10 bg-emerald-700 shadow-inner [print-color-adjust:exact]",
-              pathDrawingFor && "cursor-crosshair"
+              "relative aspect-[1.55] min-h-[240px] overflow-hidden rounded-2xl border-4 border-emerald-950/10 bg-emerald-700 shadow-inner [print-color-adjust:exact] sm:min-h-[420px]",
+              mode === "present" && "min-h-[320px] shadow-xl sm:min-h-[620px]",
+              pathDrawingFor && !isReadOnly && "cursor-crosshair"
             )}
             id={`field-${board.id}`}
             onClick={(event) => {
-              if (pathDrawingFor) {
+              if (pathDrawingFor && !isReadOnly) {
                 const point = fieldPoint(event.clientX, event.clientY);
                 if (point) {
                   appendWaypoint(pathDrawingFor, {
@@ -2391,15 +2412,15 @@ export function TacticBoardEditor({
                 return;
               }
               // Click on bare field deselects.
-              if (event.target === event.currentTarget) {
+              if (!isReadOnly && event.target === event.currentTarget) {
                 setSelectedId(null);
               }
             }}
-            onPointerCancel={endDrag}
-            onPointerMove={(event) =>
+            onPointerCancel={isReadOnly ? undefined : endDrag}
+            onPointerMove={isReadOnly ? undefined : (event) =>
               updatePosition(event.clientX, event.clientY)
             }
-            onPointerUp={endDrag}
+            onPointerUp={isReadOnly ? undefined : endDrag}
           >
             {fieldVariant !== "blank" ? (
               <div className="absolute inset-4 rounded-2xl border-2 border-white/70" />
@@ -2429,7 +2450,7 @@ export function TacticBoardEditor({
               </>
             ) : null}
 
-            {snapEnabled ? (
+            {snapEnabled && !isReadOnly ? (
               <svg
                 aria-hidden="true"
                 className="pointer-events-none absolute inset-0 h-full w-full opacity-25 no-print"
@@ -2478,7 +2499,7 @@ export function TacticBoardEditor({
               );
             })}
 
-            {!isAnimating &&
+            {!isAnimating && !isReadOnly &&
               renderZones.map((item) => {
                 const w = item.width ?? 24;
                 const h = item.height ?? 18;
@@ -2580,7 +2601,7 @@ export function TacticBoardEditor({
                   })}
             </svg>
 
-            {!isAnimating &&
+            {!isAnimating && !isReadOnly &&
               elements
                 .filter((item) => (item.path?.length ?? 0) > 0)
                 .flatMap((item) =>
@@ -2621,7 +2642,7 @@ export function TacticBoardEditor({
                   ))
                 )}
 
-            {!isAnimating && arrowElements.map((item) => {
+            {!isAnimating && !isReadOnly && arrowElements.map((item) => {
               const end = arrowEnd(item);
               const middle = {
                 x: (item.x + end.x) / 2,
@@ -2668,7 +2689,7 @@ export function TacticBoardEditor({
             })}
 
             {renderBodies.map((item) => {
-              const isSelected = selectedId === item.id && !isAnimating;
+              const isSelected = selectedId === item.id && !isAnimating && !isReadOnly;
               const rotation = item.rotation ?? 0;
 
               if (item.type === "cone") {
@@ -2680,7 +2701,7 @@ export function TacticBoardEditor({
                     )}
                     key={item.id}
                     onPointerDown={
-                      isAnimating
+                      isAnimating || isReadOnly
                         ? undefined
                         : (event) =>
                             startDrag(
@@ -2690,7 +2711,7 @@ export function TacticBoardEditor({
                             )
                     }
                     onDoubleClick={() =>
-                      isAnimating ? undefined : deleteElement(item.id)
+                      isAnimating || isReadOnly ? undefined : deleteElement(item.id)
                     }
                     style={{ left: `${item.x}%`, top: `${item.y}%` }}
                     title="Hütchen — Klick selektiert, Doppelklick löscht"
@@ -2723,7 +2744,7 @@ export function TacticBoardEditor({
                     )}
                     key={item.id}
                     onPointerDown={
-                      isAnimating
+                      isAnimating || isReadOnly
                         ? undefined
                         : (event) =>
                             startDrag(
@@ -2733,7 +2754,7 @@ export function TacticBoardEditor({
                             )
                     }
                     onDoubleClick={() =>
-                      isAnimating ? undefined : deleteElement(item.id)
+                      isAnimating || isReadOnly ? undefined : deleteElement(item.id)
                     }
                     style={{ left: `${item.x}%`, top: `${item.y}%` }}
                     title={`${materialLabels[item.materialKind]} — Klick selektiert, Doppelklick löscht`}
@@ -2758,13 +2779,13 @@ export function TacticBoardEditor({
                   )}
                   key={item.id}
                   onPointerDown={
-                    isAnimating
+                    isAnimating || isReadOnly
                       ? undefined
                       : (event) =>
                           startDrag(event, { id: item.id, point: "body" }, item)
                   }
                   onDoubleClick={() =>
-                    isAnimating ? undefined : deleteElement(item.id)
+                    isAnimating || isReadOnly ? undefined : deleteElement(item.id)
                   }
                   style={{ left: `${item.x}%`, top: `${item.y}%` }}
                   title={`${item.name ?? item.label} — Doppelklick löscht`}

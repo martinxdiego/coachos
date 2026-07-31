@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { CalendarPlus, ChevronLeft, ChevronRight, Trophy } from "lucide-react";
+import { CalendarPlus, ChevronLeft, ChevronRight, Download, Trophy } from "lucide-react";
 import { getTranslations } from "next-intl/server";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
@@ -64,7 +64,10 @@ function parseDate(value?: string) {
 }
 
 function toIsoDate(date: Date) {
-  return date.toISOString().slice(0, 10);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 function addDays(date: Date, days: number) {
@@ -75,13 +78,21 @@ function addDays(date: Date, days: number) {
 
 function addMonths(date: Date, months: number) {
   const next = new Date(date);
+  const day = next.getDate();
+  next.setDate(1);
   next.setMonth(next.getMonth() + months);
+  const lastDay = new Date(next.getFullYear(), next.getMonth() + 1, 0).getDate();
+  next.setDate(Math.min(day, lastDay));
   return next;
 }
 
 function addYears(date: Date, years: number) {
   const next = new Date(date);
+  const day = next.getDate();
+  next.setDate(1);
   next.setFullYear(next.getFullYear() + years);
+  const lastDay = new Date(next.getFullYear(), next.getMonth() + 1, 0).getDate();
+  next.setDate(Math.min(day, lastDay));
   return next;
 }
 
@@ -187,7 +198,7 @@ function MonthGrid({
   const offset = monthOffset(date);
 
   return (
-    <div className="grid grid-cols-7 gap-2">
+    <div className="hidden grid-cols-7 gap-2 md:grid">
       {["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"].map((day) => (
         <div className="px-2 py-1 text-xs font-semibold text-muted-foreground" key={day}>
           {day}
@@ -222,6 +233,51 @@ function MonthGrid({
           </div>
         );
       })}
+    </div>
+  );
+}
+
+function MonthAgenda({
+  date,
+  eventsByDate
+}: {
+  date: Date;
+  eventsByDate: Map<string, CalendarEvent[]>;
+}) {
+  const eventDays = daysInMonth(date)
+    .map((day) => ({ day, events: eventsFor(eventsByDate, day) }))
+    .filter((entry) => entry.events.length > 0);
+
+  if (eventDays.length === 0) {
+    return (
+      <div className="rounded-2xl border border-dashed border-border bg-secondary/35 p-5 text-center md:hidden">
+        <p className="font-semibold">Keine Termine in diesem Monat</p>
+        <p className="mt-1 text-sm text-muted-foreground">Lege ein Training oder Spiel für den ausgewählten Tag an.</p>
+        <div className="mx-auto mt-4 max-w-64">
+          <CreateLinks date={date} />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3 md:hidden">
+      {eventDays.map(({ day, events }) => (
+        <section className="rounded-2xl border border-border bg-background/70 p-3" key={toIsoDate(day)}>
+          <div className="flex items-center justify-between gap-3">
+            <p className="font-semibold">{fullDateFormatter.format(day)}</p>
+            <Badge variant="secondary">{events.length}</Badge>
+          </div>
+          <div className="mt-3 space-y-2">
+            {events.map((event) => (
+              <EventPill event={event} key={event.id} />
+            ))}
+          </div>
+          <div className="mt-3">
+            <CreateLinks date={day} />
+          </div>
+        </section>
+      ))}
     </div>
   );
 }
@@ -268,7 +324,7 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
   const events: CalendarEvent[] = [
     ...trainingsData.map((event) => ({
       id: `training-${event.id}`,
-      date: event.date.toISOString().slice(0, 10),
+      date: toIsoDate(event.date),
       time: event.startTime,
       title: event.focus,
       location: event.location,
@@ -277,7 +333,7 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
     })),
     ...matchesData.map((event) => ({
       id: `match-${event.id}`,
-      date: event.date.toISOString().slice(0, 10),
+      date: toIsoDate(event.date),
       time: event.kickoffTime,
       title: event.opponent,
       location: event.location,
@@ -318,6 +374,14 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
   return (
     <div className="space-y-6">
       <PageHeader
+        actions={
+          <Button asChild size="sm" variant="outline">
+            <a href="/api/calendar/ics">
+              <Download aria-hidden="true" className="h-4 w-4" />
+              Kalender exportieren
+            </a>
+          </Button>
+        }
         description={t("calendar_desc")}
         title={t("calendar_title")}
       />
@@ -410,7 +474,10 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
           ) : null}
 
           {view === "month" ? (
-            <MonthGrid date={selectedDate} eventsByDate={eventsByDate} />
+            <>
+              <MonthAgenda date={selectedDate} eventsByDate={eventsByDate} />
+              <MonthGrid date={selectedDate} eventsByDate={eventsByDate} />
+            </>
           ) : null}
 
           {view === "year" ? (

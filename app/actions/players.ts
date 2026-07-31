@@ -1,7 +1,6 @@
 "use server";
 
 import { generateTrainingPlan } from "@/lib/ai";
-import { randomUUID } from "crypto";
 import { cookies, headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -10,9 +9,16 @@ import { ACTIVE_TEAM_COOKIE, requireActiveTeam, requireUser } from "@/lib/auth";
 import { signIn as nextAuthSignIn, signOut as nextAuthSignOut } from "@/lib/auth";
 import bcrypt from "bcryptjs";
 import { getSiteUrl } from "@/lib/env";
-import { createClient } from "@/lib/supabase/server";
+import { getSupabaseAdminClient } from "@/lib/supabase/admin";
+import { prepareUploadedImage } from "@/lib/image-upload";
+import {
+  drainStorageDeletionQueueBestEffort,
+  enqueueStorageDeletions,
+  queueUploadedObjectDeletionBestEffort
+} from "@/lib/storage-deletion-queue";
 import { db } from "@/lib/db";
 import { rotatePlayerSignupInvite } from "@/lib/invites";
+import { rotatePlayerTokenAndRevokePush } from "@/lib/player-access";
 import {
   enumValue,
   normalizeExternalUrl,
@@ -25,6 +31,8 @@ import {
   toPlayerStatus
 } from "@/lib/forms";
 import { cacheDel } from "@/lib/redis";
+import { logger } from "@/lib/logger";
+import { assertCanAddPlayers } from "@/lib/billing";
 import type {
   AttendanceStatus,
   CoachMessageCategory,
@@ -55,7 +63,6 @@ import {
   PLAYER_PHOTO_BUCKET,
   PLAYER_PHOTO_MAX_BYTES,
   PLAYER_PHOTO_MIME_TYPES,
-  pathFromPublicUrl,
   TRAINING_IMAGE_BUCKET,
   TRAINING_IMAGE_MAX_BYTES,
   TRAINING_IMAGE_MAX_PER_PHASE,
@@ -73,6 +80,7 @@ import {
 
 export async function createPlayer(formData: FormData) {
   const { team } = await requireActiveTeam();
+  await assertCanAddPlayers(team.id, 1);
   const { firstName, lastName, name } = playerName(formData);
 
   await db.player.create({
@@ -143,6 +151,7 @@ export async function importPlayers(formData: FormData) {
   if (rows.length === 0) {
     throw new Error("No players found in import.");
   }
+  await assertCanAddPlayers(team.id, rows.length);
 
   await db.player.createMany({
     data: rows
@@ -196,7 +205,6 @@ export async function updatePlayer(formData: FormData) {
       birthDate: optionalString(formData, "birth_date") ? new Date(optionalString(formData, "birth_date")!) : null,
       birthYear: optionalNumber(formData, "birth_year"),
       jerseyNumber: optionalNumber(formData, "jersey_number"),
-      photoUrl: optionalString(formData, "photo_url"),
       strongFoot,
       height: optionalNumber(formData, "height_cm"),
       weight: optionalNumber(formData, "weight_kg"),
@@ -243,16 +251,30 @@ export async function deletePlayer(formData: FormData) {
   const { team } = await requireActiveTeam();
   const id = requiredString(formData, "id", "Player");
 
-  const player = await db.player.findFirst({
-    where: { id, workspaceId: team.id }
+  const deletionJobIds = await db.$transaction(async (tx) => {
+    const player = await tx.player.findFirst({
+      where: { id, workspaceId: team.id },
+      select: { id: true, photoUrl: true }
+    });
+    if (!player) {
+      throw new Error("Player not found or unauthorized.");
+    }
+
+    await tx.player.delete({
+      where: { id }
+    });
+
+    return enqueueStorageDeletions(
+      tx,
+      team.id,
+      PLAYER_PHOTO_BUCKET,
+      [player.photoUrl]
+    );
   });
 
-  if (!player) {
-    throw new Error("Player not found or unauthorized.");
-  }
-
-  await db.player.delete({
-    where: { id }
+  await drainStorageDeletionQueueBestEffort({
+    ids: deletionJobIds,
+    limit: deletionJobIds.length
   });
 
   await cacheDel(`leaderboard:${team.id}:players`);
@@ -275,12 +297,9 @@ export async function rotatePlayerAccessToken(formData: FormData) {
     throw new Error("Player not found or unauthorized.");
   }
 
-  // Issuing a fresh token immediately invalidates the previous share link
-  // (e.g. when a link leaked in a family chat).
-  await db.player.update({
-    where: { id },
-    data: { accessToken: randomUUID() }
-  });
+  // Revoke push subscriptions as part of the same transaction. Otherwise a
+  // subscription registered with a leaked link would receive the fresh token.
+  await rotatePlayerTokenAndRevokePush(id);
 
   revalidatePath("/players");
   revalidatePath(`/players/${id}`);
@@ -300,10 +319,10 @@ export async function uploadPlayerPhoto(formData: FormData) {
   const file = formData.get("photo");
 
   if (!(file instanceof File) || file.size === 0) {
-    throw new Error("Bitte wÃ¤hle ein Bild aus.");
+    throw new Error("Bitte wähle ein Bild aus.");
   }
   if (file.size > PLAYER_PHOTO_MAX_BYTES) {
-    throw new Error("Bild ist zu groÃŸ (max 6 MB).");
+    throw new Error("Bild ist zu gross (max. 3 MB nach Optimierung).");
   }
   if (file.type && !PLAYER_PHOTO_MIME_TYPES.has(file.type)) {
     throw new Error("Nur JPG, PNG, WEBP oder HEIC sind erlaubt.");
@@ -311,54 +330,78 @@ export async function uploadPlayerPhoto(formData: FormData) {
 
   const player = await db.player.findFirst({
     where: { id: playerId, workspaceId: team.id },
-    select: { id: true, photoUrl: true }
+    select: { id: true }
   });
 
   if (!player) {
     throw new Error("Spieler nicht gefunden.");
   }
 
-  const extFromName = file.name.split(".").pop()?.toLowerCase();
-  const extFromMime = file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpg";
-  const ext =
-    extFromName && /^[a-z0-9]+$/.test(extFromName) && extFromName.length <= 5
-      ? extFromName
-      : extFromMime;
-  const path = `${team.id}/${playerId}-${Date.now()}.${ext}`;
+  const preparedImage = await prepareUploadedImage(
+    file,
+    PLAYER_PHOTO_MIME_TYPES
+  );
+  const path =
+    `${team.id}/${playerId}-${Date.now()}.${preparedImage.extension}`;
 
-  const supabase = await createClient();
+  const supabase = getSupabaseAdminClient();
   const { error: uploadError } = await supabase.storage
     .from(PLAYER_PHOTO_BUCKET)
-    .upload(path, file, {
+    .upload(path, preparedImage.data, {
       cacheControl: "3600",
       upsert: false,
-      contentType: file.type || `image/${ext}`
+      contentType: preparedImage.mimeType
     });
 
   if (uploadError) {
-    throw new Error(uploadError.message);
-  }
-
-  const { data: publicUrlData } = supabase.storage
-    .from(PLAYER_PHOTO_BUCKET)
-    .getPublicUrl(path);
-
-  try {
-    await db.player.update({
-      where: { id: playerId },
-      data: { photoUrl: publicUrlData.publicUrl }
+    logger.error("Player photo upload failed", {
+      errorType: uploadError.name ?? "StorageError"
     });
-  } catch (updateError: any) {
-    await supabase.storage.from(PLAYER_PHOTO_BUCKET).remove([path]);
-    throw new Error(updateError.message);
+    throw new Error("Foto konnte nicht hochgeladen werden.");
   }
 
-  if (player.photoUrl) {
-    const oldPath = pathFromPublicUrl(player.photoUrl, PLAYER_PHOTO_BUCKET);
-    if (oldPath && oldPath !== path) {
-      await supabase.storage.from(PLAYER_PHOTO_BUCKET).remove([oldPath]);
-    }
+  let deletionJobIds: string[];
+  try {
+    deletionJobIds = await db.$transaction(async (tx) => {
+      const currentPlayer = await tx.player.findFirst({
+        where: { id: playerId, workspaceId: team.id },
+        select: { id: true, photoUrl: true }
+      });
+      if (!currentPlayer) {
+        throw new Error("Player not found or unauthorized.");
+      }
+
+      await tx.player.update({
+        where: { id: playerId },
+        data: { photoUrl: path }
+      });
+
+      return enqueueStorageDeletions(
+        tx,
+        team.id,
+        PLAYER_PHOTO_BUCKET,
+        [currentPlayer.photoUrl]
+      );
+    });
+  } catch (updateError) {
+    await queueUploadedObjectDeletionBestEffort(
+      team.id,
+      PLAYER_PHOTO_BUCKET,
+      path
+    );
+    logger.error("Player photo reference could not be saved", {
+      errorType:
+        updateError instanceof Error
+          ? updateError.constructor.name
+          : typeof updateError
+    });
+    throw new Error("Foto konnte nicht gespeichert werden.");
   }
+
+  await drainStorageDeletionQueueBestEffort({
+    ids: deletionJobIds,
+    limit: deletionJobIds.length
+  });
 
   revalidatePath("/");
   revalidatePath("/players");
@@ -371,27 +414,34 @@ export async function removePlayerPhoto(formData: FormData) {
   const { team } = await requireActiveTeam();
   const playerId = requiredString(formData, "player_id", "Player");
 
-  const player = await db.player.findFirst({
-    where: { id: playerId, workspaceId: team.id },
-    select: { id: true, photoUrl: true }
+  const deletionJobIds = await db.$transaction(async (tx) => {
+    const player = await tx.player.findFirst({
+      where: { id: playerId, workspaceId: team.id },
+      select: { id: true, photoUrl: true }
+    });
+    if (!player) {
+      throw new Error("Spieler nicht gefunden.");
+    }
+    if (!player.photoUrl) {
+      return [];
+    }
+
+    await tx.player.update({
+      where: { id: playerId },
+      data: { photoUrl: null }
+    });
+
+    return enqueueStorageDeletions(
+      tx,
+      team.id,
+      PLAYER_PHOTO_BUCKET,
+      [player.photoUrl]
+    );
   });
 
-  if (!player) {
-    throw new Error("Spieler nicht gefunden.");
-  }
-  if (!player.photoUrl) {
-    return;
-  }
-
-  const oldPath = pathFromPublicUrl(player.photoUrl, PLAYER_PHOTO_BUCKET);
-  const supabase = await createClient();
-  if (oldPath) {
-    await supabase.storage.from(PLAYER_PHOTO_BUCKET).remove([oldPath]);
-  }
-
-  await db.player.update({
-    where: { id: playerId },
-    data: { photoUrl: null }
+  await drainStorageDeletionQueueBestEffort({
+    ids: deletionJobIds,
+    limit: deletionJobIds.length
   });
 
   revalidatePath("/");

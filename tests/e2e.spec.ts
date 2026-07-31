@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import { test, expect } from "@playwright/test";
 
 test.describe("CoachOS E2E Flow", () => {
@@ -6,7 +7,7 @@ test.describe("CoachOS E2E Flow", () => {
   const trainerPassword = "password123";
   const teamName = `E2E Test Team ${randomId}`;
   
-  test("complete flow: trainer signup -> login -> create workspace -> register player -> player checkin", async ({ page }) => {
+  test("complete flow: signup -> workspace -> player checkin -> export -> deletion", async ({ page }) => {
     // 1. Trainer Signup
     await page.goto("/login");
     await page.waitForLoadState("networkidle");
@@ -14,12 +15,17 @@ test.describe("CoachOS E2E Flow", () => {
     // Fill the signup form (Account erstellen)
     await page.fill("#signup-email", trainerEmail);
     await page.fill("#signup-password", trainerPassword);
+    if (process.env.COACH_SIGNUP_CODE) {
+      await page.fill("#signup-code", process.env.COACH_SIGNUP_CODE);
+    }
     
     // Click 'Account erstellen' button
-    await page.click('button:has-text("Account erstellen")');
+    await page.click('form:has(#signup-email) button[type="submit"]');
     
-    // After signup, wait for the redirect URL with the query message to be fully loaded
-    await page.waitForURL(/\/login\?message=/);
+    // Signup feedback is rendered inline; the page no longer redirects.
+    await expect(page.locator("#signup-message")).toBeVisible({
+      timeout: 30_000
+    });
     
     // 2. Trainer Login
     // Fill the signin form (Einloggen)
@@ -65,6 +71,8 @@ test.describe("CoachOS E2E Flow", () => {
     await page.fill("#last_name", "Mustermann");
     await page.fill("#position", "Mittelfeld");
     await page.fill("#jersey_number", "10");
+    await page.fill("#parent_contact", "eltern@example.com");
+    await page.check("#consent");
     
     // Submit registration
     await page.click('button:has-text("Anmelden und Link erhalten")');
@@ -75,8 +83,8 @@ test.describe("CoachOS E2E Flow", () => {
     // Click 'Direkt öffnen' to go to player dashboard
     await page.click('button:has-text("Direkt öffnen")');
     
-    // Expect we are now on the player profile page
-    await page.waitForURL(/\/p\/.+/);
+    // The one-time player link is exchanged for a revocable device session.
+    await page.waitForURL(/\/player$/);
     
     // 6. Player Check-in
     // Check that check-in section is visible and wie fühlst du dich heute is displayed
@@ -90,5 +98,42 @@ test.describe("CoachOS E2E Flow", () => {
     
     // Expect success toast or check-in to be marked done
     await expect(page.locator('p:has-text("Check-in erledigt")')).toBeVisible();
+
+    // 7. Export the complete workspace archive as its owner
+    await page.goto("/workspaces");
+    const downloadPromise = page.waitForEvent("download");
+    await page.getByRole("link", {
+      name: "Datenarchiv herunterladen"
+    }).click();
+    const download = await downloadPromise;
+    const downloadPath = await download.path();
+    expect(downloadPath).not.toBeNull();
+    const archive = JSON.parse(await readFile(downloadPath!, "utf8"));
+    expect(archive.workspace.name).toBe(teamName);
+    expect(archive.players).toHaveLength(1);
+    expect(JSON.stringify(archive)).not.toContain("accessToken");
+    expect(JSON.stringify(archive)).not.toContain("passwordHash");
+
+    // 8. Destructive deletion requires both the exact name and re-authentication
+    await page.fill("#delete-workspace-name", teamName);
+    await page.fill("#delete-workspace-password", trainerPassword);
+    await page.getByRole("button", {
+      name: "Workspace endgültig löschen"
+    }).click();
+    await page.waitForURL(/\/workspaces\?message=/);
+    await expect(page.getByText(/wurde dauerhaft gelöscht/)).toBeVisible();
+    await expect(page.getByText("Noch kein Workspace.")).toBeVisible();
+
+    // 9. With no owned workspace left, the trainer can delete the account.
+    await page.goto("/account");
+    await page.fill("#delete-account-email", trainerEmail);
+    await page.fill("#delete-account-password", trainerPassword);
+    await page.getByRole("button", {
+      name: "Konto endgültig löschen"
+    }).click();
+    await page.waitForURL(/\/login\?account=deleted/);
+    await expect(
+      page.getByText(/CoachOS-Konto wurde dauerhaft gelöscht/)
+    ).toBeVisible();
   });
 });

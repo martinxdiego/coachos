@@ -25,13 +25,11 @@ const checks: ReadonlyArray<readonly [string, Direction]> = [
 ];
 
 interface PublicCheckinCardProps {
-  accessToken: string;
   alreadyDone: boolean;
   todayCheckin: Record<string, unknown> | null;
 }
 
 export function PublicCheckinCard({
-  accessToken,
   alreadyDone,
   todayCheckin
 }: PublicCheckinCardProps) {
@@ -49,7 +47,7 @@ export function PublicCheckinCard({
   function handle(formData: FormData) {
     startTransition(async () => {
       try {
-        await submitPublicCheckin(accessToken, formData);
+        await submitPublicCheckin(formData);
         toast.success(t("toast_saved"));
         setExpanded(false);
       } catch (err) {
@@ -145,6 +143,7 @@ export function PublicCheckinCard({
               <Textarea
                 defaultValue={(todayCheckin?.notes as string) ?? ""}
                 id="public-checkin-notes"
+                maxLength={2000}
                 name="notes"
                 placeholder={t("note_ph")}
               />

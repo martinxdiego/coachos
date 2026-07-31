@@ -29,6 +29,10 @@ import { evaluationAverage, healthRisk, winnerPointTotal } from "@/lib/coach-met
 import { requireActiveTeam } from "@/lib/auth";
 import { formatDate, todayIsoDate } from "@/lib/utils";
 import { db } from "@/lib/db";
+import {
+  createSignedStorageUrl,
+  PLAYER_PHOTO_BUCKET
+} from "@/lib/storage";
 
 export const dynamic = "force-dynamic";
 
@@ -42,18 +46,17 @@ function streakLength(checkinDates: string[]): number {
   if (checkinDates.length === 0) return 0;
   const seen = new Set(checkinDates);
   let streak = 0;
-  const cursor = new Date();
-  cursor.setHours(0, 0, 0, 0);
+  const cursor = new Date(`${todayIsoDate()}T12:00:00.000Z`);
   // Allow today to be missing — count back from yesterday if today isn't done.
   const todayIso = cursor.toISOString().slice(0, 10);
   if (!seen.has(todayIso)) {
-    cursor.setDate(cursor.getDate() - 1);
+    cursor.setUTCDate(cursor.getUTCDate() - 1);
   }
   while (true) {
     const iso = cursor.toISOString().slice(0, 10);
     if (!seen.has(iso)) break;
     streak += 1;
-    cursor.setDate(cursor.getDate() - 1);
+    cursor.setUTCDate(cursor.getUTCDate() - 1);
   }
   return streak;
 }
@@ -196,12 +199,17 @@ export default async function PlayerModePage({
         })
       ])
     : [null, [], [], [], [], []];
+  const playerPhotoUrl = await createSignedStorageUrl(
+    PLAYER_PHOTO_BUCKET,
+    dbPlayer?.photoUrl,
+    `${team.id}/`
+  );
 
   const player = dbPlayer
     ? {
         ...dbPlayer,
         first_name: dbPlayer.firstName,
-        photo_url: dbPlayer.photoUrl,
+        photo_url: playerPhotoUrl,
         jersey_number: dbPlayer.jerseyNumber,
         team_category: null,
         contact: dbPlayer.contact,

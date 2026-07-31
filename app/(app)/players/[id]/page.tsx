@@ -49,6 +49,10 @@ import { requireActiveTeam } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { formatDate, formatDateTime, todayIsoDate } from "@/lib/utils";
 import type { EvaluationContextType } from "@/lib/types";
+import {
+  createSignedStorageUrl,
+  PLAYER_PHOTO_BUCKET
+} from "@/lib/storage";
 
 export const dynamic = "force-dynamic";
 
@@ -179,12 +183,17 @@ export default async function PlayerProfilePage({
   if (!dbPlayer) {
     notFound();
   }
+  const playerPhotoUrl = await createSignedStorageUrl(
+    PLAYER_PHOTO_BUCKET,
+    dbPlayer.photoUrl,
+    `${team.id}/`
+  );
 
   const player = {
     ...dbPlayer,
     first_name: dbPlayer.firstName,
     last_name: dbPlayer.lastName,
-    photo_url: dbPlayer.photoUrl,
+    photo_url: playerPhotoUrl,
     jersey_number: dbPlayer.jerseyNumber,
     birth_date: dbPlayer.birthDate ? dbPlayer.birthDate.toISOString().slice(0, 10) : null,
     birth_year: dbPlayer.birthYear,

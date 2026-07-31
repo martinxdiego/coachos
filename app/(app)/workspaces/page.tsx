@@ -1,10 +1,22 @@
-import { Building2, KeyRound, Plus, UsersRound } from "lucide-react";
 import {
+  Building2,
+  Download,
+  KeyRound,
+  Plus,
+  ShieldAlert,
+  Sparkles,
+  Trash2,
+  UsersRound
+} from "lucide-react";
+import {
+  createDemoTeam,
   createTeam,
   createTeamInvite,
+  deleteWorkspace,
   joinTeamWithInvite,
   setActiveTeam,
-  updateTeam
+  updateTeam,
+  updateRetentionPolicy
 } from "@/app/actions";
 import { getTranslations } from "next-intl/server";
 import { PageHeader } from "@/components/page-header";
@@ -42,7 +54,7 @@ export default async function WorkspacesPage({
   const membership = activeTeam?.membership;
   const canManage = membership?.role === "OWNER";
 
-  const [memberCount, dbInvites] = team
+  const [memberCount, dbInvites, auditLogs] = team
     ? await Promise.all([
         db.workspaceMember.count({
           where: { workspaceId: team.id }
@@ -62,8 +74,17 @@ export default async function WorkspacesPage({
               take: 6
             })
           : Promise.resolve([])
+        ,
+        canManage
+          ? db.auditLog.findMany({
+              where: { workspaceId: team.id },
+              select: { id: true, event: true, createdAt: true },
+              orderBy: { createdAt: "desc" },
+              take: 8
+            })
+          : Promise.resolve([])
       ])
-    : [0, []];
+    : [0, [], []];
 
   const invites = dbInvites.map((invite) => ({
     id: invite.id,
@@ -126,8 +147,16 @@ export default async function WorkspacesPage({
                 ))
               ) : (
                 <div className="rounded-xl border border-dashed border-border p-6 text-sm text-muted-foreground">
-                  Noch kein Workspace. Erstelle einen eigenen oder tritt per
-                  Invite-Code einem Trainerteam bei.
+                  <p>
+                    Noch kein Workspace. Erstelle einen eigenen oder starte mit
+                    einem vollständig gefüllten Beispielteam.
+                  </p>
+                  <form action={createDemoTeam} className="mt-4">
+                    <Button type="submit" variant="outline">
+                      <Sparkles aria-hidden="true" className="h-4 w-4" />
+                      Demo-Team ausprobieren
+                    </Button>
+                  </form>
                 </div>
               )}
             </CardContent>
@@ -228,6 +257,155 @@ export default async function WorkspacesPage({
                     </div>
                   </div>
                 )}
+              </CardContent>
+            </Card>
+          ) : null}
+
+          {team && canManage ? (
+            <Card className="border-amber-300/70 bg-amber-50/40">
+              <CardHeader>
+                <div className="flex items-start gap-3">
+                  <div className="rounded-full bg-amber-100 p-2 text-amber-800">
+                    <ShieldAlert aria-hidden="true" className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <CardTitle>Daten &amp; Datenschutz</CardTitle>
+                    <CardDescription>
+                      Exportiere zuerst ein vollständiges Archiv oder lösche
+                      diesen Workspace dauerhaft.
+                    </CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-5">
+                <div className="rounded-xl border border-border bg-background p-4">
+                  <h3 className="font-medium">Aufbewahrungsregeln</h3>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Alte Gesundheits- und Kommunikationsdaten werden täglich
+                    automatisch gemäß diesen Fristen entfernt.
+                  </p>
+                  <form action={updateRetentionPolicy} className="mt-4 space-y-4">
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label htmlFor="health-retention-days">
+                          Gesundheitsdaten (Tage)
+                        </Label>
+                        <Input
+                          defaultValue={team.healthRetentionDays}
+                          id="health-retention-days"
+                          max={3650}
+                          min={30}
+                          name="health_retention_days"
+                          required
+                          type="number"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="data-retention-days">
+                          Kommunikation &amp; Audit (Tage)
+                        </Label>
+                        <Input
+                          defaultValue={team.dataRetentionDays}
+                          id="data-retention-days"
+                          max={3650}
+                          min={30}
+                          name="data_retention_days"
+                          required
+                          type="number"
+                        />
+                      </div>
+                    </div>
+                    <Button type="submit" variant="outline">
+                      Fristen speichern
+                    </Button>
+                  </form>
+                </div>
+
+                <div className="rounded-xl border border-border bg-background p-4">
+                  <h3 className="font-medium">Workspace exportieren</h3>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    JSON-Archiv mit Team-, Spieler-, Trainings-, Spiel- und
+                    Gesundheitsdaten. Passwörter und Zugriffsschlüssel werden
+                    niemals mitexportiert.
+                  </p>
+                  <Button asChild className="mt-4" variant="outline">
+                    <a href="/api/workspace/export">
+                      <Download aria-hidden="true" className="h-4 w-4" />
+                      Datenarchiv herunterladen
+                    </a>
+                  </Button>
+                </div>
+
+                <div className="rounded-xl border border-border bg-background p-4">
+                  <h3 className="font-medium">Letzte Sicherheitsereignisse</h3>
+                  <div className="mt-3 space-y-2">
+                    {auditLogs.length > 0 ? (
+                      auditLogs.map((entry) => (
+                        <div
+                          className="flex items-center justify-between gap-3 rounded-lg bg-secondary/40 px-3 py-2 text-xs"
+                          key={entry.id}
+                        >
+                          <span className="font-medium">
+                            {entry.event
+                              .replaceAll(".", " ")
+                              .replace("workspace", "Workspace")
+                              .replace("player", "Spieler")}
+                          </span>
+                          <span className="shrink-0 text-muted-foreground">
+                            {formatDateTime(entry.createdAt.toISOString())}
+                          </span>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-sm text-muted-foreground">
+                        Noch keine Sicherheitsereignisse vorhanden.
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-destructive/35 bg-destructive/5 p-4">
+                  <div className="flex items-center gap-2 text-destructive">
+                    <Trash2 aria-hidden="true" className="h-4 w-4" />
+                    <h3 className="font-semibold">
+                      Workspace dauerhaft löschen
+                    </h3>
+                  </div>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    Dabei werden alle Spieler, Trainings, Spiele, Auswertungen
+                    und privaten Medien dieses Workspaces gelöscht. Dieser
+                    Vorgang kann nicht rückgängig gemacht werden.
+                  </p>
+                  <form action={deleteWorkspace} className="mt-4 space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="delete-workspace-name">
+                        Zur Bestätigung „{team.name}“ eingeben
+                      </Label>
+                      <Input
+                        autoComplete="off"
+                        id="delete-workspace-name"
+                        name="workspace_name"
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="delete-workspace-password">
+                        Aktuelles Passwort
+                      </Label>
+                      <Input
+                        autoComplete="current-password"
+                        id="delete-workspace-password"
+                        name="password"
+                        required
+                        type="password"
+                      />
+                    </div>
+                    <Button type="submit" variant="destructive">
+                      <Trash2 aria-hidden="true" className="h-4 w-4" />
+                      Workspace endgültig löschen
+                    </Button>
+                  </form>
+                </div>
               </CardContent>
             </Card>
           ) : null}

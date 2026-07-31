@@ -158,7 +158,7 @@ async function buildMaterialContent(
       `Datum: ${dateStr}${training.startTime ? ` ${training.startTime.slice(0, 5)}` : ""}`,
       `Ort: ${training.location ?? "-"}`,
       `Dauer: ${training.durationMinutes ?? "-"} Minuten`,
-      `IntensitÃ¤t: ${training.intensity ?? "-"}`,
+      `Intensität: ${training.intensity ?? "-"}`,
       "",
       `Ziel: ${training.goal ?? "-"}`,
       "",
@@ -257,7 +257,7 @@ async function buildMaterialContent(
       "",
       "Formation:",
       "Prinzipien:",
-      "PressingauslÃ¶ser:",
+      "Pressingauslöser:",
       "Aufbau:",
       "Umschalten:",
       "Standards:"
@@ -265,7 +265,7 @@ async function buildMaterialContent(
   }
 
   return [
-    "Ãœbungsblatt",
+    "Übungsblatt",
     "",
     "Ziel:",
     "Organisation:",

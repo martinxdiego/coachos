@@ -9,6 +9,10 @@ import { db } from "@/lib/db";
 import { requireActiveTeam } from "@/lib/auth";
 import { todayIsoDate } from "@/lib/utils";
 import type { TrainingPhase } from "@/lib/types";
+import {
+  createSignedStorageUrls,
+  TRAINING_IMAGE_BUCKET
+} from "@/lib/storage";
 
 export const dynamic = "force-dynamic";
 
@@ -91,6 +95,15 @@ async function TrainingsData({ teamId }: { teamId: string }) {
         orderBy: { sortOrder: "asc" }
       })
     : [];
+  const phaseImageUrls = await Promise.all(
+    phasesData.map((phase) =>
+      createSignedStorageUrls(
+        TRAINING_IMAGE_BUCKET,
+        phase.imageUrls,
+        `${teamId}/`
+      )
+    )
+  );
 
   const players = playersData;
   const trainings = trainingsData.map((t) => ({
@@ -114,7 +127,7 @@ async function TrainingsData({ teamId }: { teamId: string }) {
     status: a.status as any
   }));
 
-  const phases = phasesData.map((p) => ({
+  const phases = phasesData.map((p, index) => ({
     id: p.id,
     training_id: p.trainingId,
     phase_type: p.phaseType as any,
@@ -128,7 +141,9 @@ async function TrainingsData({ teamId }: { teamId: string }) {
     field_size: p.fieldSize,
     variations: p.variations,
     load_management: p.loadManagement,
-    image_urls: p.imageUrls,
+    image_urls: phaseImageUrls[index].filter(
+      (url): url is string => Boolean(url)
+    ),
     diagram: p.diagram as any,
     sort_order: p.sortOrder,
     created_at: p.createdAt.toISOString(),

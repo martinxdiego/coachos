@@ -54,29 +54,29 @@ export const trainingPresets = {
   pressing: {
     focus: "Pressing nach Ballverlust",
     goal:
-      "Das Team erkennt Umschaltmomente schneller und stellt sofort Druck auf Ball und nÃ¤chste Passoptionen her.",
+      "Das Team erkennt Umschaltmomente schneller und stellt sofort Druck auf Ball und nächste Passoptionen her.",
     intensity: "high" as TrainingIntensity,
     phases: [
       ["warmup", "Aktivierung mit Gegenpressing", 12, "Rondo mit sofortigem Umschalten nach Ballverlust."],
-      ["technique", "Erster Druck und Deckungsschatten", 15, "Anlaufwinkel, KÃ¶rperstellung und kurze Sprintwege wiederholen."],
-      ["tactics", "Pressingfalle am FlÃ¼gel", 20, "Team verschiebt geschlossen und lenkt den Gegner in die Falle."],
-      ["game_form", "6v6+3 Umschaltspiel", 25, "Nach Ballverlust fÃ¼nf Sekunden Vollpressing, danach neu ordnen."],
-      ["finish", "Pressing-Wettkampf", 12, "Punkte fÃ¼r Ballgewinne in gefÃ¤hrlichen Zonen."],
+      ["technique", "Erster Druck und Deckungsschatten", 15, "Anlaufwinkel, Körperstellung und kurze Sprintwege wiederholen."],
+      ["tactics", "Pressingfalle am Flügel", 20, "Team verschiebt geschlossen und lenkt den Gegner in die Falle."],
+      ["game_form", "6v6+3 Umschaltspiel", 25, "Nach Ballverlust fünf Sekunden Vollpressing, danach neu ordnen."],
+      ["finish", "Pressing-Wettkampf", 12, "Punkte für Ballgewinne in gefährlichen Zonen."],
       ["cooldown", "Review", 6, "Welche Trigger haben funktioniert? Spielerfeedback sammeln."]
     ]
   },
   buildup: {
     focus: "Spielaufbau gegen hohes Pressing",
     goal:
-      "Das Team findet klare Auswege Ã¼ber TorhÃ¼ter, Sechser und diagonale Anschlussaktionen.",
+      "Das Team findet klare Auswege über Torhüter, Sechser und diagonale Anschlussaktionen.",
     intensity: "medium" as TrainingIntensity,
     phases: [
-      ["warmup", "Passfenster Ã¶ffnen", 12, "Positionsspiel mit offener KÃ¶rperstellung und Scan vor dem ersten Kontakt."],
-      ["technique", "Dritter-Mann-Kombinationen", 16, "Klare PassschÃ¤rfe und Anschlusspositionen trainieren."],
-      ["tactics", "Aufbau 7v5", 22, "Pressinglinien erkennen und mit Dreiecken Ã¼berspielen."],
-      ["game_form", "Halbfeldspiel mit Aufbauzone", 25, "Tore zÃ¤hlen doppelt nach kontrolliertem Aufbau."],
-      ["finish", "Spielnaher Abschluss", 10, "Nach Durchbruch Ã¼ber Zentrum oder FlÃ¼gel abschlieÃŸen."],
-      ["cooldown", "Prinzipien sichern", 5, "Drei Aufbauprinzipien fÃ¼r das nÃ¤chste Spiel festhalten."]
+      ["warmup", "Passfenster öffnen", 12, "Positionsspiel mit offener Körperstellung und Scan vor dem ersten Kontakt."],
+      ["technique", "Dritter-Mann-Kombinationen", 16, "Klare Passschärfe und Anschlusspositionen trainieren."],
+      ["tactics", "Aufbau 7v5", 22, "Pressinglinien erkennen und mit Dreiecken überspielen."],
+      ["game_form", "Halbfeldspiel mit Aufbauzone", 25, "Tore zählen doppelt nach kontrolliertem Aufbau."],
+      ["finish", "Spielnaher Abschluss", 10, "Nach Durchbruch über Zentrum oder Flügel abschliessen."],
+      ["cooldown", "Prinzipien sichern", 5, "Drei Aufbauprinzipien für das nächste Spiel festhalten."]
     ]
   },
   finishing: {
@@ -85,12 +85,12 @@ export const trainingPresets = {
       "Spieler treffen schneller Entscheidungen im letzten Drittel und kommen unter Gegnerdruck sauber zum Abschluss.",
     intensity: "medium" as TrainingIntensity,
     phases: [
-      ["warmup", "Technische Aktivierung", 10, "Ballmitnahme, erster Kontakt und kurze AbschlÃ¼sse."],
-      ["technique", "Abschlusswinkel", 18, "Flache und hohe AbschlÃ¼sse nach Zuspiel und Dribbling."],
-      ["tactics", "Letzter Pass", 18, "Timing von Tiefenlauf, RÃ¼ckraum und Querpass."],
-      ["game_form", "4v4+TorhÃ¼ter", 28, "Abschluss innerhalb von acht Sekunden nach Ballgewinn."],
+      ["warmup", "Technische Aktivierung", 10, "Ballmitnahme, erster Kontakt und kurze Abschlüsse."],
+      ["technique", "Abschlusswinkel", 18, "Flache und hohe Abschlüsse nach Zuspiel und Dribbling."],
+      ["tactics", "Letzter Pass", 18, "Timing von Tiefenlauf, Rückraum und Querpass."],
+      ["game_form", "4v4+Torhüter", 28, "Abschluss innerhalb von acht Sekunden nach Ballgewinn."],
       ["finish", "Druck-Challenge", 12, "Teamwettkampf mit wechselnden Abschlusszonen."],
-      ["cooldown", "Kurzer Review", 4, "Beste Abschlussoptionen und EntscheidungsqualitÃ¤t besprechen."]
+      ["cooldown", "Kurzer Review", 4, "Beste Abschlussoptionen und Entscheidungsqualität besprechen."]
     ]
   }
 } satisfies Record<
@@ -153,37 +153,16 @@ export async function setActiveTeamCookie(teamId: string) {
 
 // SIGN IN & AUTHENTICATION ACTIONS
 
-export const PLAYER_PHOTO_BUCKET = "player-photos";
-export const PLAYER_PHOTO_MAX_BYTES = 6 * 1024 * 1024;
-export const PLAYER_PHOTO_MIME_TYPES = new Set([
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-  "image/heic",
-  "image/heif"
-]);
-
-export function pathFromPublicUrl(url: string, bucket: string): string | null {
-  const marker = `/storage/v1/object/public/${bucket}/`;
-  const idx = url.indexOf(marker);
-  if (idx === -1) {
-    return null;
-  }
-  return url.slice(idx + marker.length).split("?")[0];
-}
-
-
-export const TRAINING_IMAGE_BUCKET = "training-images";
-export const TRAINING_IMAGE_MAX_BYTES = 8 * 1024 * 1024;
-export const TRAINING_IMAGE_MAX_PER_PHASE = 8;
-export const TRAINING_IMAGE_MIME_TYPES = new Set([
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-  "image/heic",
-  "image/heif",
-  "image/gif"
-]);
+export {
+  pathFromPublicUrl,
+  PLAYER_PHOTO_BUCKET,
+  PLAYER_PHOTO_MAX_BYTES,
+  PLAYER_PHOTO_MIME_TYPES,
+  TRAINING_IMAGE_BUCKET,
+  TRAINING_IMAGE_MAX_BYTES,
+  TRAINING_IMAGE_MAX_PER_PHASE,
+  TRAINING_IMAGE_MIME_TYPES
+} from "@/lib/storage";
 
 
 export function trainingPayload(formData: FormData) {

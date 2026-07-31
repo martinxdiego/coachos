@@ -42,6 +42,16 @@ html {
   font-feature-settings: "rlig" 1, "calt" 1, "ss01" 1, "cv11" 1;
 }
 
+/* iOS zooms focused form controls below 16px. Width breakpoints are not a
+   reliable proxy for touch devices because phones exceed `sm` in landscape. */
+@media (hover: none) and (pointer: coarse) {
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
 body {
   @apply bg-background text-foreground antialiased;
   font-family:
@@ -165,6 +175,49 @@ h1, h2, h3, h4 {
 
 .animate-score-pop {
   animation: score-pop 280ms var(--ease-spring) forwards;
+}
+
+@keyframes login-tactic-ball {
+  0%, 8% { transform: translate(0, 0); }
+  29% { transform: translate(106px, -54px); }
+  54% { transform: translate(238px, 0); }
+  78%, 100% { transform: translate(366px, 0); }
+}
+
+@keyframes login-tactic-route {
+  0% { stroke-dashoffset: 120; opacity: .25; }
+  22%, 82% { stroke-dashoffset: 0; opacity: .9; }
+  100% { stroke-dashoffset: -40; opacity: .25; }
+}
+
+@keyframes login-tactic-run {
+  0%, 18% { stroke-dasharray: 0 180; opacity: 0; }
+  48%, 82% { stroke-dasharray: 180 0; opacity: .9; }
+  100% { opacity: 0; }
+}
+
+@keyframes login-tactic-player {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+
+.login-tactic-ball {
+  animation: login-tactic-ball 6.4s var(--ease-smooth) infinite;
+  transform-box: fill-box;
+}
+
+.login-tactic-route {
+  animation: login-tactic-route 6.4s ease-in-out infinite;
+}
+
+.login-tactic-run {
+  animation: login-tactic-run 6.4s ease-in-out infinite;
+}
+
+.login-tactic-player {
+  animation: login-tactic-player 2.8s ease-in-out infinite;
+  transform-box: fill-box;
+  transform-origin: center;
 }
 
 /* Glass surface used by sticky bars / sheets */

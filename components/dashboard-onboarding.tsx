@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useTranslations } from "next-intl";
 import {
   ArrowLeft,
@@ -16,8 +16,6 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-
-const STORAGE_KEY = "coachos.onboarding.dismissed.v1";
 
 interface Step {
   icon: LucideIcon;
@@ -58,22 +56,8 @@ export function DashboardOnboarding() {
   const [visible, setVisible] = useState(false);
   const [step, setStep] = useState(0);
 
-  useEffect(() => {
-    try {
-      const dismissed = window.localStorage.getItem(STORAGE_KEY);
-      if (!dismissed) setVisible(true);
-    } catch {
-      setVisible(true);
-    }
-  }, []);
-
   function dismiss() {
     setVisible(false);
-    try {
-      window.localStorage.setItem(STORAGE_KEY, new Date().toISOString());
-    } catch {
-      // ignore quota issues — best-effort persistence
-    }
   }
 
   function reopen() {

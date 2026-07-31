@@ -20,11 +20,10 @@ import { cn, formatDateTime } from "@/lib/utils";
 import type { CoachMessage } from "@/lib/types";
 
 interface PublicCoachInboxProps {
-  accessToken: string;
   messages: CoachMessage[];
 }
 
-export function PublicCoachInbox({ accessToken, messages }: PublicCoachInboxProps) {
+export function PublicCoachInbox({ messages }: PublicCoachInboxProps) {
   const t = useTranslations("inbox");
   const tCat = useTranslations("coachmsg");
   const [showRead, setShowRead] = useState(false);
@@ -39,7 +38,7 @@ export function PublicCoachInbox({ accessToken, messages }: PublicCoachInboxProp
     setPendingId(id);
     startTransition(async () => {
       try {
-        await markCoachMessageRead(accessToken, id);
+        await markCoachMessageRead(id);
         toast.success(t("toast_read"));
       } catch (err) {
         const message = err instanceof Error ? err.message : t("error_generic");

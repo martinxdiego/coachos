@@ -14,6 +14,10 @@ import { createClient } from "@/lib/supabase/server";
 import { db } from "@/lib/db";
 import { rotatePlayerSignupInvite } from "@/lib/invites";
 import {
+  requireMatchInWorkspace,
+  requirePlayersInWorkspace
+} from "@/lib/team-relations";
+import {
   enumValue,
   normalizeExternalUrl,
   optionalNumber,
@@ -73,6 +77,21 @@ import {
 export async function createPlayerAward(formData: FormData) {
   const { team } = await requireActiveTeam();
   const playerId = requiredString(formData, "player_id", "Player");
+  const requestedPreviousPlayerId = optionalString(
+    formData,
+    "previous_player_id"
+  );
+  const matchId = optionalString(formData, "match_id");
+
+  await Promise.all([
+    requirePlayersInWorkspace(
+      team.id,
+      [playerId, requestedPreviousPlayerId].filter(
+        (id): id is string => Boolean(id)
+      )
+    ),
+    matchId ? requireMatchInWorkspace(team.id, matchId) : Promise.resolve()
+  ]);
 
   const latest = await db.award.findFirst({
     where: { workspaceId: team.id },
@@ -87,8 +106,9 @@ export async function createPlayerAward(formData: FormData) {
     data: {
       workspaceId: team.id,
       playerId,
-      previousPlayerId: optionalString(formData, "previous_player_id") ?? latest?.playerId ?? null,
-      matchId: optionalString(formData, "match_id") || null,
+      previousPlayerId:
+        requestedPreviousPlayerId ?? latest?.playerId ?? null,
+      matchId,
       eventLabel: optionalString(formData, "event_label"),
       event: optionalString(formData, "event_label") ?? "Man of the Week",
       date: new Date(optionalString(formData, "award_date") ?? new Date().toISOString().slice(0, 10)),
@@ -106,6 +126,18 @@ export async function updatePlayerAward(formData: FormData) {
   const { team } = await requireActiveTeam();
   const id = requiredString(formData, "id", "Award");
   const playerId = requiredString(formData, "player_id", "Player");
+  const previousPlayerId = optionalString(formData, "previous_player_id");
+  const matchId = optionalString(formData, "match_id");
+
+  await Promise.all([
+    requirePlayersInWorkspace(
+      team.id,
+      [playerId, previousPlayerId].filter(
+        (candidate): candidate is string => Boolean(candidate)
+      )
+    ),
+    matchId ? requireMatchInWorkspace(team.id, matchId) : Promise.resolve()
+  ]);
 
   const award = await db.award.findFirst({
     where: { id, workspaceId: team.id }
@@ -119,8 +151,8 @@ export async function updatePlayerAward(formData: FormData) {
     where: { id },
     data: {
       playerId,
-      previousPlayerId: optionalString(formData, "previous_player_id") || null,
-      matchId: optionalString(formData, "match_id") || null,
+      previousPlayerId,
+      matchId,
       eventLabel: optionalString(formData, "event_label"),
       event: optionalString(formData, "event_label") ?? "Man of the Week",
       date: new Date(optionalString(formData, "award_date") ?? new Date().toISOString().slice(0, 10)),
@@ -137,7 +169,6 @@ export async function updatePlayerAward(formData: FormData) {
 export async function deletePlayerAward(formData: FormData) {
   const { team } = await requireActiveTeam();
   const id = requiredString(formData, "id", "Award");
-  const playerId = optionalString(formData, "player_id");
 
   const award = await db.award.findFirst({
     where: { id, workspaceId: team.id }
@@ -152,7 +183,5 @@ export async function deletePlayerAward(formData: FormData) {
   });
 
   revalidatePath("/awards");
-  if (playerId) {
-    revalidatePath(`/players/${playerId}`);
-  }
+  revalidatePath(`/players/${award.playerId}`);
 }

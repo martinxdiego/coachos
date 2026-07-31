@@ -3,6 +3,14 @@
     {
       "path": "/api/push/daily",
       "schedule": "0 7 * * *"
+    },
+    {
+      "path": "/api/storage/retention",
+      "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/data/retention",
+      "schedule": "30 2 * * *"
     }
   ]
 }

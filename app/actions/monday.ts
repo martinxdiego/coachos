@@ -14,6 +14,10 @@ import { createClient } from "@/lib/supabase/server";
 import { db } from "@/lib/db";
 import { rotatePlayerSignupInvite } from "@/lib/invites";
 import {
+  requireMondayTrainingInWorkspace,
+  requirePlayersInWorkspace
+} from "@/lib/team-relations";
+import {
   enumValue,
   normalizeExternalUrl,
   optionalNumber,
@@ -141,16 +145,14 @@ export async function saveMondayAttendance(formData: FormData) {
   const playerIds = formData.getAll("player_id").map(String);
   const presentIds = new Set(formData.getAll("present_player_id").map(String));
   const injuredIds = new Set(formData.getAll("injured_player_id").map(String));
+  const uniquePlayerIds = Array.from(new Set(playerIds));
 
-  const training = await db.mondayTraining.findFirst({
-    where: { id: mondayTrainingId, workspaceId: team.id }
-  });
+  await Promise.all([
+    requireMondayTrainingInWorkspace(team.id, mondayTrainingId),
+    requirePlayersInWorkspace(team.id, uniquePlayerIds)
+  ]);
 
-  if (!training) {
-    throw new Error("Monday training not found or unauthorized.");
-  }
-
-  const rows = playerIds.map((playerId) => {
+  const rows = uniquePlayerIds.map((playerId) => {
     const status: MondayAttendanceStatus = injuredIds.has(playerId)
       ? "injured"
       : presentIds.has(playerId)

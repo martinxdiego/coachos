@@ -1,6 +1,7 @@
 import {
   BarChart3,
   Building2,
+  CalendarCheck,
   CalendarDays,
   ClipboardList,
   Crown,
@@ -9,6 +10,8 @@ import {
   HeartPulse,
   LayoutDashboard,
   Link2,
+  Menu,
+  MessageSquareHeart,
   type LucideIcon,
   Medal,
   Settings,
@@ -100,6 +103,12 @@ export const navClusters: NavCluster[] = [
         label: "Kalender",
         icon: CalendarDays,
         description: "Alle Termine im Überblick"
+      },
+      {
+        href: "/availability",
+        label: "Zu- & Absagen",
+        icon: CalendarCheck,
+        description: "Live-Kader und Rückmeldungen"
       }
     ]
   },
@@ -162,8 +171,46 @@ export const navClusters: NavCluster[] = [
         label: "Einstellungen",
         icon: Settings,
         description: "Workspace und Mitglieder"
+      },
+      {
+        href: "/feedback",
+        label: "Feedback",
+        icon: MessageSquareHeart,
+        description: "Ideen und Probleme melden"
       }
     ]
+  }
+];
+
+const mobileDirectHrefs = new Set(["/calendar", "/players", "/tactics"]);
+
+export const mobileNavClusters: NavCluster[] = [
+  navClusters[0],
+  {
+    id: "calendar",
+    label: "Kalender",
+    icon: CalendarDays,
+    href: "/calendar"
+  },
+  {
+    id: "team",
+    label: "Team",
+    icon: UsersRound,
+    href: "/players"
+  },
+  {
+    id: "tactics",
+    label: "Taktik",
+    icon: Shield,
+    href: "/tactics"
+  },
+  {
+    id: "more",
+    label: "Mehr",
+    icon: Menu,
+    items: navClusters.flatMap((cluster) =>
+      (cluster.items ?? []).filter((item) => !mobileDirectHrefs.has(item.href))
+    )
   }
 ];
 
@@ -194,6 +241,7 @@ export function getItemKey(href: string): string {
   if (href === "/clubcorner") return "nav.clubcorner";
   if (href === "/workspaces") return "nav.settings";
   if (href === "/points") return "nav.winnerpoints";
+  if (href === "/feedback") return "nav.feedback";
   return "nav." + href.replace(/^\//, "");
 }
 
@@ -203,6 +251,7 @@ export function getItemDescKey(href: string): string {
   if (href === "/clubcorner") return "nav_desc.clubcorner";
   if (href === "/workspaces") return "nav_desc.settings";
   if (href === "/points") return "nav_desc.winnerpoints";
+  if (href === "/feedback") return "nav_desc.feedback";
   return "nav_desc." + href.replace(/^\//, "");
 }
 

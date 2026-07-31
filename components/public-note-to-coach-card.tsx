@@ -23,7 +23,7 @@ const moodScale = [
   { value: 10, label: "🤩", key: "mood_top" }
 ] as const;
 
-export function PublicNoteToCoachCard({ accessToken }: { accessToken: string }) {
+export function PublicNoteToCoachCard() {
   const t = useTranslations("note");
   const [mood, setMood] = useState(8);
   const [body, setBody] = useState("");
@@ -33,7 +33,7 @@ export function PublicNoteToCoachCard({ accessToken }: { accessToken: string }) 
   function handle(formData: FormData) {
     startTransition(async () => {
       try {
-        await submitPlayerNoteToCoach(accessToken, formData);
+        await submitPlayerNoteToCoach(formData);
         toast.success(t("toast_sent"));
         setBody("");
       } catch (err) {
@@ -84,6 +84,7 @@ export function PublicNoteToCoachCard({ accessToken }: { accessToken: string }) 
             })}
           </div>
           <Textarea
+            maxLength={2000}
             name="body"
             onChange={(event) => setBody(event.target.value)}
             placeholder={t("placeholder")}

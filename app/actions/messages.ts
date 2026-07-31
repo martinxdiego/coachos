@@ -13,6 +13,7 @@ import { getSiteUrl } from "@/lib/env";
 import { createClient } from "@/lib/supabase/server";
 import { db } from "@/lib/db";
 import { rotatePlayerSignupInvite } from "@/lib/invites";
+import { requirePlayerInWorkspace } from "@/lib/team-relations";
 import {
   enumValue,
   normalizeExternalUrl,
@@ -82,6 +83,8 @@ export async function createCoachMessage(formData: FormData) {
     "praise"
   ] as const) ?? "note") as CoachMessageCategory;
 
+  await requirePlayerInWorkspace(team.id, playerId);
+
   const fullBody = title ? `**${title}**\n\n${body}` : body;
 
   await db.coachMessage.create({
@@ -101,7 +104,6 @@ export async function createCoachMessage(formData: FormData) {
 export async function deleteCoachMessage(formData: FormData) {
   const { team } = await requireActiveTeam();
   const id = requiredString(formData, "id", "Message");
-  const playerId = optionalString(formData, "player_id");
 
   const message = await db.coachMessage.findFirst({
     where: { id, workspaceId: team.id }
@@ -115,9 +117,7 @@ export async function deleteCoachMessage(formData: FormData) {
     where: { id }
   });
 
-  if (playerId) {
-    revalidatePath(`/players/${playerId}`);
-  }
+  revalidatePath(`/players/${message.playerId}`);
   revalidatePath("/");
 }
 

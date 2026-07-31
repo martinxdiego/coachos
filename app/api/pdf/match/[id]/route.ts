@@ -4,6 +4,7 @@ import { requireActiveTeam } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { MatchDocument } from "@/lib/pdf/match-document";
 import { pdfDateString, safeFilename } from "@/lib/pdf/filename";
+import { assertProFeature } from "@/lib/billing";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -19,6 +20,7 @@ export async function GET(_request: Request, { params }: RouteParams) {
   }
 
   const { team } = await requireActiveTeam();
+  await assertProFeature(team.id, "PDF-Export");
 
   const matchRow = await db.match.findFirst({
     where: { id, workspaceId: team.id }

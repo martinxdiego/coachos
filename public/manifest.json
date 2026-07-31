@@ -2,11 +2,32 @@
   "name": "CoachOS",
   "short_name": "CoachOS",
   "description": "Professional staff workspace for football coaches.",
+  "id": "/",
   "start_url": "/",
+  "scope": "/",
+  "lang": "de-CH",
   "display": "standalone",
-  "orientation": "portrait",
+  "orientation": "any",
+  "categories": ["sports", "productivity"],
   "background_color": "#0f172a",
   "theme_color": "#10b981",
+  "shortcuts": [
+    {
+      "name": "Training",
+      "short_name": "Training",
+      "url": "/trainings"
+    },
+    {
+      "name": "Matchday",
+      "short_name": "Matchday",
+      "url": "/matches"
+    },
+    {
+      "name": "Platzmodus",
+      "short_name": "Platz",
+      "url": "/pitch"
+    }
+  ],
   "icons": [
     {
       "src": "/icons/icon-192.png",

@@ -14,6 +14,10 @@ import { createClient } from "@/lib/supabase/server";
 import { db } from "@/lib/db";
 import { rotatePlayerSignupInvite } from "@/lib/invites";
 import {
+  requireContextInWorkspace,
+  requirePlayerInWorkspace
+} from "@/lib/team-relations";
+import {
   enumValue,
   normalizeExternalUrl,
   optionalNumber,
@@ -84,12 +88,18 @@ export async function savePlayerEvaluation(formData: FormData) {
     throw new Error("Evaluation context is required.");
   }
 
+  const contextId = optionalString(formData, "context_id");
+  await Promise.all([
+    requirePlayerInWorkspace(team.id, playerId),
+    requireContextInWorkspace(team.id, contextType, contextId)
+  ]);
+
   const row = {
     team_id: team.id,
     user_id: user.id,
     player_id: playerId,
     context_type: contextType,
-    context_id: optionalString(formData, "context_id"),
+    context_id: contextId,
     context_label: optionalString(formData, "context_label"),
     evaluation_date: optionalString(formData, "evaluation_date") ?? new Date().toISOString().slice(0, 10),
     participation: optionalScaleFive(formData, "participation"),
@@ -178,10 +188,16 @@ export async function updatePlayerEvaluation(formData: FormData) {
     throw new Error("Evaluation context is required.");
   }
 
+  const contextId = optionalString(formData, "context_id");
+  await Promise.all([
+    requirePlayerInWorkspace(team.id, playerId),
+    requireContextInWorkspace(team.id, contextType, contextId)
+  ]);
+
   const row = {
     player_id: playerId,
     context_type: contextType,
-    context_id: optionalString(formData, "context_id"),
+    context_id: contextId,
     context_label: optionalString(formData, "context_label"),
     evaluation_date:
       optionalString(formData, "evaluation_date") ??
@@ -273,7 +289,6 @@ export async function updatePlayerEvaluation(formData: FormData) {
 export async function deletePlayerEvaluation(formData: FormData) {
   const { team } = await requireActiveTeam();
   const id = requiredString(formData, "id", "Evaluation");
-  const playerId = optionalString(formData, "player_id");
 
   const rating = await db.rating.findFirst({
     where: {
@@ -297,8 +312,6 @@ export async function deletePlayerEvaluation(formData: FormData) {
   revalidatePath("/clubcorner");
   revalidatePath("/monday");
   revalidatePath("/player-mode");
-  if (playerId) {
-    revalidatePath(`/players/${playerId}`);
-  }
+  revalidatePath(`/players/${rating.playerId}`);
 }
 

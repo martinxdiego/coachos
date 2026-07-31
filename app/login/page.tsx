@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useActionState, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { KeyRound, Loader2, ShieldCheck, UsersRound } from "lucide-react";
@@ -8,6 +10,9 @@ import { signIn, signUp, type AuthFormState } from "@/app/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { LoginTacticalPreview } from "@/components/login-tactical-preview";
+
+const INTRO_SESSION_KEY = "coachos.auth-intro.seen.v1";
 
 // ─── Inline-Transition-Helper ─────────────────────────────────────────────────
 // Erzeugt ein vollständiges CSSProperties-Objekt für state-gesteuerte Reveals.
@@ -38,7 +43,9 @@ const FEATURES = [
 // ─── Komponente ───────────────────────────────────────────────────────────────
 export default function LoginPage() {
   const t = useTranslations("auth");
+  const searchParams = useSearchParams();
   const [revealed, setRevealed] = useState(false);
+  const [showIntro, setShowIntro] = useState(true);
 
   const [signinState, signinAction, signinPending] = useActionState<
     AuthFormState,
@@ -66,28 +73,35 @@ export default function LoginPage() {
   }, [signupState, t]);
 
   useEffect(() => {
-    // Prefers-reduced-motion: Intro überspringen
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const introSeen = window.sessionStorage.getItem(INTRO_SESSION_KEY) === "1";
+    if (reducedMotion || introSeen) {
+      setShowIntro(false);
       setRevealed(true);
       return;
     }
-    const t = setTimeout(() => setRevealed(true), 1900);
+    window.sessionStorage.setItem(INTRO_SESSION_KEY, "1");
+    const t = setTimeout(() => setRevealed(true), 950);
     return () => clearTimeout(t);
   }, []);
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-slate-950 px-4 py-10 text-white">
+    <main className="relative min-h-dvh overflow-hidden bg-slate-950 pb-[calc(2.5rem+env(safe-area-inset-bottom))] pl-[calc(1rem+env(safe-area-inset-left))] pr-[calc(1rem+env(safe-area-inset-right))] pt-[calc(2.5rem+env(safe-area-inset-top))] text-white">
 
       {/* ── Intro-Overlay ─────────────────────────────────────────── */}
-      <div
-        aria-hidden="true"
-        className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-slate-950"
-        style={{
-          opacity: revealed ? 0 : 1,
-          pointerEvents: revealed ? "none" : undefined,
-          transition: "opacity .75s cubic-bezier(.22,1,.36,1) 0ms",
-        }}
-      >
+      {showIntro ? (
+        <div
+          aria-hidden="true"
+          className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-slate-950"
+          onTransitionEnd={() => {
+            if (revealed) setShowIntro(false);
+          }}
+          style={{
+            opacity: revealed ? 0 : 1,
+            pointerEvents: revealed ? "none" : undefined,
+            transition: "opacity .55s cubic-bezier(.22,1,.36,1) 0ms",
+          }}
+        >
         {/* Äusserer Glow-Ring */}
         <div className="animate-glow-breathe absolute h-56 w-56 rounded-full bg-emerald-500/18 blur-3xl" />
 
@@ -117,7 +131,8 @@ export default function LoginPage() {
         >
           {t("wordmark_tagline")}
         </p>
-      </div>
+        </div>
+      ) : null}
 
       {/* ── Animierte Hintergrund-Blobs ───────────────────────────── */}
       <div
@@ -149,10 +164,10 @@ export default function LoginPage() {
       />
 
       {/* ── Inhalt ────────────────────────────────────────────────── */}
-      <div className="relative mx-auto grid min-h-[calc(100vh-5rem)] max-w-6xl gap-12 lg:grid-cols-[1.15fr_.85fr] lg:items-center">
+      <div className="relative mx-auto grid min-h-[calc(100dvh-5rem)] max-w-6xl gap-12 lg:grid-cols-[1.15fr_.85fr] lg:items-center">
 
         {/* ── Linke Seite: Hero ───────────────────────────────────── */}
-        <section className="space-y-10">
+        <section className="space-y-6 lg:space-y-10">
 
           {/* Badge */}
           <div style={rx(revealed, 0)}>
@@ -165,7 +180,7 @@ export default function LoginPage() {
           {/* Headline */}
           <div className="space-y-4">
             <h1
-              className="max-w-[14ch] text-[2.75rem] font-bold leading-[1.1] tracking-tight sm:text-[3.5rem] lg:text-[4rem]"
+              className="max-w-[14ch] text-[2.35rem] font-bold leading-[1.1] tracking-tight sm:text-[3.5rem] lg:text-[4rem]"
               style={rx(revealed, 100)}
             >
               {t("headline_pre")}{" "}
@@ -184,8 +199,12 @@ export default function LoginPage() {
             </p>
           </div>
 
+          <div className="hidden lg:block" style={rx(revealed, 300)}>
+            <LoginTacticalPreview />
+          </div>
+
           {/* Feature Cards */}
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="hidden gap-3 lg:grid lg:grid-cols-3">
             {FEATURES.map((f, i) => (
               <div
                 key={f.key}
@@ -224,6 +243,38 @@ export default function LoginPage() {
                 </p>
               </div>
               <div className="px-6 py-5">
+                {searchParams.get("reauth") === "1" ? (
+                  <p
+                    className="mb-4 rounded-lg bg-amber-50 px-3 py-2 text-[13px] font-medium text-amber-900"
+                    role="status"
+                  >
+                    {t("notice_reauth")}
+                  </p>
+                ) : null}
+                {searchParams.get("verification") === "success" ? (
+                  <p
+                    className="mb-4 rounded-lg bg-emerald-50 px-3 py-2 text-[13px] font-medium text-emerald-900"
+                    role="status"
+                  >
+                    {t("notice_email_verified")}
+                  </p>
+                ) : null}
+                {searchParams.get("verification") === "invalid" ? (
+                  <p
+                    className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-[13px] font-medium text-red-800"
+                    role="alert"
+                  >
+                    {t("err_verification_invalid")}
+                  </p>
+                ) : null}
+                {searchParams.get("account") === "deleted" ? (
+                  <p
+                    className="mb-4 rounded-lg bg-emerald-50 px-3 py-2 text-[13px] font-medium text-emerald-900"
+                    role="status"
+                  >
+                    {t("notice_account_deleted")}
+                  </p>
+                ) : null}
                 <form action={signinAction} className="space-y-4">
                   <div className="space-y-1.5">
                     <Label className="text-slate-700" htmlFor="signin-email">{t("email")}</Label>
@@ -231,6 +282,7 @@ export default function LoginPage() {
                       autoComplete="email"
                       className="border-slate-200 bg-slate-50 text-slate-900 transition-shadow placeholder:text-slate-400 focus:border-emerald-400 focus:bg-white focus:shadow-[0_0_0_3px_rgba(16,185,129,.12)] focus:ring-0"
                       id="signin-email"
+                      maxLength={254}
                       name="email"
                       placeholder="coach@team.ch"
                       required
@@ -247,6 +299,7 @@ export default function LoginPage() {
                       autoComplete="current-password"
                       className="border-slate-200 bg-slate-50 text-slate-900 transition-shadow placeholder:text-slate-400 focus:border-emerald-400 focus:bg-white focus:shadow-[0_0_0_3px_rgba(16,185,129,.12)] focus:ring-0"
                       id="signin-password"
+                      maxLength={128}
                       name="password"
                       required
                       type="password"
@@ -276,6 +329,14 @@ export default function LoginPage() {
                     )}
                   </Button>
                 </form>
+                <div className="mt-3 text-center">
+                  <Link
+                    className="text-[13px] font-medium text-emerald-700 hover:underline"
+                    href="/forgot-password"
+                  >
+                    Passwort vergessen?
+                  </Link>
+                </div>
               </div>
             </div>
           </div>
@@ -297,10 +358,26 @@ export default function LoginPage() {
                       autoComplete="email"
                       className="border-white/10 bg-white/10 text-white placeholder:text-slate-500 focus:border-emerald-400/50 focus:bg-white/15 focus:shadow-[0_0_0_3px_rgba(16,185,129,.1)] focus:ring-0"
                       id="signup-email"
+                      maxLength={254}
                       name="email"
                       placeholder="coach@team.ch"
                       required
                       type="email"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-slate-300" htmlFor="signup-code">
+                      {t("signup_code")}
+                    </Label>
+                    <Input
+                      autoCapitalize="none"
+                      autoComplete="one-time-code"
+                      className="border-white/10 bg-white/10 text-white placeholder:text-slate-500 focus:border-emerald-400/50 focus:bg-white/15 focus:shadow-[0_0_0_3px_rgba(16,185,129,.1)] focus:ring-0"
+                      id="signup-code"
+                      maxLength={128}
+                      name="signup_code"
+                      placeholder={t("signup_code_ph")}
+                      spellCheck={false}
                     />
                   </div>
                   <div className="space-y-1.5">
@@ -313,6 +390,7 @@ export default function LoginPage() {
                       autoComplete="new-password"
                       className="border-white/10 bg-white/10 text-white placeholder:text-slate-500 focus:border-emerald-400/50 focus:bg-white/15 focus:shadow-[0_0_0_3px_rgba(16,185,129,.1)] focus:ring-0"
                       id="signup-password"
+                      maxLength={128}
                       minLength={10}
                       name="password"
                       required
@@ -355,6 +433,20 @@ export default function LoginPage() {
           </div>
         </section>
       </div>
+      <footer className="relative mx-auto mt-8 flex max-w-6xl flex-wrap justify-center gap-x-5 gap-y-2 text-xs text-slate-400">
+        <Link className="hover:text-white hover:underline" href="/support">
+          Support
+        </Link>
+        <Link className="hover:text-white hover:underline" href="/legal/privacy">
+          Datenschutz
+        </Link>
+        <Link className="hover:text-white hover:underline" href="/legal/imprint">
+          Impressum
+        </Link>
+        <Link className="hover:text-white hover:underline" href="/legal/terms">
+          Nutzungsbedingungen
+        </Link>
+      </footer>
     </main>
   );
 }

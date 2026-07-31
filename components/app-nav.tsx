@@ -21,22 +21,31 @@ export function AppNav() {
   const pathname = usePathname();
   const [openClusterId, setOpenClusterId] = useState<string | null>(null);
   const navRef = useRef<HTMLElement | null>(null);
+  const triggerRefs = useRef(new Map<string, HTMLButtonElement>());
 
   useEffect(() => {
     if (!openClusterId) return;
-    const onClick = (event: MouseEvent) => {
+    const onPointerDown = (event: PointerEvent) => {
       if (!navRef.current) return;
       if (!navRef.current.contains(event.target as Node)) {
         setOpenClusterId(null);
       }
     };
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpenClusterId(null);
+      if (
+        event.key === "Escape" &&
+        navRef.current?.contains(document.activeElement)
+      ) {
+        event.preventDefault();
+        const trigger = triggerRefs.current.get(openClusterId);
+        setOpenClusterId(null);
+        trigger?.focus();
+      }
     };
-    document.addEventListener("mousedown", onClick);
+    document.addEventListener("pointerdown", onPointerDown);
     document.addEventListener("keydown", onKey);
     return () => {
-      document.removeEventListener("mousedown", onClick);
+      document.removeEventListener("pointerdown", onPointerDown);
       document.removeEventListener("keydown", onKey);
     };
   }, [openClusterId]);
@@ -60,7 +69,7 @@ export function AppNav() {
             <Link
               aria-current={isActive ? "page" : undefined}
               className={cn(
-                "relative inline-flex h-9 shrink-0 items-center gap-2 rounded-full px-3.5 text-[13px] font-medium tracking-tight text-slate-300 transition-colors duration-200 ease-spring hover:text-white",
+                "relative inline-flex h-11 shrink-0 items-center gap-2 rounded-full px-3.5 text-[13px] font-medium tracking-tight text-slate-300 transition-colors duration-200 ease-spring hover:text-white lg:h-9",
                 isActive &&
                   "bg-white text-slate-950 shadow-soft hover:text-slate-950"
               )}
@@ -88,6 +97,13 @@ export function AppNav() {
             }
             onOpen={() => setOpenClusterId(cluster.id)}
             pathname={pathname}
+            triggerRef={(node) => {
+              if (node) {
+                triggerRefs.current.set(cluster.id, node);
+              } else {
+                triggerRefs.current.delete(cluster.id);
+              }
+            }}
           />
         );
       })}
@@ -101,7 +117,8 @@ function ClusterButton({
   isOpen,
   onOpen,
   onClose,
-  pathname
+  pathname,
+  triggerRef
 }: {
   cluster: NavCluster;
   isActive: boolean;
@@ -109,6 +126,7 @@ function ClusterButton({
   onOpen: () => void;
   onClose: () => void;
   pathname: string;
+  triggerRef: (node: HTMLButtonElement | null) => void;
 }) {
   const t = useTranslations();
   const Icon = cluster.icon;
@@ -117,14 +135,15 @@ function ClusterButton({
   return (
     <div className="relative">
       <button
+        aria-controls={`nav-cluster-${cluster.id}`}
         aria-expanded={isOpen}
-        aria-haspopup="menu"
         className={cn(
-          "relative inline-flex h-9 shrink-0 items-center gap-2 rounded-full px-3.5 text-[13px] font-medium tracking-tight text-slate-300 transition-colors duration-200 ease-spring hover:text-white",
+          "relative inline-flex h-11 shrink-0 items-center gap-2 rounded-full px-3.5 text-[13px] font-medium tracking-tight text-slate-300 transition-colors duration-200 ease-spring hover:text-white lg:h-9",
           isActive &&
             "bg-white text-slate-950 shadow-soft hover:text-slate-950"
         )}
         onClick={() => (isOpen ? onClose() : onOpen())}
+        ref={triggerRef}
         type="button"
       >
         <Icon aria-hidden="true" className="h-4 w-4" />
@@ -148,13 +167,14 @@ function ClusterButton({
         aria-hidden={!isOpen}
         className={cn(
           "absolute left-1/2 top-full z-50 w-64 -translate-x-1/2 pt-2 origin-top",
+          cluster.id === "club" && "left-auto right-0 translate-x-0",
           "transition-[opacity,transform] duration-200 ease-out",
           "motion-reduce:transition-none",
           isOpen
             ? "pointer-events-auto opacity-100 scale-y-100 translate-y-0"
             : "pointer-events-none opacity-0 scale-y-90 -translate-y-1"
         )}
-        role="menu"
+        id={`nav-cluster-${cluster.id}`}
       >
         <div className="overflow-hidden rounded-2xl border border-border/60 bg-card text-foreground shadow-elevated">
           <ul className="p-1.5">
@@ -173,7 +193,6 @@ function ClusterButton({
                     )}
                     href={item.href}
                     onClick={onClose}
-                    role="menuitem"
                     tabIndex={isOpen ? 0 : -1}
                   >
                     <span

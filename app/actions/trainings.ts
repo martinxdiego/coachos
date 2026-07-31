@@ -10,9 +10,23 @@ import { ACTIVE_TEAM_COOKIE, requireActiveTeam, requireUser } from "@/lib/auth";
 import { signIn as nextAuthSignIn, signOut as nextAuthSignOut } from "@/lib/auth";
 import bcrypt from "bcryptjs";
 import { getSiteUrl } from "@/lib/env";
-import { createClient } from "@/lib/supabase/server";
+import { getSupabaseAdminClient } from "@/lib/supabase/admin";
+import { prepareUploadedImage } from "@/lib/image-upload";
+import {
+  drainStorageDeletionQueueBestEffort,
+  enqueueStorageDeletions,
+  queueUploadedObjectDeletionBestEffort
+} from "@/lib/storage-deletion-queue";
+import {
+  assertTrainingImageWorkspaceCapacity,
+  TrainingImageQuotaError
+} from "@/lib/storage-quota";
 import { db } from "@/lib/db";
 import { rotatePlayerSignupInvite } from "@/lib/invites";
+import {
+  requirePlayersInWorkspace,
+  requireTrainingInWorkspace
+} from "@/lib/team-relations";
 import {
   enumValue,
   normalizeExternalUrl,
@@ -24,6 +38,7 @@ import {
   scaleFive
 } from "@/lib/forms";
 import { cacheDel } from "@/lib/redis";
+import { logger } from "@/lib/logger";
 import type {
   AttendanceStatus,
   CoachMessageCategory,
@@ -76,10 +91,10 @@ export async function uploadPhaseImage(formData: FormData) {
   const file = formData.get("image");
 
   if (!(file instanceof File) || file.size === 0) {
-    throw new Error("Bitte wÃ¤hle ein Bild aus.");
+    throw new Error("Bitte wähle ein Bild aus.");
   }
   if (file.size > TRAINING_IMAGE_MAX_BYTES) {
-    throw new Error("Bild ist zu groÃŸ (max 8 MB).");
+    throw new Error("Bild ist zu gross (max. 3 MB nach Optimierung).");
   }
   if (file.type && !TRAINING_IMAGE_MIME_TYPES.has(file.type)) {
     throw new Error("Nur JPG, PNG, WEBP, GIF oder HEIC sind erlaubt.");
@@ -100,49 +115,71 @@ export async function uploadPhaseImage(formData: FormData) {
       `Maximal ${TRAINING_IMAGE_MAX_PER_PHASE} Bilder pro Phase.`
     );
   }
+  await assertTrainingImageWorkspaceCapacity(db, team.id);
 
-  const extFromName = file.name.split(".").pop()?.toLowerCase();
-  const extFromMime =
-    file.type === "image/png"
-      ? "png"
-      : file.type === "image/webp"
-        ? "webp"
-        : file.type === "image/gif"
-          ? "gif"
-          : "jpg";
-  const ext =
-    extFromName && /^[a-z0-9]+$/.test(extFromName) && extFromName.length <= 5
-      ? extFromName
-      : extFromMime;
-  const path = `${team.id}/${phase.trainingId}/${phaseId}-${Date.now()}.${ext}`;
+  const preparedImage = await prepareUploadedImage(
+    file,
+    TRAINING_IMAGE_MIME_TYPES
+  );
+  const path =
+    `${team.id}/${phase.trainingId}/${phaseId}-${Date.now()}.` +
+    preparedImage.extension;
 
-  const supabase = await createClient();
+  const supabase = getSupabaseAdminClient();
   const { error: uploadError } = await supabase.storage
     .from(TRAINING_IMAGE_BUCKET)
-    .upload(path, file, {
+    .upload(path, preparedImage.data, {
       cacheControl: "3600",
       upsert: false,
-      contentType: file.type || `image/${ext}`
+      contentType: preparedImage.mimeType
     });
 
   if (uploadError) {
-    throw new Error(uploadError.message);
+    logger.error("Training image upload failed", {
+      errorType: uploadError.name ?? "StorageError"
+    });
+    throw new Error("Bild konnte nicht hochgeladen werden.");
   }
 
-  const { data: publicUrlData } = supabase.storage
-    .from(TRAINING_IMAGE_BUCKET)
-    .getPublicUrl(path);
-
-  const nextImages = [...currentImages, publicUrlData.publicUrl];
-
   try {
-    await db.trainingPhase.update({
-      where: { id: phaseId },
-      data: { imageUrls: nextImages }
+    await db.$transaction(
+      async (tx) => {
+        const currentPhase = await tx.trainingPhase.findFirst({
+          where: { id: phaseId, training: { workspaceId: team.id } },
+          select: { id: true, imageUrls: true }
+        });
+        if (!currentPhase) {
+          throw new Error("Training phase not found or unauthorized.");
+        }
+        const latestImages = currentPhase.imageUrls ?? [];
+        if (latestImages.length >= TRAINING_IMAGE_MAX_PER_PHASE) {
+          throw new Error("Training phase image limit reached.");
+        }
+        await assertTrainingImageWorkspaceCapacity(tx, team.id);
+
+        await tx.trainingPhase.update({
+          where: { id: phaseId },
+          data: { imageUrls: [...latestImages, path] }
+        });
+      },
+      { isolationLevel: "Serializable" }
+    );
+  } catch (updateError) {
+    await queueUploadedObjectDeletionBestEffort(
+      team.id,
+      TRAINING_IMAGE_BUCKET,
+      path
+    );
+    logger.error("Training image reference could not be saved", {
+      errorType:
+        updateError instanceof Error
+          ? updateError.constructor.name
+          : typeof updateError
     });
-  } catch (updateError: any) {
-    await supabase.storage.from(TRAINING_IMAGE_BUCKET).remove([path]);
-    throw new Error(updateError.message);
+    if (updateError instanceof TrainingImageQuotaError) {
+      throw updateError;
+    }
+    throw new Error("Bild konnte nicht gespeichert werden.");
   }
 
   revalidatePath("/");
@@ -156,31 +193,51 @@ export async function removePhaseImage(formData: FormData) {
   const phaseId = requiredString(formData, "phase_id", "Trainingsphase");
   const imageUrl = requiredString(formData, "image_url", "Bild-URL");
 
-  const phase = await db.trainingPhase.findFirst({
-    where: { id: phaseId, training: { workspaceId: team.id } },
-    select: { id: true, imageUrls: true }
+  const deletionJobIds = await db.$transaction(async (tx) => {
+    const phase = await tx.trainingPhase.findFirst({
+      where: { id: phaseId, training: { workspaceId: team.id } },
+      select: { id: true, imageUrls: true }
+    });
+    if (!phase) {
+      throw new Error("Trainingsphase nicht gefunden.");
+    }
+
+    const expectedPrefix = `${team.id}/`;
+    const requestedPath = pathFromPublicUrl(
+      imageUrl,
+      TRAINING_IMAGE_BUCKET,
+      expectedPrefix
+    );
+    if (!requestedPath) return [];
+
+    const currentImages = phase.imageUrls ?? [];
+    const nextImages = currentImages.filter(
+      (reference: string) =>
+        pathFromPublicUrl(
+          reference,
+          TRAINING_IMAGE_BUCKET,
+          expectedPrefix
+        ) !== requestedPath
+    );
+    if (nextImages.length === currentImages.length) return [];
+
+    await tx.trainingPhase.update({
+      where: { id: phaseId },
+      data: { imageUrls: nextImages }
+    });
+
+    return enqueueStorageDeletions(
+      tx,
+      team.id,
+      TRAINING_IMAGE_BUCKET,
+      [requestedPath]
+    );
   });
 
-  if (!phase) {
-    throw new Error("Trainingsphase nicht gefunden.");
-  }
-
-  const currentImages = phase.imageUrls ?? [];
-  if (!currentImages.includes(imageUrl)) {
-    return;
-  }
-  const nextImages = currentImages.filter((url: string) => url !== imageUrl);
-
-  await db.trainingPhase.update({
-    where: { id: phaseId },
-    data: { imageUrls: nextImages }
+  await drainStorageDeletionQueueBestEffort({
+    ids: deletionJobIds,
+    limit: deletionJobIds.length
   });
-
-  const path = pathFromPublicUrl(imageUrl, TRAINING_IMAGE_BUCKET);
-  if (path) {
-    const supabase = await createClient();
-    await supabase.storage.from(TRAINING_IMAGE_BUCKET).remove([path]);
-  }
 
   revalidatePath("/");
   revalidatePath("/calendar");
@@ -218,47 +275,66 @@ export async function createTraining(formData: FormData) {
 export async function updateTraining(formData: FormData) {
   const { team } = await requireActiveTeam();
   const id = requiredString(formData, "id", "Training");
-
-  const existingTraining = await db.training.findFirst({
-    where: { id, workspaceId: team.id }
-  });
-
-  if (!existingTraining) {
-    throw new Error("Training not found or unauthorized.");
-  }
-
   const payload = trainingPayload(formData);
 
-  await db.training.update({
-    where: { id },
-    data: {
-      title: payload.focus,
-      ...payload
-    }
-  });
-
-  const existingPhases = await db.trainingPhase.findMany({
-    where: { trainingId: id },
-    select: { phaseType: true, imageUrls: true }
-  });
-
-  const imagesByType = new Map<TrainingPhaseType, string[]>();
-  for (const row of existingPhases ?? []) {
-    if (row.imageUrls && row.imageUrls.length > 0) {
-      imagesByType.set(row.phaseType as TrainingPhaseType, row.imageUrls);
-    }
-  }
-
-  await db.trainingPhase.deleteMany({
-    where: { trainingId: id }
-  });
-
-  const rows = phaseRows(formData, id, imagesByType);
-  if (rows.length > 0) {
-    await db.trainingPhase.createMany({
-      data: rows
+  const deletionJobIds = await db.$transaction(async (tx) => {
+    const existingTraining = await tx.training.findFirst({
+      where: { id, workspaceId: team.id },
+      select: { id: true }
     });
-  }
+    if (!existingTraining) {
+      throw new Error("Training not found or unauthorized.");
+    }
+
+    await tx.training.update({
+      where: { id },
+      data: {
+        title: payload.focus,
+        ...payload
+      }
+    });
+
+    const existingPhases = await tx.trainingPhase.findMany({
+      where: { trainingId: id },
+      select: { phaseType: true, imageUrls: true }
+    });
+    const existingImageReferences = existingPhases.flatMap(
+      (phase) => phase.imageUrls ?? []
+    );
+
+    const imagesByType = new Map<TrainingPhaseType, string[]>();
+    for (const row of existingPhases) {
+      if (row.imageUrls && row.imageUrls.length > 0) {
+        imagesByType.set(
+          row.phaseType as TrainingPhaseType,
+          row.imageUrls
+        );
+      }
+    }
+
+    await tx.trainingPhase.deleteMany({
+      where: { trainingId: id }
+    });
+
+    const rows = phaseRows(formData, id, imagesByType);
+    if (rows.length > 0) {
+      await tx.trainingPhase.createMany({
+        data: rows
+      });
+    }
+
+    return enqueueStorageDeletions(
+      tx,
+      team.id,
+      TRAINING_IMAGE_BUCKET,
+      existingImageReferences
+    );
+  });
+
+  await drainStorageDeletionQueueBestEffort({
+    ids: deletionJobIds,
+    limit: deletionJobIds.length
+  });
 
   revalidatePath("/");
   revalidatePath("/calendar");
@@ -272,11 +348,40 @@ export async function deleteTrainingWeek(formData: FormData) {
   const ids = formData.getAll("training_id") as string[];
   if (ids.length === 0) return;
 
-  await db.training.deleteMany({
-    where: {
-      id: { in: ids },
-      workspaceId: team.id
-    }
+  const deletionJobIds = await db.$transaction(async (tx) => {
+    const trainings = await tx.training.findMany({
+      where: {
+        id: { in: ids },
+        workspaceId: team.id
+      },
+      select: {
+        phases: {
+          select: { imageUrls: true }
+        }
+      }
+    });
+    const imageReferences = trainings.flatMap((training) =>
+      training.phases.flatMap((phase) => phase.imageUrls ?? [])
+    );
+
+    await tx.training.deleteMany({
+      where: {
+        id: { in: ids },
+        workspaceId: team.id
+      }
+    });
+
+    return enqueueStorageDeletions(
+      tx,
+      team.id,
+      TRAINING_IMAGE_BUCKET,
+      imageReferences
+    );
+  });
+
+  await drainStorageDeletionQueueBestEffort({
+    ids: deletionJobIds,
+    limit: deletionJobIds.length
   });
 
   revalidatePath("/");
@@ -292,7 +397,7 @@ export async function updatePhaseDiagram(formData: FormData) {
   try {
     diagram = JSON.parse(diagramJson);
   } catch {
-    throw new Error("UngÃ¼ltiges Diagramm-Format");
+    throw new Error("Ungültiges Diagramm-Format");
   }
 
   const phase = await db.trainingPhase.findFirst({
@@ -447,16 +552,35 @@ export async function deleteTraining(formData: FormData) {
   const { team } = await requireActiveTeam();
   const id = requiredString(formData, "id", "Training");
 
-  const training = await db.training.findFirst({
-    where: { id, workspaceId: team.id }
+  const deletionJobIds = await db.$transaction(async (tx) => {
+    const training = await tx.training.findFirst({
+      where: { id, workspaceId: team.id },
+      select: {
+        id: true,
+        phases: {
+          select: { imageUrls: true }
+        }
+      }
+    });
+    if (!training) {
+      throw new Error("Training not found or unauthorized.");
+    }
+
+    await tx.training.delete({
+      where: { id }
+    });
+
+    return enqueueStorageDeletions(
+      tx,
+      team.id,
+      TRAINING_IMAGE_BUCKET,
+      training.phases.flatMap((phase) => phase.imageUrls ?? [])
+    );
   });
 
-  if (!training) {
-    throw new Error("Training not found or unauthorized.");
-  }
-
-  await db.training.delete({
-    where: { id }
+  await drainStorageDeletionQueueBestEffort({
+    ids: deletionJobIds,
+    limit: deletionJobIds.length
   });
 
   revalidatePath("/");
@@ -502,18 +626,18 @@ export async function createPresetTraining(formData: FormData) {
     durationMinutes: Math.max(5, Math.round((minutes / phaseTotal) * duration)),
     description,
     coachingPoints:
-      "Timing, AbstÃ¤nde, Kommunikation und EntscheidungsqualitÃ¤t aktiv coachen.",
+      "Timing, Abstände, Kommunikation und Entscheidungsqualität aktiv coachen.",
     organization:
-      "FeldgrÃ¶ÃŸe und Spielerzahl an KadergrÃ¶ÃŸe anpassen; klare Wechsel- und Pausenregeln setzen.",
-    material: "BÃ¤lle, HÃ¼tchen, Markierungsteller, Leibchen, Tore",
+      "Feldgrösse und Spielerzahl an Kadergrösse anpassen; klare Wechsel- und Pausenregeln setzen.",
+    material: "Bälle, Hütchen, Markierungsteller, Leibchen, Tore",
     playerCount: "12-18",
     fieldSize: "Variabel",
     variations:
       "Leichter: mehr Raum und freie Kontakte. Schwerer: Kontaktlimit, Zeitdruck oder kleinere Zonen.",
     loadManagement:
       preset.intensity === "high"
-        ? "Kurze intensive BlÃ¶cke mit klaren Pausen."
-        : "Mittlere Belastung mit flieÃŸenden ÃœbergÃ¤ngen.",
+        ? "Kurze intensive Blöcke mit klaren Pausen."
+        : "Mittlere Belastung mit fliessenden Übergängen.",
     sortOrder: index
   }));
 
@@ -534,23 +658,21 @@ export async function saveAttendance(formData: FormData) {
   const trainingId = requiredString(formData, "training_id", "Training");
   const playerIds = formData.getAll("player_id").map(String);
   const presentIds = new Set(formData.getAll("present_player_id").map(String));
+  const uniquePlayerIds = Array.from(new Set(playerIds));
 
-  const players = await db.player.findMany({
-    where: {
-      workspaceId: team.id,
-      id: { in: playerIds }
-    },
-    select: { id: true }
-  });
+  await Promise.all([
+    requireTrainingInWorkspace(team.id, trainingId),
+    requirePlayersInWorkspace(team.id, uniquePlayerIds)
+  ]);
 
-  const rows = players.map((player) => {
-    const status: AttendanceStatus = presentIds.has(player.id)
+  const rows = uniquePlayerIds.map((playerId) => {
+    const status: AttendanceStatus = presentIds.has(playerId)
       ? "present"
       : "absent";
 
     return {
       trainingId,
-      playerId: player.id,
+      playerId,
       status
     };
   });

@@ -73,7 +73,6 @@ describe("a11y: PublicCheckinCard (Spieler-Check-in)", () => {
     const violations = await seriousViolations(
       withIntl(
         <PublicCheckinCard
-          accessToken="test-token"
           alreadyDone={false}
           todayCheckin={null}
         />

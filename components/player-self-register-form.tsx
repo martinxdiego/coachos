@@ -81,24 +81,44 @@ export function PlayerSelfRegisterForm({ teamToken }: { teamToken: string }) {
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor="first_name">{t("first_name")}</Label>
-          <Input id="first_name" name="first_name" required />
+          <Input
+            autoComplete="given-name"
+            id="first_name"
+            maxLength={80}
+            name="first_name"
+            required
+          />
         </div>
         <div className="space-y-2">
           <Label htmlFor="last_name">{t("last_name")}</Label>
-          <Input id="last_name" name="last_name" required />
+          <Input
+            autoComplete="family-name"
+            id="last_name"
+            maxLength={80}
+            name="last_name"
+            required
+          />
         </div>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor="birth_date">{t("birth_date")}</Label>
-          <Input id="birth_date" name="birth_date" type="date" />
+          <Input
+            autoComplete="bday"
+            id="birth_date"
+            min="1900-01-01"
+            name="birth_date"
+            type="date"
+          />
         </div>
         <div className="space-y-2">
           <Label htmlFor="birth_year">{t("birth_year")}</Label>
           <Input
             id="birth_year"
             inputMode="numeric"
+            max={new Date().getFullYear()}
+            min={1900}
             name="birth_year"
             placeholder={t("birth_year_ph")}
             type="number"
@@ -112,6 +132,8 @@ export function PlayerSelfRegisterForm({ teamToken }: { teamToken: string }) {
           <Input
             id="height_cm"
             inputMode="numeric"
+            max={250}
+            min={50}
             name="height_cm"
             placeholder={t("height_ph")}
             type="number"
@@ -122,9 +144,11 @@ export function PlayerSelfRegisterForm({ teamToken }: { teamToken: string }) {
           <Input
             id="weight_kg"
             inputMode="decimal"
+            max={300}
+            min={15}
             name="weight_kg"
             placeholder={t("weight_ph")}
-            step="0.1"
+            step="1"
             type="number"
           />
         </div>
@@ -133,13 +157,20 @@ export function PlayerSelfRegisterForm({ teamToken }: { teamToken: string }) {
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor="position">{t("position")}</Label>
-          <Input id="position" name="position" placeholder={t("position_ph")} />
+          <Input
+            id="position"
+            maxLength={120}
+            name="position"
+            placeholder={t("position_ph")}
+          />
         </div>
         <div className="space-y-2">
           <Label htmlFor="jersey_number">{t("jersey")}</Label>
           <Input
             id="jersey_number"
             inputMode="numeric"
+            max={999}
+            min={0}
             name="jersey_number"
             type="number"
           />
@@ -150,6 +181,7 @@ export function PlayerSelfRegisterForm({ teamToken }: { teamToken: string }) {
         <Label htmlFor="parent_contact">{t("parent_contact")}</Label>
         <Input
           id="parent_contact"
+          maxLength={250}
           name="parent_contact"
           placeholder={t("parent_contact_ph")}
           required

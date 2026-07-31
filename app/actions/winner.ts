@@ -14,6 +14,10 @@ import { createClient } from "@/lib/supabase/server";
 import { db } from "@/lib/db";
 import { rotatePlayerSignupInvite } from "@/lib/invites";
 import {
+  requireContextInWorkspace,
+  requirePlayerInWorkspace
+} from "@/lib/team-relations";
+import {
   enumValue,
   normalizeExternalUrl,
   optionalNumber,
@@ -90,6 +94,12 @@ export async function addWinnerPoints(formData: FormData) {
     throw new Error("Winnerpunkte must be between 1 and 50.");
   }
 
+  const contextId = optionalString(formData, "context_id");
+  await Promise.all([
+    requirePlayerInWorkspace(team.id, playerId),
+    requireContextInWorkspace(team.id, contextType, contextId)
+  ]);
+
   const awardedAtStr = optionalString(formData, "awarded_at") ?? new Date().toISOString().slice(0, 10);
   const dateObj = new Date(`${awardedAtStr}T00:00:00`);
 
@@ -107,7 +117,7 @@ export async function addWinnerPoints(formData: FormData) {
       playerId,
       context: contextMap[contextType] ?? "TRAINING",
       contextType,
-      contextId: optionalString(formData, "context_id"),
+      contextId,
       contextLabel: optionalString(formData, "context_label"),
       points,
       reason: optionalString(formData, "reason"),
@@ -146,6 +156,12 @@ export async function updateWinnerPoints(formData: FormData) {
     throw new Error("Winnerpunkte must be between 1 and 50.");
   }
 
+  const contextId = optionalString(formData, "context_id");
+  await Promise.all([
+    requirePlayerInWorkspace(team.id, playerId),
+    requireContextInWorkspace(team.id, contextType, contextId)
+  ]);
+
   const awardedAtStr = optionalString(formData, "awarded_at") ?? new Date().toISOString().slice(0, 10);
   const dateObj = new Date(`${awardedAtStr}T00:00:00`);
 
@@ -174,7 +190,7 @@ export async function updateWinnerPoints(formData: FormData) {
       playerId,
       context: contextMap[contextType] ?? "TRAINING",
       contextType,
-      contextId: optionalString(formData, "context_id"),
+      contextId,
       contextLabel: optionalString(formData, "context_label"),
       points,
       reason: optionalString(formData, "reason"),
@@ -195,7 +211,6 @@ export async function updateWinnerPoints(formData: FormData) {
 export async function deleteWinnerPoints(formData: FormData) {
   const { team } = await requireActiveTeam();
   const id = requiredString(formData, "id", "Winnerpunkte");
-  const playerId = optionalString(formData, "player_id");
 
   const wp = await db.winnerPoint.findFirst({
     where: {
@@ -218,8 +233,6 @@ export async function deleteWinnerPoints(formData: FormData) {
   revalidatePath("/points");
   revalidatePath("/clubcorner");
   revalidatePath("/player-mode");
-  if (playerId) {
-    revalidatePath(`/players/${playerId}`);
-  }
+  revalidatePath(`/players/${wp.playerId}`);
 }
 

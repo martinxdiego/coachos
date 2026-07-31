@@ -7,7 +7,6 @@ import { SideDrawer } from "@/components/side-drawer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 
 export function TrainingAiDraftDrawer({
@@ -47,7 +46,7 @@ export function TrainingAiDraftDrawer({
       </Button>
 
       <SideDrawer
-        eyebrow="KI · Claude Opus"
+        eyebrow="KI · anonymisierte Teamdaten"
         isOpen={isOpen}
         onClose={() => setIsOpen(false)}
         title="KI-Trainingsplan"
@@ -98,18 +97,9 @@ export function TrainingAiDraftDrawer({
               className="h-11 text-base"
             />
             <p className="text-[12px] leading-5 text-muted-foreground">
-              Je präziser der Schwerpunkt, desto fokussierter das Ergebnis.
+              Der Schwerpunkt wird vor der Übertragung einer allgemeinen
+              Trainingskategorie zugeordnet.
             </p>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="ai-context">Zusätzliche Anweisungen (optional)</Label>
-            <Textarea
-              id="ai-context"
-              name="context"
-              placeholder="z.B. Wir haben Mittwoch ein wichtiges Spiel, heute nur leichte Belastung. Oder: Fokus auf Standardsituationen einbauen."
-              rows={3}
-            />
           </div>
 
           {/* Was die KI analysiert */}
@@ -119,10 +109,10 @@ export function TrainingAiDraftDrawer({
             </p>
             <ul className="mt-2 space-y-1">
               {[
-                "Wellness-Werte aller Spieler (letzte 7 Tage)",
+                "Aggregierte Team-Ampel ohne Namen oder Rohwerte",
                 "Kader-Status: fit / eingeschränkt / verletzt",
-                "Letzte 4 Trainings (Intensität + Schwerpunkt)",
-                "Nächstes Spiel und verbleibende Tage",
+                "Intensitätsverteilung der letzten 4 Trainings",
+                "Nur die Anzahl Tage bis zum nächsten Spiel",
               ].map((item) => (
                 <li className="flex items-center gap-2 text-[12px] text-foreground/80" key={item}>
                   <span aria-hidden="true" className="h-1 w-1 rounded-full bg-primary" />
@@ -130,13 +120,17 @@ export function TrainingAiDraftDrawer({
                 </li>
               ))}
             </ul>
+            <p className="mt-3 border-t border-border/60 pt-3 text-[12px] leading-5 text-muted-foreground">
+              Spieler-, Team- und Gegnernamen, IDs, Freitexte und individuelle
+              Gesundheitswerte werden nicht an den KI-Anbieter übertragen.
+            </p>
           </div>
 
           <Button className="w-full" disabled={isPending} type="submit">
             {isPending ? (
               <>
                 <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
-                Claude generiert Trainingsplan…
+                KI generiert Trainingsplan…
               </>
             ) : (
               <>
@@ -148,7 +142,8 @@ export function TrainingAiDraftDrawer({
 
           {isPending ? (
             <p className="text-center text-[12px] text-muted-foreground">
-              Claude Opus analysiert dein Team und erstellt den Plan. Das dauert 10–20 Sekunden.
+              Der anonymisierte Entwurf wird erstellt. Das dauert in der Regel
+              10–20 Sekunden.
             </p>
           ) : null}
         </form>

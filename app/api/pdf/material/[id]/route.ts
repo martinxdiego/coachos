@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { MaterialDocument, type MaterialPlayerRow } from "@/lib/pdf/material-document";
 import { pdfDateString, safeFilename } from "@/lib/pdf/filename";
 import type { MaterialType, PlayerStatus } from "@/lib/types";
+import { assertProFeature } from "@/lib/billing";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -20,6 +21,7 @@ export async function GET(_request: Request, { params }: RouteParams) {
   }
 
   const { team } = await requireActiveTeam();
+  await assertProFeature(team.id, "PDF-Export");
 
   const materialRow = await db.material.findFirst({
     where: { id, workspaceId: team.id },

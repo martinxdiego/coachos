@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale } from "next-intl/server";
+import { ServiceWorkerRegistration } from "@/components/service-worker-registration";
+import { OfflineStatusBanner } from "@/components/offline-status-banner";
 import "./globals.css";
 
 export const viewport: Viewport = {
@@ -33,7 +35,11 @@ export default async function RootLayout({
   return (
     <html lang={locale}>
       <body>
-        <NextIntlClientProvider>{children}</NextIntlClientProvider>
+        <NextIntlClientProvider>
+          <ServiceWorkerRegistration />
+          <OfflineStatusBanner />
+          {children}
+        </NextIntlClientProvider>
       </body>
     </html>
   );

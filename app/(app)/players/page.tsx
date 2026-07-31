@@ -6,6 +6,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { requireActiveTeam } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { getOrCreatePlayerSignupInvite } from "@/lib/invites";
+import {
+  createSignedStorageUrls,
+  PLAYER_PHOTO_BUCKET
+} from "@/lib/storage";
 
 export const dynamic = "force-dynamic";
 
@@ -66,8 +70,13 @@ async function PlayersData({ teamId }: { teamId: string }) {
     },
     orderBy: { lastName: "asc" },
   });
+  const photoUrls = await createSignedStorageUrls(
+    PLAYER_PHOTO_BUCKET,
+    players.map((player) => player.photoUrl),
+    `${teamId}/`
+  );
 
-  const mappedPlayers: PlayerRow[] = players.map((p) => ({
+  const mappedPlayers: PlayerRow[] = players.map((p, index) => ({
     id: p.id,
     name: p.name,
     first_name: p.firstName,
@@ -79,7 +88,7 @@ async function PlayersData({ teamId }: { teamId: string }) {
     status: p.status.toLowerCase() as any,
     rating: p.rating,
     development_goals: p.developmentGoals,
-    photo_url: p.photoUrl,
+    photo_url: photoUrls[index],
   }));
 
   return <PlayersRoster players={mappedPlayers} />;
