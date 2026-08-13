@@ -1,4 +1,3 @@
-import { readFile } from "node:fs/promises";
 import { test, expect } from "@playwright/test";
 
 test.describe("CoachOS E2E Flow", () => {
@@ -101,14 +100,14 @@ test.describe("CoachOS E2E Flow", () => {
 
     // 7. Export the complete workspace archive as its owner
     await page.goto("/workspaces");
-    const downloadPromise = page.waitForEvent("download");
-    await page.getByRole("link", {
+    const exportLink = page.getByRole("link", {
       name: "Datenarchiv herunterladen"
-    }).click();
-    const download = await downloadPromise;
-    const downloadPath = await download.path();
-    expect(downloadPath).not.toBeNull();
-    const archive = JSON.parse(await readFile(downloadPath!, "utf8"));
+    });
+    const exportHref = await exportLink.getAttribute("href");
+    expect(exportHref).not.toBeNull();
+    const exportResponse = await page.request.get(exportHref!);
+    expect(exportResponse.ok()).toBeTruthy();
+    const archive = await exportResponse.json();
     expect(archive.workspace.name).toBe(teamName);
     expect(archive.players).toHaveLength(1);
     expect(JSON.stringify(archive)).not.toContain("accessToken");
