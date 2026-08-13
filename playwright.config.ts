@@ -6,7 +6,8 @@ export default defineConfig({
   timeout: 180000,
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 2 : 0,
+  retries: process.env.CI ? 1 : 0,
+  maxFailures: process.env.CI ? 1 : undefined,
   workers: 1,
   reporter: "list",
   webServer: {
