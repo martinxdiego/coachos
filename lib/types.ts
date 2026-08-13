@@ -6,7 +6,17 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[];
 
-export type AttendanceStatus = "present" | "absent";
+export type AttendanceStatus =
+  | "present"
+  | "absent"
+  | "excused"
+  | "unexcused"
+  | "injured"
+  | "sick"
+  | "vacation"
+  | "late"
+  | "individual"
+  | "not_selected";
 export type TeamRole = "owner" | "coach" | "assistant";
 export type StrongFoot = "left" | "right" | "both";
 export type PlayerStatus = "available" | "injured" | "limited" | "absent";
@@ -389,6 +399,9 @@ export interface Database {
           training_id: string;
           player_id: string;
           status: AttendanceStatus;
+          note: string | null;
+          late_minutes: number | null;
+          participation_percent: number | null;
           created_at: string;
           updated_at: string;
         };
@@ -399,6 +412,9 @@ export interface Database {
           training_id: string;
           player_id: string;
           status: AttendanceStatus;
+          note?: string | null;
+          late_minutes?: number | null;
+          participation_percent?: number | null;
           created_at?: string;
           updated_at?: string;
         };

@@ -21,6 +21,7 @@ import {
   DashboardAbsenceOverview,
   DashboardAbsenceOverviewSkeleton
 } from "@/components/dashboard-absence-overview";
+import { DashboardTrainingAttendance } from "@/components/dashboard-training-attendance";
 import { FirstRunChecklist } from "@/components/first-run-checklist";
 import { EmptyState } from "@/components/empty-state";
 import { Badge } from "@/components/ui/badge";
@@ -949,6 +950,9 @@ async function DashboardSections({ team }: { team: Workspace }) {
 
       <Suspense fallback={<DashboardAbsenceOverviewSkeleton />}>
         <DashboardAbsenceOverview teamId={teamId} />
+      </Suspense>
+      <Suspense fallback={null}>
+        <DashboardTrainingAttendance teamId={teamId} />
       </Suspense>
 
       {/* Quick Actions */}

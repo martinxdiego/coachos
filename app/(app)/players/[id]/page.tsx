@@ -46,6 +46,7 @@ import {
   winnerPointTotal
 } from "@/lib/coach-metrics";
 import { requireActiveTeam } from "@/lib/auth";
+import { attendanceRate as calculateAttendanceRate } from "@/lib/attendance";
 import { db } from "@/lib/db";
 import { formatDate, formatDateTime, todayIsoDate } from "@/lib/utils";
 import type { EvaluationContextType } from "@/lib/types";
@@ -299,11 +300,7 @@ export default async function PlayerProfilePage({
     updated_at: m.updatedAt.toISOString()
   }));
 
-  const presentCount = attendance.filter((item) => item.status === "present").length;
-  const attendanceRate =
-    attendance.length > 0
-      ? Math.round((presentCount / attendance.length) * 100)
-      : null;
+  const attendanceRate = calculateAttendanceRate(attendance);
   const evaluationValues = evaluations
     .map(evaluationAverage)
     .filter((value): value is number => value !== null);

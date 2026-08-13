@@ -409,14 +409,17 @@ model WinnerPoint {
 }
 
 model Attendance {
-  id         String           @id @default(uuid())
-  trainingId String
-  playerId   String
-  status     AttendanceStatus @default(present)
-  createdAt  DateTime         @default(now())
-  updatedAt  DateTime         @updatedAt
-  player     Player           @relation(fields: [playerId], references: [id], onDelete: Cascade)
-  training   Training         @relation(fields: [trainingId], references: [id], onDelete: Cascade)
+  id                   String           @id @default(uuid())
+  trainingId           String
+  playerId             String
+  status               AttendanceStatus @default(present)
+  note                 String?
+  lateMinutes          Int?
+  participationPercent Int?
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+  player               Player           @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  training             Training         @relation(fields: [trainingId], references: [id], onDelete: Cascade)
 
   @@unique([trainingId, playerId])
   @@index([playerId])
@@ -719,6 +722,14 @@ enum WinnerPointContext {
 enum AttendanceStatus {
   present
   absent
+  excused
+  unexcused
+  injured
+  sick
+  vacation
+  late
+  individual
+  not_selected
 }
 
 enum MondayAttendanceStatus {

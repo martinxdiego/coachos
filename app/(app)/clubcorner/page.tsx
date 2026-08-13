@@ -26,6 +26,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { evaluationAverage, winnerPointTotal } from "@/lib/coach-metrics";
+import { attendanceRate } from "@/lib/attendance";
 import { requireActiveTeam } from "@/lib/auth";
 import { formatDateTime } from "@/lib/utils";
 import type { ExternalLinkType, EvaluationContextType } from "@/lib/types";
@@ -170,9 +171,6 @@ export default async function ClubcornerPage() {
     const attendanceForPlayer = attendance.filter(
       (row) => row.player_id === player.id
     );
-    const present = attendanceForPlayer.filter(
-      (row) => row.status === "present"
-    ).length;
     const feedbackForPlayer = feedback.filter(
       (item) => item.player_id === player.id
     );
@@ -198,10 +196,7 @@ export default async function ClubcornerPage() {
       appearances: evaluationsForPlayer.filter(
         (evaluation) => evaluation.context_type === "match"
       ).length,
-      attendanceRate:
-        attendanceForPlayer.length > 0
-          ? Math.round((present / attendanceForPlayer.length) * 100)
-          : null,
+      attendanceRate: attendanceRate(attendanceForPlayer),
       avgFeedback,
       avgEvaluation,
       winnerPoints: winnerPointTotal(
