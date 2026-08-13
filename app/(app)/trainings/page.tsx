@@ -124,7 +124,10 @@ async function TrainingsData({ teamId }: { teamId: string }) {
   const attendanceRows = attendanceData.map((a) => ({
     training_id: a.trainingId,
     player_id: a.playerId,
-    status: a.status as any
+    status: a.status as any,
+    note: a.note,
+    late_minutes: a.lateMinutes,
+    participation_percent: a.participationPercent
   }));
 
   const phases = phasesData.map((p, index) => ({

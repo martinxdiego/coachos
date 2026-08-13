@@ -6,8 +6,8 @@ import {
   Trophy,
   UsersRound
 } from "lucide-react";
-import { saveAttendance } from "@/app/actions";
 import { getTranslations } from "next-intl/server";
+import { AttendanceEditor } from "@/components/attendance-editor";
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
@@ -21,7 +21,7 @@ import {
 import { db } from "@/lib/db";
 import { requireActiveTeam } from "@/lib/auth";
 import { formatDate } from "@/lib/utils";
-import type { AttendanceStatus } from "@/lib/types";
+import { isAttendedStatus } from "@/lib/attendance";
 
 export const dynamic = "force-dynamic";
 
@@ -119,18 +119,27 @@ export default async function PitchPage() {
         },
         select: {
           playerId: true,
-          status: true
+          status: true,
+          note: true,
+          lateMinutes: true,
+          participationPercent: true
         }
       })
     : [];
 
-  const attendance = new Map<string, AttendanceStatus>();
-  for (const row of dbAttendance) {
-    attendance.set(row.playerId, row.status as AttendanceStatus);
-  }
+  const attendance = dbAttendance.map((row) => ({
+    player_id: row.playerId,
+    status: row.status,
+    note: row.note,
+    late_minutes: row.lateMinutes,
+    participation_percent: row.participationPercent
+  }));
+  const attendanceByPlayer = new Map(
+    attendance.map((row) => [row.player_id, row])
+  );
 
   const presentCount = players.filter(
-    (player) => attendance.get(player.id) === "present"
+    (player) => isAttendedStatus(attendanceByPlayer.get(player.id)?.status)
   ).length;
 
   return (
@@ -235,45 +244,11 @@ export default async function PitchPage() {
           </CardHeader>
           <CardContent>
             {training && players.length > 0 ? (
-              <form action={saveAttendance} className="space-y-4">
-                <input name="training_id" type="hidden" value={training.id} />
-                <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-                  {players.map((player) => {
-                    const status = attendance.get(player.id);
-                    return (
-                      <label
-                        className="flex min-h-16 items-center justify-between gap-3 rounded-xl border border-border bg-background/80 px-3 py-3 text-sm transition hover:border-primary/40 hover:bg-white"
-                        key={player.id}
-                      >
-                        <input name="player_id" type="hidden" value={player.id} />
-                        <span className="flex min-w-0 items-center gap-3">
-                          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-950 text-xs font-semibold text-white">
-                            {player.jersey_number ?? "-"}
-                          </span>
-                          <span className="min-w-0">
-                            <span className="block truncate font-medium">
-                              {player.name}
-                            </span>
-                            <span className="text-xs text-muted-foreground">
-                              {player.position ?? "Ohne Position"}
-                            </span>
-                          </span>
-                        </span>
-                        <input
-                          className="h-6 w-6 rounded border-input accent-[hsl(var(--primary))]"
-                          defaultChecked={status === "present"}
-                          name="present_player_id"
-                          type="checkbox"
-                          value={player.id}
-                        />
-                      </label>
-                    );
-                  })}
-                </div>
-                <Button className="w-full sm:w-auto" type="submit">
-                  Anwesenheit speichern
-                </Button>
-              </form>
+              <AttendanceEditor
+                attendance={attendance}
+                players={players}
+                trainingId={training.id}
+              />
             ) : (
               <EmptyState
                 body="Plane zuerst ein kommendes Training, dann wird hier die schnelle Anwesenheit angezeigt."

@@ -114,7 +114,7 @@ export default async function HealthPage() {
   const attendanceData = await db.attendance.findMany({
     where: {
       playerId: { in: playersData.map((player) => player.id) },
-      status: "present",
+      status: { in: ["present", "late", "individual"] },
       training: {
         workspaceId: team.id,
         date: { gte: sevenDaysAgo }

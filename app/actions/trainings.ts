@@ -6,6 +6,10 @@ import { cookies, headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { healthRisk } from "@/lib/coach-metrics";
+import {
+  attendanceStatuses,
+  isAttendedStatus
+} from "@/lib/attendance";
 import { ACTIVE_TEAM_COOKIE, requireActiveTeam, requireUser } from "@/lib/auth";
 import { signIn as nextAuthSignIn, signOut as nextAuthSignOut } from "@/lib/auth";
 import bcrypt from "bcryptjs";
@@ -657,7 +661,6 @@ export async function saveAttendance(formData: FormData) {
   const { team } = await requireActiveTeam();
   const trainingId = requiredString(formData, "training_id", "Training");
   const playerIds = formData.getAll("player_id").map(String);
-  const presentIds = new Set(formData.getAll("present_player_id").map(String));
   const uniquePlayerIds = Array.from(new Set(playerIds));
 
   await Promise.all([
@@ -666,19 +669,61 @@ export async function saveAttendance(formData: FormData) {
   ]);
 
   const rows = uniquePlayerIds.map((playerId) => {
-    const status: AttendanceStatus = presentIds.has(playerId)
-      ? "present"
-      : "absent";
+    const status = enumValue(
+      formData,
+      `attendance_status_${playerId}`,
+      attendanceStatuses
+    );
+    if (!status) {
+      throw new Error("Ungültiger Anwesenheitsstatus.");
+    }
+
+    const note = optionalString(formData, `attendance_note_${playerId}`);
+    if (note && note.length > 500) {
+      throw new Error("Bemerkungen dürfen höchstens 500 Zeichen lang sein.");
+    }
+
+    const rawLateMinutes = optionalNumber(
+      formData,
+      `attendance_late_minutes_${playerId}`
+    );
+    if (
+      rawLateMinutes !== null &&
+      (!Number.isInteger(rawLateMinutes) ||
+        rawLateMinutes < 0 ||
+        rawLateMinutes > 240)
+    ) {
+      throw new Error("Verspätung muss zwischen 0 und 240 Minuten liegen.");
+    }
+
+    const rawParticipation = optionalNumber(
+      formData,
+      `attendance_participation_${playerId}`
+    );
+    if (
+      rawParticipation !== null &&
+      (!Number.isInteger(rawParticipation) ||
+        rawParticipation < 0 ||
+        rawParticipation > 100)
+    ) {
+      throw new Error("Trainingsanteil muss zwischen 0 und 100 Prozent liegen.");
+    }
 
     return {
       trainingId,
       playerId,
-      status
+      status: status as AttendanceStatus,
+      note,
+      lateMinutes: status === "late" ? rawLateMinutes : null,
+      participationPercent: isAttendedStatus(status)
+        ? (rawParticipation ?? 100)
+        : null
     };
   });
 
-  for (const row of rows) {
-    await db.attendance.upsert({
+  await db.$transaction(
+    rows.map((row) =>
+      db.attendance.upsert({
       where: {
         trainingId_playerId: {
           trainingId: row.trainingId,
@@ -688,13 +733,20 @@ export async function saveAttendance(formData: FormData) {
       create: {
         trainingId: row.trainingId,
         playerId: row.playerId,
-        status: row.status
+        status: row.status,
+        note: row.note,
+        lateMinutes: row.lateMinutes,
+        participationPercent: row.participationPercent
       },
       update: {
-        status: row.status
+        status: row.status,
+        note: row.note,
+        lateMinutes: row.lateMinutes,
+        participationPercent: row.participationPercent
       }
-    });
-  }
+      })
+    )
+  );
 
   revalidatePath("/");
   revalidatePath("/pitch");

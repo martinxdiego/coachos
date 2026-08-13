@@ -21,12 +21,12 @@ import {
   deleteTrainingWeek,
   duplicateTraining,
   reorderPhase,
-  saveAttendance,
   savePlayerEvaluation,
   updateTraining,
   updateTrainingPhase
 } from "@/app/actions";
 import { useConfirm } from "@/components/confirm-dialog";
+import { AttendanceEditor } from "@/components/attendance-editor";
 import { EmptyState } from "@/components/empty-state";
 import { PdfDownloadButton } from "@/components/pdf-download-button";
 import { PhaseMediaMenu } from "@/components/phase-media-menu";
@@ -39,6 +39,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { cn, formatDate } from "@/lib/utils";
+import { isAttendedStatus } from "@/lib/attendance";
 import type { AttendanceStatus, TrainingIntensity, TrainingPhase, TrainingPhaseType } from "@/lib/types";
 
 type TrainingListItem = {
@@ -60,6 +61,9 @@ type AttendanceRow = {
   player_id: string;
   status: AttendanceStatus;
   training_id: string;
+  note: string | null;
+  late_minutes: number | null;
+  participation_percent: number | null;
 };
 
 type PlayerRow = {
@@ -246,10 +250,11 @@ export function TrainingWeekAccordion({
   }, [phases]);
 
   const attendanceByTraining = useMemo(() => {
-    const map = new Map<string, Map<string, AttendanceStatus>>();
+    const map = new Map<string, Map<string, AttendanceRow>>();
     for (const row of attendanceRows) {
-      const trainingMap = map.get(row.training_id) ?? new Map<string, AttendanceStatus>();
-      trainingMap.set(row.player_id, row.status);
+      const trainingMap =
+        map.get(row.training_id) ?? new Map<string, AttendanceRow>();
+      trainingMap.set(row.player_id, row);
       map.set(row.training_id, trainingMap);
     }
     return map;
@@ -630,9 +635,9 @@ export function TrainingWeekAccordion({
                     const trainingPhases = phasesByTraining.get(training.id) ?? [];
                     const attendance =
                       attendanceByTraining.get(training.id) ??
-                      new Map<string, AttendanceStatus>();
+                      new Map<string, AttendanceRow>();
                     const presentCount = players.filter(
-                      (player) => attendance.get(player.id) === "present"
+                      (player) => isAttendedStatus(attendance.get(player.id)?.status)
                     ).length;
                     const isTrainingOpen = openTrainings.has(training.id);
                     const isEditing = editingIds.has(training.id);
@@ -813,9 +818,11 @@ export function TrainingWeekAccordion({
                                   </p>
                                 </div>
                                 <div className="rounded-lg bg-secondary px-3 py-2">
-                                  <p className="text-xs text-muted-foreground">Anwesend</p>
+                                  <p className="text-xs text-muted-foreground">Präsenz</p>
                                   <p className="font-semibold">
-                                    {presentCount}/{players.length}
+                                    {presentCount}/{players.length} · {players.length > 0
+                                      ? Math.round((presentCount / players.length) * 100)
+                                      : 0}%
                                   </p>
                                 </div>
                                 <div className="rounded-lg bg-secondary px-3 py-2">
@@ -1071,54 +1078,11 @@ export function TrainingWeekAccordion({
                                   <summary className="cursor-pointer text-[14px] font-semibold tracking-tight">
                                     Anwesenheit erfassen ({presentCount}/{players.length})
                                   </summary>
-                                  <ToastForm
-                                    action={saveAttendance}
-                                    className="mt-4 space-y-3"
-                                    successMessage="Anwesenheit gespeichert"
-                                  >
-                                    <input
-                                      name="training_id"
-                                      type="hidden"
-                                      defaultValue={training.id}
-                                    />
-                                    <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-                                      {players.map((player) => {
-                                        const status = attendance.get(player.id);
-                                        return (
-                                          <label
-                                            className="flex items-center justify-between gap-3 rounded-lg border border-border bg-white px-3 py-3 text-sm"
-                                            key={player.id}
-                                          >
-                                            <input
-                                              name="player_id"
-                                              type="hidden"
-                                              defaultValue={player.id}
-                                            />
-                                            <span className="min-w-0">
-                                              <span className="block truncate font-medium">
-                                                {player.name}
-                                              </span>
-                                              {player.position ? (
-                                                <span className="text-xs text-muted-foreground">
-                                                  {player.position}
-                                                </span>
-                                              ) : null}
-                                            </span>
-                                            <input
-                                              className="h-4 w-4 rounded border-input accent-[hsl(var(--primary))]"
-                                              defaultChecked={status === "present"}
-                                              name="present_player_id"
-                                              type="checkbox"
-                                              value={player.id}
-                                            />
-                                          </label>
-                                        );
-                                      })}
-                                    </div>
-                                    <Button type="submit" variant="secondary">
-                                      Anwesenheit speichern
-                                    </Button>
-                                  </ToastForm>
+                                  <AttendanceEditor
+                                    attendance={Array.from(attendance.values())}
+                                    players={players}
+                                    trainingId={training.id}
+                                  />
                                 </details>
                               ) : null}
 
