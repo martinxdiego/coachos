@@ -14,6 +14,8 @@ const statusUi = {
   NO: { label: "Abwesend", variant: "destructive" as const, icon: X }
 };
 
+const statusOrder = { NO: 0, MAYBE: 1, OPEN: 2, YES: 3 } as const;
+
 export default async function AvailabilityPage() {
   const { team } = await requireActiveTeam();
   const today = new Date(`${todayIsoDate()}T00:00:00.000Z`);
@@ -71,6 +73,7 @@ export default async function AvailabilityPage() {
             eventId: true,
             playerId: true,
             status: true,
+            comment: true,
             respondedAt: true
           }
         })
@@ -99,12 +102,19 @@ export default async function AvailabilityPage() {
       {events.length > 0 ? (
         <div className="space-y-4">
           {events.map((event) => {
-            const eventResponses = players.map((player) => ({
-              player,
-              response: responseMap.get(
-                `${event.type}:${event.id}:${player.id}`
-              )
-            }));
+            const eventResponses = players
+              .map((player) => ({
+                player,
+                response: responseMap.get(
+                  `${event.type}:${event.id}:${player.id}`
+                )
+              }))
+              .sort((a, b) => {
+                return (
+                  statusOrder[a.response?.status ?? "OPEN"] -
+                  statusOrder[b.response?.status ?? "OPEN"]
+                );
+              });
             const counts = {
               YES: eventResponses.filter((item) => item.response?.status === "YES").length,
               MAYBE: eventResponses.filter((item) => item.response?.status === "MAYBE").length,
@@ -138,14 +148,25 @@ export default async function AvailabilityPage() {
                       const Icon = ui?.icon ?? UsersRound;
                       return (
                         <div
-                          className="flex min-h-12 items-center justify-between gap-3 rounded-xl border border-border/70 bg-secondary/30 px-3 py-2"
+                          className={`flex min-h-14 items-start justify-between gap-3 rounded-xl border px-3 py-2.5 ${
+                            response?.status === "NO"
+                              ? "border-red-200/80 bg-red-50/70"
+                              : "border-border/70 bg-secondary/30"
+                          }`}
                           key={player.id}
                         >
-                          <span className="truncate text-sm font-medium">
-                            {player.jerseyNumber ? `#${player.jerseyNumber} ` : ""}
-                            {player.name}
-                          </span>
-                          <Badge variant={ui?.variant ?? "outline"}>
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-medium">
+                              {player.jerseyNumber ? `#${player.jerseyNumber} ` : ""}
+                              {player.name}
+                            </p>
+                            {response?.comment ? (
+                              <p className="mt-0.5 line-clamp-2 text-[12px] leading-5 text-muted-foreground">
+                                {response.comment}
+                              </p>
+                            ) : null}
+                          </div>
+                          <Badge className="mt-0.5 shrink-0" variant={ui?.variant ?? "outline"}>
                             <Icon aria-hidden="true" className="mr-1 h-3 w-3" />
                             {ui?.label ?? "Offen"}
                           </Badge>

@@ -17,6 +17,10 @@ import { toggleTask } from "@/app/actions";
 import { DashboardOnboarding } from "@/components/dashboard-onboarding";
 import { DashboardDetails } from "@/components/dashboard-details";
 import { DashboardQuickActions } from "@/components/dashboard-quick-actions";
+import {
+  DashboardAbsenceOverview,
+  DashboardAbsenceOverviewSkeleton
+} from "@/components/dashboard-absence-overview";
 import { FirstRunChecklist } from "@/components/first-run-checklist";
 import { EmptyState } from "@/components/empty-state";
 import { Badge } from "@/components/ui/badge";
@@ -943,6 +947,9 @@ async function DashboardSections({ team }: { team: Workspace }) {
         </section>
       ) : null}
 
+      <Suspense fallback={<DashboardAbsenceOverviewSkeleton />}>
+        <DashboardAbsenceOverview teamId={teamId} />
+      </Suspense>
 
       {/* Quick Actions */}
       <DashboardQuickActions players={checkinPlayers} />

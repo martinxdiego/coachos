@@ -668,5 +668,6 @@ export async function submitAvailability(formData: FormData) {
   });
   revalidatePath("/player");
   revalidatePath("/availability");
+  revalidatePath("/");
   return { ok: true as const, id: response.id, status };
 }

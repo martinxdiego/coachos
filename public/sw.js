@@ -1,4 +1,4 @@
-const CACHE_VERSION = "v4";
+const CACHE_VERSION = "v5";
 const PRECACHE_NAME = `coachos-precache-${CACHE_VERSION}`;
 const RUNTIME_CACHE_NAME = `coachos-runtime-${CACHE_VERSION}`;
 const CACHE_PREFIX = "coachos-";
@@ -62,6 +62,22 @@ async function cacheFirstStaticAsset(request) {
   return response;
 }
 
+async function networkFirstNextAsset(request) {
+  try {
+    const response = await fetch(request);
+    if (!response.ok) return response;
+
+    const cache = await caches.open(RUNTIME_CACHE_NAME);
+    await cache.put(request, response.clone());
+    await trimRuntimeCache(cache);
+    return response;
+  } catch {
+    const cached = await caches.match(request);
+    if (cached) return cached;
+    throw new Error("Next.js asset is unavailable.");
+  }
+}
+
 self.addEventListener("fetch", (event) => {
   const request = event.request;
   if (request.method !== "GET") return;
@@ -74,10 +90,13 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
+  if (url.pathname.startsWith("/_next/static/")) {
+    event.respondWith(networkFirstNextAsset(request));
+    return;
+  }
+
   const isStaticAsset =
-    url.pathname.startsWith("/_next/static/") ||
-    url.pathname.startsWith("/icons/") ||
-    url.pathname === "/manifest.json";
+    url.pathname.startsWith("/icons/") || url.pathname === "/manifest.json";
 
   if (!isStaticAsset) return;
 
